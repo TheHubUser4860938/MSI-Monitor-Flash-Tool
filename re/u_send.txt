@@ -1,0 +1,56 @@
+==== SendUsbPacket  RVA 0x5710 ====
+  00005710  55                   push ebp
+  00005711  8bec                 mov ebp, esp
+  00005713  a188ee1d10           mov eax, dword ptr [0x101dee88]
+  00005718  85c0                 test eax, eax
+  0000571a  7507                 jne 0x10005723
+  0000571c  b806000000           mov eax, 6
+  00005721  5d                   pop ebp
+  00005722  c3                   ret 
+  00005723  5d                   pop ebp
+  00005724  ffe0                 jmp eax
+  00005726  cc                   int3 
+  00005727  cc                   int3 
+  00005728  cc                   int3 
+  00005729  cc                   int3 
+  0000572a  cc                   int3 
+  0000572b  cc                   int3 
+  0000572c  cc                   int3 
+  0000572d  cc                   int3 
+  0000572e  cc                   int3 
+  0000572f  cc                   int3 
+  00005730  55                   push ebp
+  00005731  8bec                 mov ebp, esp
+  00005733  a18cee1d10           mov eax, dword ptr [0x101dee8c]
+  00005738  85c0                 test eax, eax
+  0000573a  7507                 jne 0x10005743
+  0000573c  b806000000           mov eax, 6
+  00005741  5d                   pop ebp
+  00005742  c3                   ret 
+  00005743  5d                   pop ebp
+  00005744  ffe0                 jmp eax
+  00005746  cc                   int3 
+  00005747  cc                   int3 
+  00005748  cc                   int3 
+  00005749  cc                   int3 
+  0000574a  cc                   int3 
+  0000574b  cc                   int3 
+  0000574c  cc                   int3 
+  0000574d  cc                   int3 
+  0000574e  cc                   int3 
+  0000574f  cc                   int3 
+  00005750  a1e8ee1d10           mov eax, dword ptr [0x101deee8]
+  00005755  85c0                 test eax, eax
+  00005757  7506                 jne 0x1000575f
+  00005759  b806000000           mov eax, 6
+  0000575e  c3                   ret 
+  0000575f  ffe0                 jmp eax
+  00005761  cc                   int3 
+  00005762  cc                   int3 
+  00005763  cc                   int3 
+  00005764  cc                   int3 
+  00005765  cc                   int3 
+  00005766  cc                   int3 
+  00005767  cc                   int3 
+  00005768  cc                   int3 
+  00005769  cc                   int3 

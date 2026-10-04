@@ -1,0 +1,70 @@
+==== SetNewRealtekUSBMode  RVA 0xc7b0 ====
+  0000c7b0  55                   push ebp
+  0000c7b1  8bec                 mov ebp, esp
+  0000c7b3  a168ee1d10           mov eax, dword ptr [0x101dee68]
+  0000c7b8  85c0                 test eax, eax
+  0000c7ba  7507                 jne 0x1000c7c3
+  0000c7bc  b806000000           mov eax, 6
+  0000c7c1  5d                   pop ebp
+  0000c7c2  c3                   ret 
+  0000c7c3  5d                   pop ebp
+  0000c7c4  ffe0                 jmp eax
+  0000c7c6  cc                   int3 
+  0000c7c7  cc                   int3 
+  0000c7c8  cc                   int3 
+  0000c7c9  cc                   int3 
+  0000c7ca  cc                   int3 
+  0000c7cb  cc                   int3 
+  0000c7cc  cc                   int3 
+  0000c7cd  cc                   int3 
+  0000c7ce  cc                   int3 
+  0000c7cf  cc                   int3 
+  0000c7d0  55                   push ebp
+  0000c7d1  8bec                 mov ebp, esp
+  0000c7d3  a164ee1d10           mov eax, dword ptr [0x101dee64]
+  0000c7d8  85c0                 test eax, eax
+  0000c7da  7507                 jne 0x1000c7e3
+  0000c7dc  b806000000           mov eax, 6
+  0000c7e1  5d                   pop ebp
+  0000c7e2  c3                   ret 
+  0000c7e3  5d                   pop ebp
+  0000c7e4  ffe0                 jmp eax
+  0000c7e6  cc                   int3 
+  0000c7e7  cc                   int3 
+  0000c7e8  cc                   int3 
+  0000c7e9  cc                   int3 
+  0000c7ea  cc                   int3 
+  0000c7eb  cc                   int3 
+  0000c7ec  cc                   int3 
+  0000c7ed  cc                   int3 
+  0000c7ee  cc                   int3 
+  0000c7ef  cc                   int3 
+  0000c7f0  a160ee1d10           mov eax, dword ptr [0x101dee60]
+  0000c7f5  85c0                 test eax, eax
+  0000c7f7  7506                 jne 0x1000c7ff
+  0000c7f9  b806000000           mov eax, 6
+  0000c7fe  c3                   ret 
+  0000c7ff  ffe0                 jmp eax
+  0000c801  cc                   int3 
+  0000c802  cc                   int3 
+  0000c803  cc                   int3 
+  0000c804  cc                   int3 
+  0000c805  cc                   int3 
+  0000c806  cc                   int3 
+  0000c807  cc                   int3 
+  0000c808  cc                   int3 
+  0000c809  cc                   int3 
+  0000c80a  cc                   int3 
+  0000c80b  cc                   int3 
+  0000c80c  cc                   int3 
+  0000c80d  cc                   int3 
+  0000c80e  cc                   int3 
+  0000c80f  cc                   int3 
+  0000c810  55                   push ebp
+  0000c811  8bec                 mov ebp, esp
+  0000c813  a1a4491d10           mov eax, dword ptr [0x101d49a4]
+  0000c818  33c9                 xor ecx, ecx
+  0000c81a  48                   dec eax
+  0000c81b  83f804               cmp eax, 4
+  0000c81e  773a                 ja 0x1000c85a
+  0000c820  ff248560c80010       jmp dword ptr [eax*4 + 0x1000c860]

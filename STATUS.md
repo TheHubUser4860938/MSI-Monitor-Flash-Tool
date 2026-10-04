@@ -442,3 +442,18 @@ Monitor state: FW.009 untouched, DP-only, healthy. sudo NOPASSWD drop-in
        "MAG 341CQ X28" @0xF806 through the window.
   HDMI cable currently UNPLUGGED (user power-cycled + removed DP/HDMI dual-input
   wedge). Needs user to re-plug HDMI (secondary input; DP stays video source).
+
+## Session 7 (evening) — USB-C lane: investigated and CLOSED (manual + kernel receipts)
+- Hypothesis: Realtek hubs (bus 10/11, 0bda:5411/0411) = monitor Type-C ISP pipe. **Refuted:**
+  they enumerate at boot (dmesg t=1.7s, before any cable work), mount at internal header ports
+  (10-3/11-3), and everything attached is motherboard peripherals (kb/mouse/AURA/DualShock).
+- Monitor Type-C = exactly one USB function ever: VIA 2109:0103 Billboard (Alt-mode status only).
+- MSI manual (MAG_341CQP_QD-OLED_X28v1.0, p.7 item 10): Type-C "only carries video signals and
+  doesn't support data transmission function"; spec page: "Non Support: KVM". Port is DP-Alt + 15W PD, data unpopulated.
+- Comm.dll DOES contain a full USB backend (GetUsbDevicePath/Send-ReceiveUsbPacket/
+  SetNewRealtekUSBMode/TypeCUsb*SysDevice; CreateFileW+ReadFile/WriteFile device-handle model)
+  -- feature of the shared multi-model tool for boards WITH a populated hub/upstream. Not this board.
+- Consequence: DDC/CI via DP (slave 0x37) remains the ONLY physical lane. Fork A/B question is
+  unchanged and remains THE next step: mine opcode-switch at WinIspPlugIn+0x3c80 + IspFlash body.
+- re/u_*.txt: fresh 32-bit dumps of the USB exports (dispatcher thunks -> backend vtable) kept for
+  reference in case a hub-populated model (271QPX/321UP family) is ever ported.

@@ -1,0 +1,51 @@
+==== ReceiveUsbPacket  RVA 0x5730 ====
+  00005730  55                   push ebp
+  00005731  8bec                 mov ebp, esp
+  00005733  a18cee1d10           mov eax, dword ptr [0x101dee8c]
+  00005738  85c0                 test eax, eax
+  0000573a  7507                 jne 0x10005743
+  0000573c  b806000000           mov eax, 6
+  00005741  5d                   pop ebp
+  00005742  c3                   ret 
+  00005743  5d                   pop ebp
+  00005744  ffe0                 jmp eax
+  00005746  cc                   int3 
+  00005747  cc                   int3 
+  00005748  cc                   int3 
+  00005749  cc                   int3 
+  0000574a  cc                   int3 
+  0000574b  cc                   int3 
+  0000574c  cc                   int3 
+  0000574d  cc                   int3 
+  0000574e  cc                   int3 
+  0000574f  cc                   int3 
+  00005750  a1e8ee1d10           mov eax, dword ptr [0x101deee8]
+  00005755  85c0                 test eax, eax
+  00005757  7506                 jne 0x1000575f
+  00005759  b806000000           mov eax, 6
+  0000575e  c3                   ret 
+  0000575f  ffe0                 jmp eax
+  00005761  cc                   int3 
+  00005762  cc                   int3 
+  00005763  cc                   int3 
+  00005764  cc                   int3 
+  00005765  cc                   int3 
+  00005766  cc                   int3 
+  00005767  cc                   int3 
+  00005768  cc                   int3 
+  00005769  cc                   int3 
+  0000576a  cc                   int3 
+  0000576b  cc                   int3 
+  0000576c  cc                   int3 
+  0000576d  cc                   int3 
+  0000576e  cc                   int3 
+  0000576f  cc                   int3 
+  00005770  55                   push ebp
+  00005771  8bec                 mov ebp, esp
+  00005773  51                   push ecx
+  00005774  a110ef1d10           mov eax, dword ptr [0x101def10]
+  00005779  85c0                 test eax, eax
+  0000577b  7441                 je 0x100057be
+  0000577d  ffd0                 call eax
+  0000577f  83f808               cmp eax, 8
+  00005782  753a                 jne 0x100057be

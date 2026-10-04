@@ -1,0 +1,42 @@
+==== WriteSysDevice  RVA 0x6700 ====
+  00006700  55                   push ebp
+  00006701  8bec                 mov ebp, esp
+  00006703  a110ef1d10           mov eax, dword ptr [0x101def10]
+  00006708  83ec20               sub esp, 0x20
+  0000670b  56                   push esi
+  0000670c  33f6                 xor esi, esi
+  0000670e  85c0                 test eax, eax
+  00006710  744d                 je 0x1000675f
+  00006712  ffd0                 call eax
+  00006714  83f808               cmp eax, 8
+  00006717  7546                 jne 0x1000675f
+  00006719  837d1801             cmp dword ptr [ebp + 0x18], 1
+  0000671d  b900050000           mov ecx, 0x500
+  00006722  0fb64508             movzx eax, byte ptr [ebp + 8]
+  00006726  7405                 je 0x1000672d
+  00006728  b900010000           mov ecx, 0x100
+  0000672d  660bc1               or ax, cx
+  00006730  8b0d88ee1d10         mov ecx, dword ptr [0x101dee88]
+  00006736  0fb7d0               movzx edx, ax
+  00006739  85c9                 test ecx, ecx
+==== ReadSysDevice  RVA 0x6540 ====
+  00006540  55                   push ebp
+  00006541  8bec                 mov ebp, esp
+  00006543  a110ef1d10           mov eax, dword ptr [0x101def10]
+  00006548  83ec1c               sub esp, 0x1c
+  0000654b  56                   push esi
+  0000654c  33f6                 xor esi, esi
+  0000654e  85c0                 test eax, eax
+  00006550  744d                 je 0x1000659f
+  00006552  ffd0                 call eax
+  00006554  83f808               cmp eax, 8
+  00006557  7546                 jne 0x1000659f
+  00006559  837d1801             cmp dword ptr [ebp + 0x18], 1
+  0000655d  b900050000           mov ecx, 0x500
+  00006562  0fb64508             movzx eax, byte ptr [ebp + 8]
+  00006566  7405                 je 0x1000656d
+  00006568  b900010000           mov ecx, 0x100
+  0000656d  660bc1               or ax, cx
+  00006570  8b0d8cee1d10         mov ecx, dword ptr [0x101dee8c]
+  00006576  0fb7d0               movzx edx, ax
+  00006579  85c9                 test ecx, ecx

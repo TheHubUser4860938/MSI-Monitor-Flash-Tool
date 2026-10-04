@@ -1,0 +1,74 @@
+==== GetUsbDevicePath  RVA 0x74b0 ====
+  000074b0  55                   push ebp
+  000074b1  8bec                 mov ebp, esp
+  000074b3  a1a4ee1d10           mov eax, dword ptr [0x101deea4]
+  000074b8  85c0                 test eax, eax
+  000074ba  7507                 jne 0x100074c3
+  000074bc  b806000000           mov eax, 6
+  000074c1  5d                   pop ebp
+  000074c2  c3                   ret 
+  000074c3  5d                   pop ebp
+  000074c4  ffe0                 jmp eax
+  000074c6  cc                   int3 
+  000074c7  cc                   int3 
+  000074c8  cc                   int3 
+  000074c9  cc                   int3 
+  000074ca  cc                   int3 
+  000074cb  cc                   int3 
+  000074cc  cc                   int3 
+  000074cd  cc                   int3 
+  000074ce  cc                   int3 
+  000074cf  cc                   int3 
+  000074d0  55                   push ebp
+  000074d1  8bec                 mov ebp, esp
+  000074d3  a1a0ee1d10           mov eax, dword ptr [0x101deea0]
+  000074d8  85c0                 test eax, eax
+  000074da  7507                 jne 0x100074e3
+  000074dc  b806000000           mov eax, 6
+  000074e1  5d                   pop ebp
+  000074e2  c3                   ret 
+  000074e3  5d                   pop ebp
+  000074e4  ffe0                 jmp eax
+  000074e6  cc                   int3 
+  000074e7  cc                   int3 
+  000074e8  cc                   int3 
+  000074e9  cc                   int3 
+  000074ea  cc                   int3 
+  000074eb  cc                   int3 
+  000074ec  cc                   int3 
+  000074ed  cc                   int3 
+  000074ee  cc                   int3 
+  000074ef  cc                   int3 
+  000074f0  55                   push ebp
+  000074f1  8bec                 mov ebp, esp
+  000074f3  a19cee1d10           mov eax, dword ptr [0x101dee9c]
+  000074f8  85c0                 test eax, eax
+  000074fa  7507                 jne 0x10007503
+  000074fc  b806000000           mov eax, 6
+  00007501  5d                   pop ebp
+  00007502  c3                   ret 
+  00007503  5d                   pop ebp
+  00007504  ffe0                 jmp eax
+  00007506  cc                   int3 
+  00007507  cc                   int3 
+  00007508  cc                   int3 
+  00007509  cc                   int3 
+  0000750a  cc                   int3 
+  0000750b  cc                   int3 
+  0000750c  cc                   int3 
+  0000750d  cc                   int3 
+  0000750e  cc                   int3 
+  0000750f  cc                   int3 
+  00007510  55                   push ebp
+  00007511  8bec                 mov ebp, esp
+  00007513  8b4508               mov eax, dword ptr [ebp + 8]
+  00007516  83ec14               sub esp, 0x14
+  00007519  83f804               cmp eax, 4
+  0000751c  775b                 ja 0x10007579
+  0000751e  ff2485b4760010       jmp dword ptr [eax*4 + 0x100076b4]
+  00007525  c645f00c             mov byte ptr [ebp - 0x10], 0xc
+  00007529  c645f404             mov byte ptr [ebp - 0xc], 4
+  0000752d  c645f809             mov byte ptr [ebp - 8], 9
+  00007531  c645fc23             mov byte ptr [ebp - 4], 0x23
+  00007535  eb52                 jmp 0x10007589
+  00007537  c645f031             mov byte ptr [ebp - 0x10], 0x31
