@@ -98,6 +98,10 @@ class NvRMAuxBus:
             pass
         self.sub_inst = sub_inst
         self.rm.alloc_device(deviceId=dev_inst)
+        try:
+            self.rm.alloc_subdevice(subDeviceId=sub_inst)
+        except RMError as e:
+            self.sub_err = str(e)       # I2C-buffer controls unavailable
         self.rm.alloc_disp_common()
         self.display_id = display_id if display_id is not None \
             else self._find_display()

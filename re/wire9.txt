@@ -1,0 +1,63 @@
+==== C!C:rva0x3920  VA 0x10003920 ====
+  0x10003920  55         push ebp
+  0x10003921  8bec       mov ebp, esp
+  0x10003923  51         push ecx
+  0x10003924  53         push ebx
+  0x10003925  8a5d08     mov bl, byte ptr [ebp + 8]
+  0x10003928  8afa       mov bh, dl
+  0x1000392a  56         push esi
+  0x1000392b  57         push edi
+  0x1000392c  bedc050000 mov esi, 0x5dc
+  0x10003931  c645ff00   mov byte ptr [ebp - 1], 0
+  0x10003935  bf05000000 mov edi, 5
+  0x1000393a  22df       and bl, bh
+  0x1000393c  0f1f4000   nop dword ptr [eax]
+  0x10003940  8d45ff     lea eax, [ebp - 1]
+  0x10003943  50         push eax
+  0x10003944  6a5d       push 0x5d
+  0x10003946  e8451a0000 call 0x10005390
+  0x1000394b  83c408     add esp, 8
+  0x1000394e  85c0       test eax, eax
+  0x10003950  7407       je 0x10003959
+  0x10003952  4f         dec edi
+  0x10003953  85ff       test edi, edi
+  0x10003955  7e18       jle 0x1000396f
+  0x10003957  eb12       jmp 0x1000396b
+  0x10003959  8a45ff     mov al, byte ptr [ebp - 1]
+  0x1000395c  22c7       and al, bh
+  0x1000395e  3ac3       cmp al, bl
+  0x10003960  7419       je 0x1000397b
+  0x10003962  6a02       push 2
+  0x10003964  ff152cc41710 call dword ptr [0x1017c42c]   ; KERNEL32!Sleep
+  0x1000396a  4e         dec esi
+  0x1000396b  85f6       test esi, esi
+  0x1000396d  7fd1       jg 0x10003940
+  0x1000396f  5f         pop edi
+  0x10003970  5e         pop esi
+  0x10003971  b803000000 mov eax, 3
+  0x10003976  5b         pop ebx
+  0x10003977  8be5       mov esp, ebp
+  0x10003979  5d         pop ebp
+  0x1000397a  c3         ret 
+  0x1000397b  5f         pop edi
+  0x1000397c  5e         pop esi
+  0x1000397d  33c0       xor eax, eax
+  0x1000397f  5b         pop ebx
+  0x10003980  8be5       mov esp, ebp
+  0x10003982  5d         pop ebp
+  0x10003983  c3         ret 
+  0x10003984  cc         int3 
+  0x10003985  cc         int3 
+  0x10003986  cc         int3 
+  0x10003987  cc         int3 
+  0x10003988  cc         int3 
+  0x10003989  cc         int3 
+  0x1000398a  cc         int3 
+  0x1000398b  cc         int3 
+  0x1000398c  cc         int3 
+  0x1000398d  cc         int3 
+  0x1000398e  cc         int3 
+  0x1000398f  cc         int3 
+  0x10003990  55         push ebp
+  0x10003991  8bec       mov ebp, esp
+  0x10003993  51         push ecx

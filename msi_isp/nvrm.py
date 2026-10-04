@@ -290,6 +290,91 @@ class NvRM:
         self.hDevice = hh
         return hh
 
+    def alloc_subdevice(self, subDeviceId=0):
+        """NV20_SUBDEVICE_0 (0x2080) under hDevice. Params =
+        NV2080_ALLOC_PARAMETERS { NvU32 subDeviceId } = 4 bytes.
+        Needed for the public NV2080_CTRL_CMD_I2C_* controls."""
+        p = ctypes.create_string_buffer(4)
+        ctypes.cast(p, ctypes.POINTER(ctypes.c_uint32))[0] = subDeviceId
+        st, hh = self._alloc_once(self.os21, 0x2080,
+                                  pAllocParms=p, hParent=self.hDevice)
+        if st != 0 or hh == 0:
+            other = NVOS21_v1 if self.os21 is NVOS21 else NVOS21
+            st, hh = self._alloc_once(other, 0x2080,
+                                      pAllocParms=p, hParent=self.hDevice)
+        if st != 0 or hh == 0:
+            raise RMError(f"alloc subdevice: status {st} handle {hh:#x}")
+        self.hSub = hh
+        return hh
+
+    # --- public I2C controls (NV2080 subdevice) --------------------------
+    # NV2080_CTRL_CMD_I2C_READ_BUFFER  0x20800601  (struct 532 B)
+    # NV2080_CTRL_CMD_I2C_WRITE_BUFFER 0x20800602  (struct 276 B)
+    # inputBuffer = <8-bit chipAddr> <subAddr...> <then, for WRITE, data>
+    # This is NVAPI's I2CRead/I2CWrite backend -- the exact control the
+    # Windows tool's NvAPI_I2CWrite reaches (escape 0x39 wraps it).
+    CTRL_I2C_READ_BUFFER = 0x20800601
+    CTRL_I2C_WRITE_BUFFER = 0x20800602
+    CTRL_I2C_PORTID = 0x730211          # NV0073_SPECIFIC_GET_I2C_PORTID (16 B)
+
+    def i2c_portid(self, displayId, subdevice=0):
+        q = ctypes.create_string_buffer(16)
+        u = ctypes.cast(q, ctypes.POINTER(ctypes.c_uint32))
+        u[0], u[1] = subdevice, displayId
+        st = self.control(self.hDisp, self.CTRL_I2C_PORTID, q, size=16)
+        if st != 0:
+            raise RMError(f"GET_I2C_PORTID disp {displayId:#x}: {st:#x}")
+        return u[2], u[3]               # (commPortId, ddcPortId)
+
+    def i2c_dev_read(self, port, chip8, subaddr, n, flags=0, retries=3):
+        """One I2C dev-addr READ via the public subdevice control.
+        subaddr list may be empty (pure read). Returns (status, bytes)."""
+        q = ctypes.create_string_buffer(532)
+        u = ctypes.cast(q, ctypes.POINTER(ctypes.c_uint32))
+        u[1] = port                     # port
+        u[2] = flags                    # flags
+        inp = ctypes.cast(ctypes.addressof(q) + 16,
+                          ctypes.POINTER(ctypes.c_uint8))  # inputBuffer
+        chain = ([chip8 & 0xFF] if subaddr is None
+                 else [chip8 & 0xFF] + list(subaddr))
+        for i, b in enumerate(chain):
+            inp[i] = b
+        u[3] = len(chain)               # inputCount (offset 12)
+        oc = ctypes.cast(ctypes.addressof(q) + 272,
+                         ctypes.POINTER(ctypes.c_uint32))
+        oc[0] = n                       # outputCount (offset 272)
+        st = 0xFFFFFFFF
+        for _ in range(retries):
+            st = self.control(self.hSub, self.CTRL_I2C_READ_BUFFER, q,
+                              size=532)
+            if st == 0:
+                break
+        out_base = 276                  # outputBuffer byte offset
+        got = bytes(ctypes.cast(ctypes.addressof(q) + out_base,
+                                ctypes.POINTER(ctypes.c_uint8))[:n])
+        return st, got if st == 0 else b""
+
+    def i2c_dev_write(self, port, chain, data=b"", flags=0, retries=3):
+        """I2C write via 0x20800602: inputBuffer = <chip8> <subAddrs...>
+        followed by the data bytes to clock out. Returns status."""
+        q = ctypes.create_string_buffer(276)
+        u = ctypes.cast(q, ctypes.POINTER(ctypes.c_uint32))
+        u[1] = port
+        u[2] = flags
+        inp = ctypes.cast(ctypes.addressof(q) + 16,
+                          ctypes.POINTER(ctypes.c_uint8))
+        stream = [b & 0xFF for b in list(chain) + list(data)]
+        for i, b in enumerate(stream):
+            inp[i] = b
+        u[3] = len(stream)
+        st = 0xFFFFFFFF
+        for _ in range(retries):
+            st = self.control(self.hSub, self.CTRL_I2C_WRITE_BUFFER, q,
+                              size=276)
+            if st == 0:
+                break
+        return st
+
     def alloc_disp_common(self):
         st, hh = self._alloc_once(self.os21, NV04_DISPLAY_COMMON,
                                   hParent=self.hDevice)

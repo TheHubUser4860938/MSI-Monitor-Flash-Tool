@@ -1,0 +1,88 @@
+==== C!I2CRead  VA 0x10004a20 ====
+  0x10004a20  55         push ebp
+  0x10004a21  8bec       mov ebp, esp
+  0x10004a23  a1fcee1d10 mov eax, dword ptr [0x101deefc]
+  0x10004a28  85c0       test eax, eax
+  0x10004a2a  7507       jne 0x10004a33
+  0x10004a2c  b806000000 mov eax, 6
+  0x10004a31  5d         pop ebp
+  0x10004a32  c3         ret 
+  0x10004a33  833d2cef1d1001 cmp dword ptr [0x101def2c], 1
+  0x10004a3a  752b       jne 0x10004a67
+  0x10004a3c  8b4510     mov eax, dword ptr [ebp + 0x10]
+  0x10004a3f  6683f818   cmp ax, 0x18
+  0x10004a43  7607       jbe 0x10004a4c
+  0x10004a45  b810000000 mov eax, 0x10
+  0x10004a4a  5d         pop ebp
+  0x10004a4b  c3         ret 
+  0x10004a4c  ff7514     push dword ptr [ebp + 0x14]
+  0x10004a4f  8a4d08     mov cl, byte ptr [ebp + 8]
+  0x10004a52  ba01000000 mov edx, 1
+  0x10004a57  50         push eax
+  0x10004a58  0fb6450c   movzx eax, byte ptr [ebp + 0xc]
+  0x10004a5c  50         push eax
+  0x10004a5d  e82eefffff call 0x10003990
+  0x10004a62  83c40c     add esp, 0xc
+  0x10004a65  5d         pop ebp
+  0x10004a66  c3         ret 
+  0x10004a67  5d         pop ebp
+  0x10004a68  ffe0       jmp eax
+  0x10004a6a  cc         int3 
+  0x10004a6b  cc         int3 
+  0x10004a6c  cc         int3 
+  0x10004a6d  cc         int3 
+  0x10004a6e  cc         int3 
+  0x10004a6f  cc         int3 
+  0x10004a70  55         push ebp
+  0x10004a71  8bec       mov ebp, esp
+  0x10004a73  83ec10     sub esp, 0x10
+  0x10004a76  53         push ebx
+  0x10004a77  56         push esi
+  0x10004a78  33f6       xor esi, esi
+  0x10004a7a  ff1508ef1d10 call dword ptr [0x101def08]
+  0x10004a80  8b0df0ee1d10 mov ecx, dword ptr [0x101deef0]
+  0x10004a86  0fb7d8     movzx ebx, ax
+  0x10004a89  895dfc     mov dword ptr [ebp - 4], ebx
+  0x10004a8c  85c9       test ecx, ecx
+  0x10004a8e  7509       jne 0x10004a99
+  0x10004a90  8d4606     lea eax, [esi + 6]
+  0x10004a93  5e         pop esi
+  0x10004a94  5b         pop ebx
+  0x10004a95  8be5       mov esp, ebp
+  0x10004a97  5d         pop ebp
+==== C!I2CWrite  VA 0x100046e0 ====
+  0x100046e0  55         push ebp
+  0x100046e1  8bec       mov ebp, esp
+  0x100046e3  a100ef1d10 mov eax, dword ptr [0x101def00]
+  0x100046e8  85c0       test eax, eax
+  0x100046ea  7507       jne 0x100046f3
+  0x100046ec  b806000000 mov eax, 6
+  0x100046f1  5d         pop ebp
+  0x100046f2  c3         ret 
+  0x100046f3  833d2cef1d1001 cmp dword ptr [0x101def2c], 1
+  0x100046fa  751d       jne 0x10004719
+  0x100046fc  ff7514     push dword ptr [ebp + 0x14]
+  0x100046ff  0fb6450c   movzx eax, byte ptr [ebp + 0xc]
+  0x10004703  ba01000000 mov edx, 1
+  0x10004708  ff7510     push dword ptr [ebp + 0x10]
+  0x1000470b  8a4d08     mov cl, byte ptr [ebp + 8]
+  0x1000470e  50         push eax
+  0x1000470f  e86cf5ffff call 0x10003c80
+  0x10004714  83c40c     add esp, 0xc
+  0x10004717  5d         pop ebp
+  0x10004718  c3         ret 
+  0x10004719  5d         pop ebp
+  0x1000471a  ffe0       jmp eax
+  0x1000471c  cc         int3 
+  0x1000471d  cc         int3 
+  0x1000471e  cc         int3 
+  0x1000471f  cc         int3 
+  0x10004720  55         push ebp
+  0x10004721  8bec       mov ebp, esp
+  0x10004723  a100ef1d10 mov eax, dword ptr [0x101def00]
+  0x10004728  85c0       test eax, eax
+  0x1000472a  7507       jne 0x10004733
+  0x1000472c  b806000000 mov eax, 6
+  0x10004731  5d         pop ebp
+  0x10004732  c3         ret 
+  0x10004733  833d2cef1d1001 cmp dword ptr [0x101def2c], 1

@@ -358,3 +358,40 @@ all root-run, all idempotent-safe.
   find window regs; (3) mitxela DDC-OLED post + GHENT RTD2660 programmer for
   RTD I2C-ISP register lore (web hit, not yet read).
 - Monitor: still FW.009 unflashed. Both DP+HDMI connected. sudoers active.
+
+## Session 7 (2026-10-04 pm) — post-wedge recovery + wire-recipe live tests
+Monitor MCU soft-wedged (buttons dead, DDC degraded) after HDMI+DP dual-input
+state during probing. Cold power-cycle + HDMI unplug = full recovery, verified:
+DP-only, bus 4, EDID 512B, live FW FW.009, ddcutil detects, tool info OK.
+HYPOTHESIS LOCKED: dual-input/DDC stress wedges this scaler; keep DP-only.
+
+t_wire/t_wire2 (root, --nvrm, strictly read-only apart from ISP magic bytes):
+- ISP entry works on clean monitor too: cand[0], handshake status 0xfe (bit7 set).
+- Slave 0x20/0x22 writes TIMEOUT (12x DEFER-retry) in ISP mode. DEAD, again.
+- Slave 0x37 raw pointer-writes ALL return identical 16B:
+  `06 02 00 fe 00 | "FW.009N"` — NOT address-sensitive: this is the DDC/CC
+  REPLY framing (06=dest, 02=src host... actually vendor reply header) + the
+  version-寄存器 content my pointer bytes happened to select (0xF806 -> the
+  tool's version regs FE E1 E6 family!). => 0x37 raw-I2C reads land in the
+  DDC/CC engine, which answers with *its* framing; raw pointer protocol is
+  NOT what 0x37 speaks here.
+- INTERPRETATION (high confidence): on this model the ISP flash surface is
+  reached via DDC/CC VENDOR PACKETS (opcode 0x01 reg-read proven; write-form
+  opcode still unknown) or the 0x30-0x35 register-file seen in normal mode.
+  Flash.dat = scaler PWM/SPI engine register scripts (idx reg 0x60, data
+  0x61-0x66, strobes 0x20->0x21, 0x38->
+ 0x39). The plugin's raw-pointer slave constants (0x41 etc) belong to the
+ older Comm protocol generation; for this MSI build the answer is vendor
+ DDC/CC packets + those register scripts.
+
+NEXT STEPS (ranked):
+1. Mine Comm.dll/WinIspPlugIn 32-bit dumps (re/f_*.txt, fresh this session)
+   for the DDC/CC WRITE framing of the FE Ex register window (opcode +
+   payload layout) and the ISP-mode register map; implement flash-read as
+   register pokes via the proven ddc packet layer.
+2. Probe candidate write opcodes 0x02/0x03 with [reg][data] payloads on
+   0x37, safe regs only (never the 0x6Exx ISP regs until decoded), verify
+   read-back unchanged.
+3. Implement backup/verify; then write cycle, every gate + typed confirm.
+Monitor state: FW.009 untouched, DP-only, healthy. sudo NOPASSWD drop-in
+/etc/sudoers.d/99-msi-isp still active (remove at release).

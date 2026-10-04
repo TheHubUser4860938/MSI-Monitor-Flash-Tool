@@ -1,0 +1,84 @@
+==== A!A:rva0x3a8e0  VA 0x1003a8e0 ====
+  0x1003a8e0  55         push ebp
+  0x1003a8e1  8bec       mov ebp, esp
+  0x1003a8e3  83e4f8     and esp, 0xfffffff8
+  0x1003a8e6  51         push ecx
+  0x1003a8e7  8b5514     mov edx, dword ptr [ebp + 0x14]
+  0x1003a8ea  56         push esi
+  0x1003a8eb  8b7518     mov esi, dword ptr [ebp + 0x18]
+  0x1003a8ee  85f6       test esi, esi
+  0x1003a8f0  7511       jne 0x1003a903
+  0x1003a8f2  6685d2     test dx, dx
+  0x1003a8f5  740c       je 0x1003a903
+  0x1003a8f7  b801080000 mov eax, 0x801
+  0x1003a8fc  5e         pop esi
+  0x1003a8fd  8be5       mov esp, ebp
+  0x1003a8ff  5d         pop ebp
+  0x1003a900  c21400     ret 0x14
+  0x1003a903  0fb60540ae2110 movzx eax, byte ptr [0x1021ae40]
+  0x1003a90a  663bd0     cmp dx, ax
+  0x1003a90d  760c       jbe 0x1003a91b
+  0x1003a90f  b807080000 mov eax, 0x807
+  0x1003a914  5e         pop esi
+  0x1003a915  8be5       mov esp, ebp
+  0x1003a917  5d         pop ebp
+  0x1003a918  c21400     ret 0x14
+  0x1003a91b  0fb64d0c   movzx ecx, byte ptr [ebp + 0xc]
+  0x1003a91f  0fb64510   movzx eax, byte ptr [ebp + 0x10]
+  0x1003a923  66c1e108   shl cx, 8
+  0x1003a927  660bc8     or cx, ax
+  0x1003a92a  a11cae2110 mov eax, dword ptr [0x1021ae1c]
+  0x1003a92f  0fb7c9     movzx ecx, cx
+  0x1003a932  83f802     cmp eax, 2
+  0x1003a935  7528       jne 0x1003a95f
+  0x1003a937  0fb7c2     movzx eax, dx
+  0x1003a93a  50         push eax
+  0x1003a93b  56         push esi
+  0x1003a93c  51         push ecx
+  0x1003a93d  ff7508     push dword ptr [ebp + 8]
+  0x1003a940  b96caf2110 mov ecx, 0x1021af6c
+  0x1003a945  e806bdffff call 0x10036650
+  0x1003a94a  8bc8       mov ecx, eax
+  0x1003a94c  ba03080000 mov edx, 0x803
+  0x1003a951  33c0       xor eax, eax
+  0x1003a953  85c9       test ecx, ecx
+  0x1003a955  0f44c2     cmove eax, edx
+  0x1003a958  5e         pop esi
+  0x1003a959  8be5       mov esp, ebp
+  0x1003a95b  5d         pop ebp
+  0x1003a95c  c21400     ret 0x14
+  0x1003a95f  83f801     cmp eax, 1
+  0x1003a962  7552       jne 0x1003a9b6
+  0x1003a964  833df4af211002 cmp dword ptr [0x1021aff4], 2
+  0x1003a96b  0fb7c2     movzx eax, dx
+  0x1003a96e  50         push eax
+  0x1003a96f  0fb64508   movzx eax, byte ptr [ebp + 8]
+  0x1003a973  56         push esi
+  0x1003a974  51         push ecx
+  0x1003a975  50         push eax
+  0x1003a976  751f       jne 0x1003a997
+  0x1003a978  b9c4af2110 mov ecx, 0x1021afc4
+  0x1003a97d  e8ce7f0000 call 0x10042950
+  0x1003a982  8bc8       mov ecx, eax
+  0x1003a984  ba03080000 mov edx, 0x803
+  0x1003a989  33c0       xor eax, eax
+  0x1003a98b  85c9       test ecx, ecx
+  0x1003a98d  0f44c2     cmove eax, edx
+  0x1003a990  5e         pop esi
+  0x1003a991  8be5       mov esp, ebp
+  0x1003a993  5d         pop ebp
+  0x1003a994  c21400     ret 0x14
+  0x1003a997  b9acaf2110 mov ecx, 0x1021afac
+  0x1003a99c  e85f3b0000 call 0x1003e500
+  0x1003a9a1  8bc8       mov ecx, eax
+  0x1003a9a3  ba03080000 mov edx, 0x803
+  0x1003a9a8  33c0       xor eax, eax
+  0x1003a9aa  85c9       test ecx, ecx
+  0x1003a9ac  0f44c2     cmove eax, edx
+  0x1003a9af  5e         pop esi
+  0x1003a9b0  8be5       mov esp, ebp
+  0x1003a9b2  5d         pop ebp
+  0x1003a9b3  c21400     ret 0x14
+  0x1003a9b6  83f803     cmp eax, 3
+  0x1003a9b9  7525       jne 0x1003a9e0
+  0x1003a9bb  56         push esi
