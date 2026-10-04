@@ -1,0 +1,33 @@
+==== C!C:rva0xc530  VA 0x1000c530 ====
+  0x1000c530  55         push ebp
+  0x1000c531  8bec       mov ebp, esp
+  0x1000c533  a110ef1d10 mov eax, dword ptr [0x101def10]
+  0x1000c538  85c0       test eax, eax
+  0x1000c53a  7429       je 0x1000c565
+  0x1000c53c  ffd0       call eax
+  0x1000c53e  83f808     cmp eax, 8
+  0x1000c541  7522       jne 0x1000c565
+  0x1000c543  a188ee1d10 mov eax, dword ptr [0x101dee88]
+  0x1000c548  85c0       test eax, eax
+  0x1000c54a  7507       jne 0x1000c553
+  0x1000c54c  b806000000 mov eax, 6
+  0x1000c551  5d         pop ebp
+  0x1000c552  c3         ret 
+  0x1000c553  6a00       push 0
+  0x1000c555  6a00       push 0
+  0x1000c557  6a00       push 0
+  0x1000c559  ff7508     push dword ptr [ebp + 8]
+  0x1000c55c  6a44       push 0x44
+  0x1000c55e  ffd0       call eax
+  0x1000c560  83c414     add esp, 0x14
+  0x1000c563  5d         pop ebp
+  0x1000c564  c3         ret 
+  0x1000c565  b818000000 mov eax, 0x18
+  0x1000c56a  5d         pop ebp
+  0x1000c56b  c3         ret 
+  0x1000c56c  cc         int3 
+  0x1000c56d  cc         int3 
+  0x1000c56e  cc         int3 
+  0x1000c56f  cc         int3 
+  0x1000c570  55         push ebp
+  0x1000c571  8bec       mov ebp, esp

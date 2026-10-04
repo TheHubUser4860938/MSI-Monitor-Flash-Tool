@@ -1,0 +1,64 @@
+==== C!C:rva0x3c80  VA 0x10003c80 ====
+  0x10003c80  55         push ebp
+  0x10003c81  8bec       mov ebp, esp
+  0x10003c83  83ec08     sub esp, 8
+  0x10003c86  833d2cef1d1001 cmp dword ptr [0x101def2c], 1
+  0x10003c8d  56         push esi
+  0x10003c8e  8b7510     mov esi, dword ptr [ebp + 0x10]
+  0x10003c91  57         push edi
+  0x10003c92  8bfa       mov edi, edx
+  0x10003c94  894df8     mov dword ptr [ebp - 8], ecx
+  0x10003c97  7514       jne 0x10003cad
+  0x10003c99  c70528ef1d1001000000 mov dword ptr [0x101def28], 1
+  0x10003ca3  c7052cef1d1000000000 mov dword ptr [0x101def2c], 0
+  0x10003cad  8d45ff     lea eax, [ebp - 1]
+  0x10003cb0  c645ff00   mov byte ptr [ebp - 1], 0
+  0x10003cb4  50         push eax
+  0x10003cb5  68f2000000 push 0xf2
+  0x10003cba  e8d1160000 call 0x10005390
+  0x10003cbf  83c408     add esp, 8
+  0x10003cc2  85c0       test eax, eax
+  0x10003cc4  751a       jne 0x10003ce0
+  0x10003cc6  8a45ff     mov al, byte ptr [ebp - 1]
+  0x10003cc9  247f       and al, 0x7f
+  0x10003ccb  0fb6c0     movzx eax, al
+  0x10003cce  50         push eax
+  0x10003ccf  68f2000000 push 0xf2
+  0x10003cd4  e8b7110000 call 0x10004e90
+  0x10003cd9  83c408     add esp, 8
+  0x10003cdc  85c0       test eax, eax
+  0x10003cde  7427       je 0x10003d07
+  0x10003ce0  833d28ef1d1001 cmp dword ptr [0x101def28], 1
+  0x10003ce7  0f85ae040000 jne 0x1000419b
+  0x10003ced  5f         pop edi
+  0x10003cee  c7052cef1d1001000000 mov dword ptr [0x101def2c], 1
+  0x10003cf8  c70528ef1d1000000000 mov dword ptr [0x101def28], 0
+  0x10003d02  5e         pop esi
+  0x10003d03  8be5       mov esp, ebp
+  0x10003d05  5d         pop ebp
+  0x10003d06  c3         ret 
+  0x10003d07  8d45ff     lea eax, [ebp - 1]
+  0x10003d0a  c645ff00   mov byte ptr [ebp - 1], 0
+  0x10003d0e  50         push eax
+  0x10003d0f  6a55       push 0x55
+  0x10003d11  e87a160000 call 0x10005390
+  0x10003d16  83c408     add esp, 8
+  0x10003d19  85c0       test eax, eax
+  0x10003d1b  75c3       jne 0x10003ce0
+  0x10003d1d  8a45ff     mov al, byte ptr [ebp - 1]
+  0x10003d20  0c80       or al, 0x80
+  0x10003d22  0fb6c0     movzx eax, al
+  0x10003d25  50         push eax
+  0x10003d26  6a55       push 0x55
+  0x10003d28  e863110000 call 0x10004e90
+  0x10003d2d  83c408     add esp, 8
+  0x10003d30  85c0       test eax, eax
+  0x10003d32  75ac       jne 0x10003ce0
+  0x10003d34  51         push ecx
+  0x10003d35  6a20       push 0x20
+  0x10003d37  b220       mov dl, 0x20
+  0x10003d39  e8e2fbffff call 0x10003920
+  0x10003d3e  83c408     add esp, 8
+  0x10003d41  85c0       test eax, eax
+  0x10003d43  759b       jne 0x10003ce0
+  0x10003d45  8845ff     mov byte ptr [ebp - 1], al

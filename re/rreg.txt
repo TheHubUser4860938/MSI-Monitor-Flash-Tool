@@ -1,0 +1,45 @@
+==== C!ReadReg  VA 0x10005770 ====
+  0x10005770  55         push ebp
+  0x10005771  8bec       mov ebp, esp
+  0x10005773  51         push ecx
+  0x10005774  a110ef1d10 mov eax, dword ptr [0x101def10]
+  0x10005779  85c0       test eax, eax
+  0x1000577b  7441       je 0x100057be
+  0x1000577d  ffd0       call eax
+  0x1000577f  83f808     cmp eax, 8
+  0x10005782  753a       jne 0x100057be
+  0x10005784  0fb60d22ef1d10 movzx ecx, byte ptr [0x101def22]
+  0x1000578b  0fb64508   movzx eax, byte ptr [ebp + 8]
+  0x1000578f  66c1e108   shl cx, 8
+  0x10005793  660bc8     or cx, ax
+  0x10005796  a18cee1d10 mov eax, dword ptr [0x101dee8c]
+  0x1000579b  0fb7c9     movzx ecx, cx
+  0x1000579e  85c0       test eax, eax
+  0x100057a0  7509       jne 0x100057ab
+  0x100057a2  b806000000 mov eax, 6
+  0x100057a7  8be5       mov esp, ebp
+  0x100057a9  5d         pop ebp
+  0x100057aa  c3         ret 
+  0x100057ab  ff750c     push dword ptr [ebp + 0xc]
+  0x100057ae  6a01       push 1
+  0x100057b0  6a00       push 0
+  0x100057b2  51         push ecx
+  0x100057b3  6a02       push 2
+  0x100057b5  ffd0       call eax
+  0x100057b7  83c414     add esp, 0x14
+  0x100057ba  8be5       mov esp, ebp
+  0x100057bc  5d         pop ebp
+  0x100057bd  c3         ret 
+  0x100057be  a1a4491d10 mov eax, dword ptr [0x101d49a4]
+  0x100057c3  53         push ebx
+  0x100057c4  8b5d08     mov ebx, dword ptr [ebp + 8]
+  0x100057c7  48         dec eax
+  0x100057c8  56         push esi
+  0x100057c9  8b750c     mov esi, dword ptr [ebp + 0xc]
+  0x100057cc  83f805     cmp eax, 5
+  0x100057cf  0f8727010000 ja 0x100058fc
+  0x100057d5  ff248518590010 jmp dword ptr [eax*4 + 0x10005918]
+  0x100057dc  0fb605aa491d10 movzx eax, byte ptr [0x101d49aa]
+  0x100057e3  53         push ebx
+  0x100057e4  6a41       push 0x41
+  0x100057e6  50         push eax

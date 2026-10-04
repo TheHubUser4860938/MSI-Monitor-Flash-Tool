@@ -1,0 +1,44 @@
+==== P!P:rva0x8860  VA 0x10008860 ====
+  0x10008860  55         push ebp
+  0x10008861  8bec       mov ebp, esp
+  0x10008863  83e4f8     and esp, 0xfffffff8
+  0x10008866  81ec18020000 sub esp, 0x218
+  0x1000886c  a1ecdf2310 mov eax, dword ptr [0x1023dfec]
+  0x10008871  33c4       xor eax, esp
+  0x10008873  89842414020000 mov dword ptr [esp + 0x214], eax
+  0x1000887a  8b4d08     mov ecx, dword ptr [ebp + 8]
+  0x1000887d  56         push esi
+  0x1000887e  57         push edi
+  0x1000887f  e86cf8ffff call 0x100080f0
+  0x10008884  8b0df8a12410 mov ecx, dword ptr [0x1024a1f8]
+  0x1000888a  e8c16e0100 call 0x1001f750
+  0x1000888f  85c0       test eax, eax
+  0x10008891  7545       jne 0x100088d8
+  0x10008893  8b1534a42410 mov edx, dword ptr [0x1024a434]
+  0x10008899  8d7c2408   lea edi, [esp + 8]
+  0x1000889d  b984000000 mov ecx, 0x84
+  0x100088a2  8d442410   lea eax, [esp + 0x10]
+  0x100088a6  be30a42410 mov esi, 0x1024a430
+  0x100088ab  f3a5       rep movsd dword ptr es:[edi], dword ptr [esi]
+  0x100088ad  8b0d30a42410 mov ecx, dword ptr [0x1024a430]
+  0x100088b3  50         push eax
+  0x100088b4  e8f7b00100 call 0x100239b0
+  0x100088b9  8bf0       mov esi, eax
+  0x100088bb  83c404     add esp, 4
+  0x100088be  85f6       test esi, esi
+  0x100088c0  7407       je 0x100088c9
+  0x100088c2  e8c9710100 call 0x1001fa90
+  0x100088c7  eb07       jmp 0x100088d0
+  0x100088c9  e8c2710100 call 0x1001fa90
+  0x100088ce  8bf0       mov esi, eax
+  0x100088d0  56         push esi
+  0x100088d1  e8da710300 call 0x1003fab0
+  0x100088d6  8bc6       mov eax, esi
+  0x100088d8  8b8c241c020000 mov ecx, dword ptr [esp + 0x21c]
+  0x100088df  5f         pop edi
+  0x100088e0  5e         pop esi
+  0x100088e1  33cc       xor ecx, esp
+  0x100088e3  e8696d1700 call 0x1017f651
+  0x100088e8  8be5       mov esp, ebp
+  0x100088ea  5d         pop ebp
+  0x100088eb  c3         ret 

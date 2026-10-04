@@ -1,0 +1,7 @@
+ISP in cand 0 status 0xdf
+  0x37 addr-only WRITE          -> ERROR    ISP-alive-after: None | 2nd ERROR    alive: 255
+  0x37 addr-only READ           -> ERROR    ISP-alive-after: 255 | 2nd ERROR    alive: None
+  0x50 addr-only WRITE          -> ERROR    ISP-alive-after: None | 2nd ERROR    alive: None
+  0x50 addr-only READ           -> ERROR    ISP-alive-after: None | 2nd ERROR    alive: None
+  0x09 addr-only WRITE dead-control -> ERROR    ISP-alive-after: None | 2nd ERROR    alive: None
+exit: True

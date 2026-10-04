@@ -395,3 +395,21 @@ NEXT STEPS (ranked):
 3. Implement backup/verify; then write cycle, every gate + typed confirm.
 Monitor state: FW.009 untouched, DP-only, healthy. sudo NOPASSWD drop-in
 /etc/sudoers.d/99-msi-isp still active (remove at release).
+
+## Session 9 (2026-10-04 pm)
+- ISP-alive full write-decisive sweep (112 addrs, log scratch/sweep_isp.log):
+  ZERO slaves ACK writes while ISP alive (even 0x37 stops ACKing raw writes
+  once in ISP mode; magic-byte entry itself is a separate raw path).
+  => slave-level flash access is dead on this RM AUX path, definitively.
+- Vendor DDC/CI WRITE-opcode probe (scratch/t_wopcode.py, state-preserving
+  write-back of the version register): candidates 0x02,0x03,0x04,0x32,0x33,
+  0x3B,0x00 ALL rejected (reply 00 00 00), read-back unchanged, monitor
+  healthy. Write opcode is NOT under the plain get/execute envelope.
+  Next: the plugin's write-reg primitive (re/f_4e90.txt fresh 32-bit dump)
+  builds packets itself — read its buffer layout to get the real opcode
+  instead of guessing (Grok concurs: "the constant next to 0x01 is it").
+- progress.py: live progress bars (TTY in-place bar w/ elapsed+ETA; non-TTY
+  5%-step lines) wired into read_burst(progress=) and both backup loops
+  (cli + console). write will reuse the same callback when implemented.
+- Fixed latent import bug: cli.py imported IspError from wrong module.
+- monitor healthy, FW.009 untouched, DP-only.

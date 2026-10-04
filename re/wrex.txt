@@ -1,0 +1,57 @@
+==== C!WriteRegEx  VA 0x10005f50 ====
+  0x10005f50  55         push ebp
+  0x10005f51  8bec       mov ebp, esp
+  0x10005f53  51         push ecx
+  0x10005f54  a110ef1d10 mov eax, dword ptr [0x101def10]
+  0x10005f59  85c0       test eax, eax
+  0x10005f5b  742f       je 0x10005f8c
+  0x10005f5d  ffd0       call eax
+  0x10005f5f  83f808     cmp eax, 8
+  0x10005f62  7528       jne 0x10005f8c
+  0x10005f64  a188ee1d10 mov eax, dword ptr [0x101dee88]
+  0x10005f69  85c0       test eax, eax
+  0x10005f6b  7509       jne 0x10005f76
+  0x10005f6d  b806000000 mov eax, 6
+  0x10005f72  8be5       mov esp, ebp
+  0x10005f74  5d         pop ebp
+  0x10005f75  c3         ret 
+  0x10005f76  8d4d0c     lea ecx, [ebp + 0xc]
+  0x10005f79  51         push ecx
+  0x10005f7a  6a01       push 1
+  0x10005f7c  6a00       push 0
+  0x10005f7e  ff7508     push dword ptr [ebp + 8]
+  0x10005f81  6a01       push 1
+  0x10005f83  ffd0       call eax
+  0x10005f85  83c414     add esp, 0x14
+  0x10005f88  8be5       mov esp, ebp
+  0x10005f8a  5d         pop ebp
+  0x10005f8b  c3         ret 
+  0x10005f8c  a1a4491d10 mov eax, dword ptr [0x101d49a4]
+  0x10005f91  53         push ebx
+  0x10005f92  56         push esi
+  0x10005f93  8b7508     mov esi, dword ptr [ebp + 8]
+  0x10005f96  48         dec eax
+  0x10005f97  8bde       mov ebx, esi
+  0x10005f99  c1eb08     shr ebx, 8
+  0x10005f9c  885dfc     mov byte ptr [ebp - 4], bl
+  0x10005f9f  83f805     cmp eax, 5
+  0x10005fa2  0f8715010000 ja 0x100060bd
+  0x10005fa8  ff2485c8600010 jmp dword ptr [eax*4 + 0x100060c8]
+  0x10005faf  80fbff     cmp bl, 0xff
+  0x10005fb2  751a       jne 0x10005fce
+  0x10005fb4  ff750c     push dword ptr [ebp + 0xc]
+  0x10005fb7  0fb605a9491d10 movzx eax, byte ptr [0x101d49a9]
+  0x10005fbe  56         push esi
+  0x10005fbf  50         push eax
+  0x10005fc0  e85be7ffff call 0x10004720
+  0x10005fc5  83c40c     add esp, 0xc
+  0x10005fc8  5e         pop esi
+  0x10005fc9  5b         pop ebx
+  0x10005fca  8be5       mov esp, ebp
+  0x10005fcc  5d         pop ebp
+  0x10005fcd  c3         ret 
+  0x10005fce  833d24ef1d1000 cmp dword ptr [0x101def24], 0
+  0x10005fd5  7408       je 0x10005fdf
+  0x10005fd7  3a1d22ef1d10 cmp bl, byte ptr [0x101def22]
+  0x10005fdd  7422       je 0x10006001
+  0x10005fdf  ff75fc     push dword ptr [ebp - 4]

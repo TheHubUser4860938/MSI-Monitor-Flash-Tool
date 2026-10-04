@@ -1,0 +1,81 @@
+==== C!C:rva0x8060  VA 0x10008060 ====
+  0x10008060  3d94ee1d10 cmp eax, 0x101dee94
+  0x10008065  0fb7c1     movzx eax, cx
+  0x10008068  03d0       add edx, eax
+  0x1000806a  8b4520     mov eax, dword ptr [ebp + 0x20]
+  0x1000806d  8955f4     mov dword ptr [ebp - 0xc], edx
+  0x10008070  3b5df0     cmp ebx, dword ptr [ebp - 0x10]
+  0x10008073  7cab       jl 0x10008020
+  0x10008075  8b55ec     mov edx, dword ptr [ebp - 0x14]
+  0x10008078  85d2       test edx, edx
+  0x1000807a  743d       je 0x100080b9
+  0x1000807c  83f801     cmp eax, 1
+  0x1000807f  7511       jne 0x10008092
+  0x10008081  0fb6c9     movzx ecx, cl
+  0x10008084  0fb6c3     movzx eax, bl
+  0x10008087  0fafc8     imul ecx, eax
+  0x1000808a  024d14     add cl, byte ptr [ebp + 0x14]
+  0x1000808d  884df8     mov byte ptr [ebp - 8], cl
+  0x10008090  eb06       jmp 0x10008098
+  0x10008092  8a4514     mov al, byte ptr [ebp + 0x14]
+  0x10008095  8845f8     mov byte ptr [ebp - 8], al
+  0x10008098  8b4dfc     mov ecx, dword ptr [ebp - 4]
+  0x1000809b  0fb7c1     movzx eax, cx
+  0x1000809e  0fafc3     imul eax, ebx
+  0x100080a1  03451c     add eax, dword ptr [ebp + 0x1c]
+  0x100080a4  50         push eax
+  0x100080a5  52         push edx
+  0x100080a6  ff75f8     push dword ptr [ebp - 8]
+  0x100080a9  ff7510     push dword ptr [ebp + 0x10]
+  0x100080ac  ff750c     push dword ptr [ebp + 0xc]
+  0x100080af  ff7508     push dword ptr [ebp + 8]
+  0x100080b2  ffd7       call edi
+  0x100080b4  83c418     add esp, 0x18
+  0x100080b7  8bf0       mov esi, eax
+  0x100080b9  5b         pop ebx
+  0x100080ba  5f         pop edi
+  0x100080bb  8bc6       mov eax, esi
+  0x100080bd  5e         pop esi
+  0x100080be  8be5       mov esp, ebp
+  0x100080c0  5d         pop ebp
+  0x100080c1  c3         ret 
+  0x100080c2  cc         int3 
+  0x100080c3  cc         int3 
+  0x100080c4  cc         int3 
+  0x100080c5  cc         int3 
+  0x100080c6  cc         int3 
+  0x100080c7  cc         int3 
+  0x100080c8  cc         int3 
+  0x100080c9  cc         int3 
+  0x100080ca  cc         int3 
+  0x100080cb  cc         int3 
+  0x100080cc  cc         int3 
+  0x100080cd  cc         int3 
+  0x100080ce  cc         int3 
+  0x100080cf  cc         int3 
+  0x100080d0  55         push ebp
+  0x100080d1  8bec       mov ebp, esp
+  0x100080d3  a190ee1d10 mov eax, dword ptr [0x101dee90]
+  0x100080d8  85c0       test eax, eax
+  0x100080da  7507       jne 0x100080e3
+  0x100080dc  b806000000 mov eax, 6
+  0x100080e1  5d         pop ebp
+  0x100080e2  c3         ret 
+  0x100080e3  5d         pop ebp
+  0x100080e4  ffe0       jmp eax
+  0x100080e6  cc         int3 
+  0x100080e7  cc         int3 
+  0x100080e8  cc         int3 
+  0x100080e9  cc         int3 
+  0x100080ea  cc         int3 
+  0x100080eb  cc         int3 
+  0x100080ec  cc         int3 
+  0x100080ed  cc         int3 
+  0x100080ee  cc         int3 
+  0x100080ef  cc         int3 
+  0x100080f0  55         push ebp
+  0x100080f1  8bec       mov ebp, esp
+  0x100080f3  83ec14     sub esp, 0x14
+  0x100080f6  56         push esi
+  0x100080f7  33f6       xor esi, esi
+  0x100080f9  ff1508ef1d10 call dword ptr [0x101def08]

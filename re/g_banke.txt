@@ -1,0 +1,30 @@
+==== P!P:rva0x8a20  VA 0x10008a20 ====
+  0x10008a20  55         push ebp
+  0x10008a21  8bec       mov ebp, esp
+  0x10008a23  83ec38     sub esp, 0x38
+  0x10008a26  a1ecdf2310 mov eax, dword ptr [0x1023dfec]
+  0x10008a2b  33c5       xor eax, ebp
+  0x10008a2d  8945fc     mov dword ptr [ebp - 4], eax
+  0x10008a30  8b4d10     mov ecx, dword ptr [ebp + 0x10]
+  0x10008a33  33c0       xor eax, eax
+  0x10008a35  56         push esi
+  0x10008a36  c745e007000000 mov dword ptr [ebp - 0x20], 7
+  0x10008a3d  c745dc00000000 mov dword ptr [ebp - 0x24], 0
+  0x10008a44  668945cc   mov word ptr [ebp - 0x34], ax
+  0x10008a48  c745c810a72110 mov dword ptr [ebp - 0x38], 0x1021a710
+  0x10008a4f  c745f80f000000 mov dword ptr [ebp - 8], 0xf
+  0x10008a56  8945f4     mov dword ptr [ebp - 0xc], eax
+  0x10008a59  8845e4     mov byte ptr [ebp - 0x1c], al
+  0x10008a5c  e88ff6ffff call 0x100080f0
+  0x10008a61  6a0a       push 0xa
+  0x10008a63  c705aca1241000000000 mov dword ptr [0x1024a1ac], 0
+  0x10008a6d  c705b0a1241064000000 mov dword ptr [0x1024a1b0], 0x64
+  0x10008a77  c705b8a1241000000000 mov dword ptr [0x1024a1b8], 0
+  0x10008a81  c705a8a1241000000000 mov dword ptr [0x1024a1a8], 0
+  0x10008a8b  e8304d0200 call 0x1002d7c0
+  0x10008a90  8b0df8a12410 mov ecx, dword ptr [0x1024a1f8]
+  0x10008a96  c705b4a124100a000000 mov dword ptr [0x1024a1b4], 0xa
+  0x10008aa0  e8ab6c0100 call 0x1001f750
+  0x10008aa5  8bf0       mov esi, eax
+  0x10008aa7  85f6       test esi, esi
+  0x10008aa9  752c       jne 0x10008ad7

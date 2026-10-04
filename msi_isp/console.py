@@ -15,6 +15,7 @@ import time
 
 from . import Facts
 from .ddc import RTBus
+from .progress import Bar
 from .isp import I2CTarget, ScalerBus
 from .cli import TARGETS, bin_header, read_edid, vendor_fw_version
 
@@ -187,18 +188,24 @@ class Console(cmd.Cmd):
                 total = Facts.FW_BIN_SIZE
                 if write_out:
                     print(f"dumping {total} bytes -> {out}")
+                    bar = Bar(total, "backup")
                     with open(out, "wb") as f:
                         done = 0
                         while done < total:
                             n = min(0x10000, total - done)
+                            base = done
+
+                            def prog(got, _n, _b=base):
+                                bar.update(_b + got)
                             f.write(sb.read_burst(t, done, n,
-                                      page=Facts.SLAVES["isp_page_len"]))
+                                      page=Facts.SLAVES["isp_page_len"],
+                                      progress=prog))
                             done += n
-                            if done % 0x100000 == 0:
-                                print(f"  {100 * done / total:.0f}%", end="\r",
-                                      flush=True)
+                            bar.update(done)
+                    bar.done()
                     sha = hashlib.sha256(open(out, "rb").read()).hexdigest()
-                    print(f"\nbackup done: {out}\n  sha256 {sha}")
+                    print(f"\nbackup saved: {out}  (sha256 in status)")
+                    self.last_sha = sha
                     self.backup_path, self.backup_ok = out, True
                 else:
                     self.backup_ok = True

@@ -1,0 +1,52 @@
+==== C!WriteReg  VA 0x10005930 ====
+  0x10005930  55         push ebp
+  0x10005931  8bec       mov ebp, esp
+  0x10005933  a110ef1d10 mov eax, dword ptr [0x101def10]
+  0x10005938  85c0       test eax, eax
+  0x1000593a  743e       je 0x1000597a
+  0x1000593c  ffd0       call eax
+  0x1000593e  83f808     cmp eax, 8
+  0x10005941  7537       jne 0x1000597a
+  0x10005943  0fb60d22ef1d10 movzx ecx, byte ptr [0x101def22]
+  0x1000594a  0fb64508   movzx eax, byte ptr [ebp + 8]
+  0x1000594e  66c1e108   shl cx, 8
+  0x10005952  660bc8     or cx, ax
+  0x10005955  a188ee1d10 mov eax, dword ptr [0x101dee88]
+  0x1000595a  0fb7c9     movzx ecx, cx
+  0x1000595d  85c0       test eax, eax
+  0x1000595f  7507       jne 0x10005968
+  0x10005961  b806000000 mov eax, 6
+  0x10005966  5d         pop ebp
+  0x10005967  c3         ret 
+  0x10005968  8d550c     lea edx, [ebp + 0xc]
+  0x1000596b  52         push edx
+  0x1000596c  6a01       push 1
+  0x1000596e  6a00       push 0
+  0x10005970  51         push ecx
+  0x10005971  6a01       push 1
+  0x10005973  ffd0       call eax
+  0x10005975  83c414     add esp, 0x14
+  0x10005978  5d         pop ebp
+  0x10005979  c3         ret 
+  0x1000597a  a1a4491d10 mov eax, dword ptr [0x101d49a4]
+  0x1000597f  48         dec eax
+  0x10005980  53         push ebx
+  0x10005981  8b5d08     mov ebx, dword ptr [ebp + 8]
+  0x10005984  83f805     cmp eax, 5
+  0x10005987  0f87f3000000 ja 0x10005a80
+  0x1000598d  ff2485a45a0010 jmp dword ptr [eax*4 + 0x10005aa4]
+  0x10005994  0fb605aa491d10 movzx eax, byte ptr [0x101d49aa]
+  0x1000599b  53         push ebx
+  0x1000599c  6a01       push 1
+  0x1000599e  50         push eax
+  0x1000599f  e87cedffff call 0x10004720
+  0x100059a4  83c40c     add esp, 0xc
+  0x100059a7  85c0       test eax, eax
+  0x100059a9  0f85ef000000 jne 0x10005a9e
+  0x100059af  ff750c     push dword ptr [ebp + 0xc]
+  0x100059b2  50         push eax
+  0x100059b3  0fb605aa491d10 movzx eax, byte ptr [0x101d49aa]
+  0x100059ba  50         push eax
+  0x100059bb  e860edffff call 0x10004720
+  0x100059c0  83c40c     add esp, 0xc
+  0x100059c3  8bd0       mov edx, eax

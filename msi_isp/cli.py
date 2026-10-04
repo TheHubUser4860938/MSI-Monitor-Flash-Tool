@@ -23,6 +23,7 @@ import time
 from . import Facts
 from .ddc import RTBus, ddc_packet, ddc_parse_reply, SLAVE_DDC
 from .isp import I2CTarget, ScalerBus, IspError
+from .progress import Bar
 
 # ISP-relevant slaves the Windows tool uses; 8-bit forms kept in Facts.SLAVES
 TARGETS = [
@@ -215,15 +216,21 @@ def cmd_backup(args):
         out = args.out
         total = args.size
         print(f"dumping {total} bytes -> {out}")
+        bar = Bar(total, "backup")
         with open(out, "wb") as f:
             done = 0
             while done < total:
                 n = min(4096, total - done)
-                f.write(sb.read_burst(t, done, n, page=Facts.SLAVES["isp_page_len"]))
+                base = done
+                def prog(got, _n, _base=base):
+                    bar.update(_base + got)
+                f.write(sb.read_burst(t, done, n,
+                                      page=Facts.SLAVES["isp_page_len"],
+                                      progress=prog))
                 done += n
-                if done % 0x40000 == 0:
-                    print(f"  {100 * done / total:.0f}%")
-        print("done; verify against the .bin header you expect inside it")
+                bar.update(done)
+        bar.done()
+        print("verify against the .bin header you expect inside it")
 
 
 def cmd_write(args):

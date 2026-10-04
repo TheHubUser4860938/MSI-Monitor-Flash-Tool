@@ -73,8 +73,13 @@ class ScalerBus:
         return change
 
     # ---- burst flash read (ReadFlashData shape) -----------------------
-    def read_burst(self, tgt: I2CTarget, addr: int, n: int, page: int = 32) -> bytes:
-        """Read n bytes as ReadFlashData does: 16-bit address, then page reads."""
+    def read_burst(self, tgt: I2CTarget, addr: int, n: int, page: int = 32,
+                   progress=None) -> bytes:
+        """Read n bytes as ReadFlashData does: 16-bit address, then page reads.
+
+        progress(done, total): optional callback invoked after every ISP page
+        (smallest possible granularity) so the UI can render a live bar.
+        """
         out = bytearray()
         while len(out) < n:
             chunk = min(page, n - len(out))
@@ -82,6 +87,8 @@ class ScalerBus:
             hdr = bytes([(at >> 16) & 0xFF, at & 0xFF])
             self.bus.write(tgt.addr7, hdr, warmup=self._retarget(tgt.addr7))
             out += self.bus.read(tgt.addr7, chunk, warmup=False)
+            if progress:
+                progress(len(out), n)
         return bytes(out[:n])
 
 

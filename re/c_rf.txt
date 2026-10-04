@@ -1,0 +1,31 @@
+==== C!C:rva0x7e50  VA 0x10007e50 ====
+  0x10007e50  55         push ebp
+  0x10007e51  8bec       mov ebp, esp
+  0x10007e53  a108ef1d10 mov eax, dword ptr [0x101def08]
+  0x10007e58  83ec0c     sub esp, 0xc
+  0x10007e5b  53         push ebx
+  0x10007e5c  85c0       test eax, eax
+  0x10007e5e  0f8438010000 je 0x10007f9c
+  0x10007e64  ffd0       call eax
+  0x10007e66  0fb7d8     movzx ebx, ax
+  0x10007e69  6685db     test bx, bx
+  0x10007e6c  0f842a010000 je 0x10007f9c
+  0x10007e72  a110ef1d10 mov eax, dword ptr [0x101def10]
+  0x10007e77  56         push esi
+  0x10007e78  57         push edi
+  0x10007e79  85c0       test eax, eax
+  0x10007e7b  0f849f000000 je 0x10007f20
+  0x10007e81  ffd0       call eax
+  0x10007e83  83f808     cmp eax, 8
+  0x10007e86  0f8594000000 jne 0x10007f20
+  0x10007e8c  0fb7450c   movzx eax, word ptr [ebp + 0xc]
+  0x10007e90  33d2       xor edx, edx
+  0x10007e92  8bfb       mov edi, ebx
+  0x10007e94  33f6       xor esi, esi
+  0x10007e96  f7f7       div edi
+  0x10007e98  8945f4     mov dword ptr [ebp - 0xc], eax
+  0x10007e9b  8bca       mov ecx, edx
+  0x10007e9d  894df8     mov dword ptr [ebp - 8], ecx
+  0x10007ea0  85c0       test eax, eax
+  0x10007ea2  7e43       jle 0x10007ee7
+  0x10007ea4  33c9       xor ecx, ecx

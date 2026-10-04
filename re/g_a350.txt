@@ -1,0 +1,51 @@
+0000a350  55                 push ebp
+0000a351  8bec               mov ebp, esp
+0000a353  6aff               push -1
+0000a355  68660f1c10         push 0x101c0f66
+0000a35a  64a100000000       mov eax, dword ptr fs:[0]
+0000a360  50                 push eax
+0000a361  a1ecdf2310         mov eax, dword ptr [0x1023dfec]
+0000a366  33c5               xor eax, ebp
+0000a368  50                 push eax
+0000a369  8d45f4             lea eax, [ebp - 0xc]
+0000a36c  64a300000000       mov dword ptr fs:[0], eax
+0000a372  c745fc00000000     mov dword ptr [ebp - 4], 0
+0000a379  51                 push ecx
+0000a37a  c70188192010       mov dword ptr [ecx], 0x10201988
+0000a380  e829701700         call 0x101813ae
+0000a385  83c404             add esp, 4
+0000a388  8b4df4             mov ecx, dword ptr [ebp - 0xc]
+0000a38b  64890d00000000     mov dword ptr fs:[0], ecx
+0000a392  59                 pop ecx
+0000a393  8be5               mov esp, ebp
+0000a395  5d                 pop ebp
+0000a396  c3                 ret 
+0000a397  cc                 int3 
+0000a398  cc                 int3 
+0000a399  cc                 int3 
+0000a39a  cc                 int3 
+0000a39b  cc                 int3 
+0000a39c  cc                 int3 
+0000a39d  cc                 int3 
+0000a39e  cc                 int3 
+0000a39f  cc                 int3 
+0000a3a0  55                 push ebp
+0000a3a1  8bec               mov ebp, esp
+0000a3a3  6aff               push -1
+0000a3a5  68360d1c10         push 0x101c0d36
+0000a3aa  64a100000000       mov eax, dword ptr fs:[0]
+0000a3b0  50                 push eax
+0000a3b1  56                 push esi
+0000a3b2  57                 push edi
+0000a3b3  a1ecdf2310         mov eax, dword ptr [0x1023dfec]
+0000a3b8  33c5               xor eax, ebp
+0000a3ba  50                 push eax
+0000a3bb  8d45f4             lea eax, [ebp - 0xc]
+0000a3be  64a300000000       mov dword ptr fs:[0], eax
+0000a3c4  8bf1               mov esi, ecx
+0000a3c6  8b4690             mov eax, dword ptr [esi - 0x70]
+0000a3c9  8d7e90             lea edi, [esi - 0x70]
+0000a3cc  8b4004             mov eax, dword ptr [eax + 4]
+0000a3cf  c7443090ace62010   mov dword ptr [eax + esi - 0x70], 0x1020e6ac
+0000a3d7  8b07               mov eax, dword ptr [edi]
+0000a3d9  8b4804             mov ecx, dword ptr [eax + 4]

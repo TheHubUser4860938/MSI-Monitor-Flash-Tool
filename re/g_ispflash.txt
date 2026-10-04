@@ -1,0 +1,39 @@
+==== P!P:rva0x8520  VA 0x10008520 ====
+  0x10008520  55         push ebp
+  0x10008521  8bec       mov ebp, esp
+  0x10008523  83e4f8     and esp, 0xfffffff8
+  0x10008526  83ec6c     sub esp, 0x6c
+  0x10008529  a1ecdf2310 mov eax, dword ptr [0x1023dfec]
+  0x1000852e  33c4       xor eax, esp
+  0x10008530  89442468   mov dword ptr [esp + 0x68], eax
+  0x10008534  8b4d08     mov ecx, dword ptr [ebp + 8]
+  0x10008537  33c0       xor eax, eax
+  0x10008539  56         push esi
+  0x1000853a  c744241c07000000 mov dword ptr [esp + 0x1c], 7
+  0x10008542  c744241800000000 mov dword ptr [esp + 0x18], 0
+  0x1000854a  6689442408 mov word ptr [esp + 8], ax
+  0x1000854f  c744240410a72110 mov dword ptr [esp + 4], 0x1021a710
+  0x10008557  c74424340f000000 mov dword ptr [esp + 0x34], 0xf
+  0x1000855f  89442430   mov dword ptr [esp + 0x30], eax
+  0x10008563  88442420   mov byte ptr [esp + 0x20], al
+  0x10008567  e884fbffff call 0x100080f0
+  0x1000856c  a1d4a22410 mov eax, dword ptr [0x1024a2d4]
+  0x10008571  83f804     cmp eax, 4
+  0x10008574  7428       je 0x1000859e
+  0x10008576  83f805     cmp eax, 5
+  0x10008579  7423       je 0x1000859e
+  0x1000857b  83f806     cmp eax, 6
+  0x1000857e  741e       je 0x1000859e
+  0x10008580  83f807     cmp eax, 7
+  0x10008583  7419       je 0x1000859e
+  0x10008585  83f811     cmp eax, 0x11
+  0x10008588  7414       je 0x1000859e
+  0x1000858a  83f81a     cmp eax, 0x1a
+  0x1000858d  740f       je 0x1000859e
+  0x1000858f  83f81b     cmp eax, 0x1b
+  0x10008592  740a       je 0x1000859e
+  0x10008594  be560d0000 mov esi, 0xd56
+  0x10008599  e941010000 jmp 0x100086df
+  0x1000859e  8d442438   lea eax, [esp + 0x38]
+  0x100085a2  50         push eax
+  0x100085a3  e808f0ffff call 0x100075b0
