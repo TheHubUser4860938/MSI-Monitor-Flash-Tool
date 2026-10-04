@@ -237,3 +237,59 @@ the tunnel isn't available on this monitor either on Windows! Options ranked:
 Files: nvrm.py = working RM client (root-validated tree + native aux read).
 t_* scratch tests all reproducible; re/ holds 32-bit disasm dumps.
 console.py has shurectl-style REPL + flash gates (all refusing correctly).
+
+# SESSION 5-7 (2026-10-04, condensed handoff)
+
+## VERIFIED ON HARDWORK, ROOT, NVIDIA RTX 4090
+- nvbus.NvRMAuxBus acceptance (t_nvbus.py): EDID 128B byte-identical to
+  kernel sysfs, 32B chunked OK, DDC/CI vendor fw-version 'FW.009' OK.
+  Transport = NV0073 AUXCH I2C mode, PLAIN 7-bit addr (VERIFIED comments in
+  nvrm.aux_i2c). nvrm.aux() size-for-read bug FIXED this session (len(data)
+  is requested length for reads).
+- ISP entry WORKS from Linux: magic byte write to slave 0x37 from
+  AUTOENTER_CANDIDATES -> status read gains bit 0x80 (saw 0xca/0x80/0x8a/
+  0xf8 depending on candidate/run; ANY bit0x80 = alive). isp.enter_isp/
+  exit_isp implemented (0x24 restores normal mode; EDID/DDC fine after).
+  is implemented in msi_isp/isp.py + Facts.AUTOENTER_CANDIDATES.
+
+## ISLAVE / FLASH ACCESS FINDINGS (all read-only probes, monitor untouched)
+- I2C-mode WRITES (decisive probe) to 0x20/0x22/0x18/0x19/0x1B/0x41 all
+  TIMEOUT — even with ISP alive. Bare-ADDRESS READ "ACKs" on every address
+  incl. nonexistent 0x17/0x21 -> noise, ignore.
+- Hand-rolled native-mode I2C-style request words (slave8<<4/6/8 variants):
+  writes NACK/DEFER, reads ACK zeros. RM native mode only services DPCD
+  space. 0x00D0 tunnel-enable write ACKs but does NOT take effect (readback
+  0x01 unchanged) — RTD branch ignores I2C_AUX config writes.
+- 0x37 mailbox experiments (t_cmd37/t_mailbox): command writes ACK; reads
+  return status/echo bytes incl. once "FW.009N" ASCII (cached DDC/CC reply
+  buffer?) — no flash bytes from 0x11/0x10/op-variants yet.
+- Disasm: Comm_Aux!0x3a630 dispatcher; NVIDIA backend builds NV_I2C_INFO
+  (size 0xB0, ver 0x40000001/2) -> dynamic GetProcAddress'd NvAPI_I2CRead/
+  Write. On Windows this is RM-internal transparent I2C-over-AUX that works
+  WITHOUT the DPCD tunnel; our userland 0x731341 I2C mode does not replicate
+  it for non-tunnel branches. Comm.dll ReadFlashData slave const 0x41
+  (8-bit -> 7-bit 0x20) confirmed in f_readflash.txt.
+
+## UNTRIED, HIGH-VALUE NEXT (recommend FIRST, zero code)
+HDMI PATH: monitor has HDMI 2.1 inputs; GPU has HDMI out (i2c-5/6 adapters).
+On HDMI, DDC = plain I2C master — no AUX tunnel, no RM privilege, no root.
+Scaler internal bus (0x37/0x50, likely also ISP 0x20/0x41) is wired to every
+port's DDC lines. If user plugs HDMI: sudo not even needed; probe 0x20/0x41
+via standard i2c-dev (ddc.py). If they ACK -> full native flash on ANY gpu.
+Command: ./msi-isp --bus <hdmi bus#> probe   (bus list: ddcutil detect or
+  /sys/bus/i2c/devices/i2c-*/name NVIDIA adapter 6/7)
+
+## THEN
+1. HDMI ACK on 0x20/0x41 -> ReadFlashData model: 16-bit page pointer writes,
+   32B-page burst reads; oracle flash@0xF806 == b"MAG 341CQ X28".
+2. If HDMI gives only 0x20-style ISP after magic (same as DP): implement
+   0x41-with-pointer styles (t_flash41.py ready, never ran).
+3. Backup -> validate contains live FW.009 header -> implement IspFlash
+   erase/program from WinIspPlugIn 0x8520 dump; gates already in console.
+
+## STATE
+git HEAD c1be88c + these notes; safe modes + shell work as user; --nvrm
+works as root (sudoers.d/99-msi-isp still active, REMOVE at wrap-up).
+Monitor: FW.009, DP-1, never flashed. DP cable currently; HDMI test pending
+user cable swap. t_flash41.py / t_cmd37.py / t_tun4.py = latest probes,
+all root-run, all idempotent-safe.

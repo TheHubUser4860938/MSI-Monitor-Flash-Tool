@@ -365,7 +365,7 @@ class NvRM:
               DP spec; for native AUX: byte-address<<2 | type | size).
         Returns (reply_type_name, data_bytes_returned, rm_status).
         """
-        n = len(data) if req in (AUX_REQ_WRITE, AUX_REQ_WRITE_STATUS) else 0
+        n = len(data)          # for READ, len(data) is the requested length
         size0 = (n - 1) if n else 0
         p = AUXCHParams()
         p.subDeviceInstance = 0
