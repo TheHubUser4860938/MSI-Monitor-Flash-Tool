@@ -293,3 +293,38 @@ works as root (sudoers.d/99-msi-isp still active, REMOVE at wrap-up).
 Monitor: FW.009, DP-1, never flashed. DP cable currently; HDMI test pending
 user cable swap. t_flash41.py / t_cmd37.py / t_tun4.py = latest probes,
 all root-run, all idempotent-safe.
+
+# SESSION 8 (2026-10-04 afternoon) — HDMI CONFIRMED + vendor register map started
+
+## HDMI (bus 3, card1-HDMI-A-1) — plain i2c-dev, NOT root, works
+- ddcutil detect: bus3=HDMI-A-1 (monitor), bus4=DP-1 (same monitor, now dual-linked).
+- ISP entry over HDMI WORKS as plain user: cand0 magic 0x94 -> status bit0x80
+  alive (0x88, then 0xdf on repeat poll), exit 0x24 clean, EDID intact after
+  every run (scratch/t_hdmi_isp.py).
+- BUT: even ISP-alive, slaves 0x20/0x22/0x18/19/1a/1b NO-ACK on HDMI plain
+  i2c too -> the 0x20-flash-slave model is dead; flash IO must go through the
+  0x37 DDC device (mailbox) or vendor DDC/CC packets.
+- 0x37 mailbox burst (t_mbox.py, ISP alive, ptr F800): reads return constant
+  status block `02 00 df 00 ff ff 02 02 6b...` for every cmd-prefix variant
+  (10/11/12/96/6A/none) — no flash bytes. Raw-byte mailbox on HDMI likely
+  needs START-condition I2C_RDWR (ddc.py does single-shot writes); low prio.
+
+## DECISIVE FINDING: vendor op01 = "read FW string register", NOT a window
+- t_regwin.py sweep proved: op01 replies `02 0l lo hi <ascii>` where l = the
+  LOW operand byte echo and the string is ALWAYS the cached FW id 'FW.00...'
+  regardless of operands (f8 00, 00 00, all variants). "FW.0" hits were
+  echoes of operand+cached string — the flash-window theory is FALSE.
+  (Parse: raw reply 6e 8l <d0=ddest> <d1=result> <d2=echo_lo> <d3=echo_hi> data...)
+- t_lensweep.py: data=[FE E1 X] — X selects a VENDOR REGISTER, not length:
+    FE E1 E6 -> 'FW.009' (live fw string, 6B)
+    FE E1 A4 -> 1f 40 37 37 (4B, maybe date/build id)
+    all other X -> `02 01 <echo> 'FW.0'` default/mismatch reply
+  => opcode 0x01 = vendor VCP-style register READ, dest byte 0x00=match.
+  Only E1 subpage found so far. NEXT: sweep hi byte: FE E2..EF x, and FE xx E6;
+  WinIspPlugIn GetFWInfo probably uses exactly one of these. Flash
+  read/backup NOT yet found here — need more of the register map, or the
+  0x37 mailbox proper framing (i2c_RDWR combined msgs on HDMI), or
+  disasm WinIspPlugIn@0x8520 IspFlash (only remaining authoritative source;
+  re/f_*.txt has the dump).
+- Monitor: still FW.009, nothing written. DP+HDMI both plugged; HDMI bus 3,
+  DP bus 4. Sudoers drop-in still active.
