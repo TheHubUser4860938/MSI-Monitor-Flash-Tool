@@ -489,7 +489,9 @@ Findings:
   cable, port, DP-only lane, file model-match OK).
 
 Housekeeping at close:
-- sudo NOPASSWD drop-in REMOVED (was agent test scaffolding). User runs
+- sudo NOPASSWD drop-in (/etc/sudoers.d/99-msi-isp) still on disk — agent shell lost
+  sudo access at close; USER should remove: `sudo rm /etc/sudoers.d/99-msi-isp`.
+  (Until removed, passwordless sudo is active for eugene.) User runs
   `sudo msi-isp shell` from their own terminal when root mode is wanted.
 - Monitor: FW.009, verified healthy, never flashed. HDMI lane: keep cable
   only if testing Intel/AMD machines later; not required for v0.1 modes.
