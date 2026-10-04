@@ -413,3 +413,32 @@ Monitor state: FW.009 untouched, DP-only, healthy. sudo NOPASSWD drop-in
   (cli + console). write will reuse the same callback when implemented.
 - Fixed latent import bug: cli.py imported IspError from wrong module.
 - monitor healthy, FW.009 untouched, DP-only.
+
+## Session 10 (2026-10-04 evening) — NV2080 I2C dead on DP; Write32BitRegEx fully decoded
+- NV2080_CTRL_CMD_I2C_READ/WRITE_BUFFER (0x20800601/2) + READ_REG (0x20800603):
+  every DP-derived port id (4-7 from GET_I2C_PORTID) -> NV_ERR_INVALID_ARGUMENT 0x1f,
+  flags 0 and PRIVILEGE(2) alike. struct sizes 532/276 validated against upstream
+  ctrl2080i2c.h (saved: /tmp/c2080i2c.h). NV2080_CTRL_CMD_I2C_ACCESS (0x20800610,
+  phase-level bit-bang, full cmd/flag table in header): TEST_PORT -> 0x1f on all ports.
+  VERDICT: RM's "DDC ports" for DP displays are AUX-emulated shims, not raw I2C
+  masters; those controls are for GPU-internal/pixelport I2C. Dead lane, do not retry.
+- Write32BitRegEx (Comm!0x10008750, w32bre.txt) device-type 0x11 == NVIDIA-AUX:
+  32-bit reg value split -> 4-byte payload [reg&0xFF, val>>16 lo?? order:
+  [ebp-4]=val>>16, [ebp-3]=val>>8 (reg byte also stored at [ebp-3]? SEE dump),
+  [ebp-2]=val>>8, [ebp-1]=val&0xFF] then I2CWrite(global 0x101dee04, slave, buf4, len 4).
+  i.e. plain 4-byte I2C write to 8-bit slave 0x44 (=7-bit 0x22) — byte 0 = register
+  index (Flash.dat CSV's 06,<reg>,<val>), bytes 1-3 = big-endian 24-bit register VALUE.
+  Flash.dat reg space == the 0x22 slave's register file. index reg 0x60, data 0x61-0x66.
+- sweep_isp.log (DP, ISP alive): 0x22 write TIMEOUT (re-entry at 0x22 proves it was
+  probed and failed). DP AUX I2C to 0x22 = dead on NVIDIA RM (no tunnel + shim ports).
+- Remaining live lane (only one): HDMI DDC is a REAL I2C bus (no tunnel semantics).
+  Plan t_crossisp.py: HDMI-only (or DP-enter + HDMI-probe cross if ISP state is
+  global to the scaler, which the design says it is):
+    1. magic 94/9a/... candidate write to 0x37, status read flips bit7 (proven on HDMI,
+       c4da6ba, user perms)
+    2. on 0x22: write [0x60, 9F, 00, 00, 00]? — per Flash.dat semantics:
+       write reg=0x60 strobe; window: write [0x60,<idx>] pairs, read data regs;
+    3. oracle: JEDEC 0x9F via SPI bridge -> A25L032 ID 0x1F4010, or model string
+       "MAG 341CQ X28" @0xF806 through the window.
+  HDMI cable currently UNPLUGGED (user power-cycled + removed DP/HDMI dual-input
+  wedge). Needs user to re-plug HDMI (secondary input; DP stays video source).

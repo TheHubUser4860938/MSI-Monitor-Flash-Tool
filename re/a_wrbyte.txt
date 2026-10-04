@@ -1,0 +1,91 @@
+0x03b1c0 push   ebp
+0x03b1c1 mov    ebp, esp
+0x03b1c3 push   esi
+0x03b1c4 xor    esi, esi
+0x03b1c6 cmp    dword ptr [0x102127f8], esi
+0x03b1cc jne    0x1003b1fc
+0x03b1ce call   0x1003b7e0
+0x03b1d3 call   0x10039e50
+0x03b1d8 mov    esi, eax
+0x03b1da mov    ecx, 1
+0x03b1df mov    eax, dword ptr [0x102127f8]
+0x03b1e4 test   esi, esi
+0x03b1e6 cmove  eax, ecx
+0x03b1e9 mov    dword ptr [0x102127f8], eax
+0x03b1ee call   0x1003bbb0
+0x03b1f3 test   esi, esi
+0x03b1f5 je     0x1003b1fc
+0x03b1f7 mov    eax, esi
+0x03b1f9 pop    esi
+0x03b1fa pop    ebp
+0x03b1fb ret    
+0x03b1fc cmp    dword ptr [0x1021ae20], 0
+0x03b203 push   ebx
+0x03b204 push   edi
+0x03b205 je     0x1003b23b
+0x03b207 xor    edi, edi
+0x03b209 cmp    dword ptr [0x1021ae24], edi
+0x03b20f jle    0x1003b24b
+0x03b211 mov    ebx, dword ptr [ebp + 8]
+0x03b214 push   dword ptr [ebp + 0x10]
+0x03b217 push   dword ptr [ebp + 0xc]
+0x03b21a push   ebx
+0x03b21b call   0x1003a720
+0x03b220 mov    esi, eax
+0x03b222 test   esi, esi
+0x03b224 je     0x1003b234
+0x03b226 inc    edi
+0x03b227 cmp    edi, dword ptr [0x1021ae24]
+0x03b22d jl     0x1003b214
+0x03b22f pop    edi
+0x03b230 pop    ebx
+0x03b231 pop    esi
+0x03b232 pop    ebp
+0x03b233 ret    
+0x03b234 pop    edi
+0x03b235 pop    ebx
+0x03b236 xor    eax, eax
+0x03b238 pop    esi
+0x03b239 pop    ebp
+0x03b23a ret    
+0x03b23b push   dword ptr [ebp + 0x10]
+0x03b23e push   dword ptr [ebp + 0xc]
+0x03b241 push   dword ptr [ebp + 8]
+0x03b244 call   0x1003a720
+0x03b249 mov    esi, eax
+0x03b24b pop    edi
+0x03b24c pop    ebx
+0x03b24d mov    eax, esi
+0x03b24f pop    esi
+0x03b250 pop    ebp
+0x03b251 ret    
+0x03b252 int3   
+0x03b253 int3   
+0x03b254 int3   
+0x03b255 int3   
+0x03b256 int3   
+0x03b257 int3   
+0x03b258 int3   
+0x03b259 int3   
+0x03b25a int3   
+0x03b25b int3   
+0x03b25c int3   
+0x03b25d int3   
+0x03b25e int3   
+0x03b25f int3   
+0x03b260 push   ebp
+0x03b261 mov    ebp, esp
+0x03b263 push   esi
+0x03b264 xor    esi, esi
+0x03b266 cmp    dword ptr [0x102127f8], esi
+0x03b26c jne    0x1003b29c
+0x03b26e call   0x1003b7e0
+0x03b273 call   0x10039e50
+0x03b278 mov    esi, eax
+0x03b27a mov    ecx, 1
+0x03b27f mov    eax, dword ptr [0x102127f8]
+0x03b284 test   esi, esi
+0x03b286 cmove  eax, ecx
+0x03b289 mov    dword ptr [0x102127f8], eax
+0x03b28e call   0x1003bbb0
+0x03b293 test   esi, esi
