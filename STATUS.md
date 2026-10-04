@@ -328,3 +328,33 @@ all root-run, all idempotent-safe.
   re/f_*.txt has the dump).
 - Monitor: still FW.009, nothing written. DP+HDMI both plugged; HDMI bus 3,
   DP bus 4. Sudoers drop-in still active.
+
+## SESSION 8b (same evening) — register map narrowed; mailbox verdict
+- pexray.py FIXED to CS_MODE_32 (all three DLLs are PE32/0x14c; previous
+  64-bit dumps incl. f_ispenter_plugin.txt were GARBAGE — re-dump
+  WinIspPlugIn exports now clean: IspFlash 0x8520, DumpFlash 0x8860,
+  GetFWInfo 0x8800, RecordFWVersion 0x8750, EnterISPModeExport 0x8c50,
+  BankErase 0x8a20, ChipErase 0x8af0).
+- Flash.dat decoded: per-chip SPI init scripts as byte streams
+  "06,<reg_hi>,<reg_lo>,<val>" = write scaler reg; "0d,<reg>,<len>,<w1>,<w2>,<wait>,<t>"
+  = read/compare. Regs 0x6020/0x6038/0x6068/0x6069/0x64xx/0x65xx/0x66xx/0x67/0x6d/0x6f/0x70/0x71.
+  => flash access goes through SCALER REGISTERS; tool's I2CWrite(0x37-ish
+  block 0x30-0x35/0x22)/ReadFlashData(0x20,hi,lo) = register-then-burst design.
+- Vendor DDC/CC op01 [FE x y] = register-window read on HDMI (verified):
+  FE E1 E6 -> 'FW.009' (6B), FE E1 A4 -> 1f403737 (4B). All other probed
+  hi/lo incl. FE F8 00/F8 06 -> empty no-parse. E1 subpage is NOT flash
+  window (constant reply regardless of 2B/3B/4B operand forms).
+- 0x37 raw mailbox (enter ISP cand magic -> [10 03 A2 A1 A0] addr -> [11]
+  read): returns 'fe 00 MAG 341CQ X28n' — ADDRESS-INSENSITIVE across 10
+  different test addresses -> cached EDID-descriptor string, NOT live flash
+  bytes. ORACLE HITS THIS EVENING WERE FALSE POSITIVES. Mailbox either needs
+  different framing or isn't flash-capable on RTD2711.
+- After exit_isp + 20min rest, HDMI DDC/CI healthy (ddcutil getvcp OK on
+  bus 3 AND bus 4; EDID False earlier = pointer-position artifact in test).
+- NEXT (ranked): (1) redump WinIspPlugIn IspFlash/DumpFlash/GetFWInfo with
+  fixed 32-bit pexray — GetFWInfo may be the FE E1 E6 impl, IspFlash shows
+  the TRUE flash-read primitive sequence (register script via I2CWrite?);
+  (2) implement scaler-register model: op01 [FE hi lo] is likely window READ,
+  find window regs; (3) mitxela DDC-OLED post + GHENT RTD2660 programmer for
+  RTD I2C-ISP register lore (web hit, not yet read).
+- Monitor: still FW.009 unflashed. Both DP+HDMI connected. sudoers active.

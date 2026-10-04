@@ -1,6 +1,6 @@
 """Shared PE/capstone helpers for reversing the MSI/Realtek ISP DLLs."""
 import sys, pefile
-from capstone import Cs, CS_ARCH_X86, CS_MODE_64
+from capstone import Cs, CS_ARCH_X86, CS_MODE_32
 
 def load(path):
     pe = pefile.PE(path, fast_load=True)
@@ -11,7 +11,7 @@ def load(path):
     return pe
 
 def md():
-    return Cs(CS_ARCH_X86, CS_MODE_64)
+    return Cs(CS_ARCH_X86, CS_MODE_32)
 
 def imports(pe):
     """dll -> {name/ord: iat_va}"""
