@@ -1,0 +1,207 @@
+==== Comm.dll fn 0x6ed0 ====
+00006ed0  55                 push ebp
+00006ed1  8bec               mov ebp, esp
+00006ed3  51                 push ecx
+00006ed4  a110ef1d10         mov eax, dword ptr [0x101def10]
+00006ed9  56                 push esi
+00006eda  33f6               xor esi, esi
+00006edc  c645ff00           mov byte ptr [ebp - 1], 0
+00006ee0  85c0               test eax, eax
+00006ee2  7445               je 0x10006f29
+00006ee4  ffd0               call eax
+00006ee6  83f808             cmp eax, 8
+00006ee9  7527               jne 0x10006f12
+00006eeb  a188ee1d10         mov eax, dword ptr [0x101dee88]
+00006ef0  85c0               test eax, eax
+00006ef2  7508               jne 0x10006efc
+00006ef4  8d4606             lea eax, [esi + 6]
+00006ef7  5e                 pop esi
+00006ef8  8be5               mov esp, ebp
+00006efa  5d                 pop ebp
+00006efb  c3                 ret 
+00006efc  8d4dff             lea ecx, [ebp - 1]
+00006eff  51                 push ecx
+00006f00  6a00               push 0
+00006f02  6a00               push 0
+00006f04  6a01               push 1
+00006f06  6a44               push 0x44
+00006f08  ffd0               call eax
+00006f0a  83c414             add esp, 0x14
+00006f0d  5e                 pop esi
+00006f0e  8be5               mov esp, ebp
+00006f10  5d                 pop ebp
+00006f11  c3                 ret 
+00006f12  a110ef1d10         mov eax, dword ptr [0x101def10]
+00006f17  85c0               test eax, eax
+00006f19  740e               je 0x10006f29
+00006f1b  ffd0               call eax
+00006f1d  83f811             cmp eax, 0x11
+00006f20  7507               jne 0x10006f29
+00006f22  33c0               xor eax, eax
+00006f24  5e                 pop esi
+00006f25  8be5               mov esp, ebp
+00006f27  5d                 pop ebp
+00006f28  c3                 ret 
+00006f29  53                 push ebx
+00006f2a  57                 push edi
+00006f2b  668b7d08           mov di, word ptr [ebp + 8]
+00006f2f  33c0               xor eax, eax
+00006f31  893524ef1d10       mov dword ptr [0x101def24], esi
+00006f37  663bc7             cmp ax, di
+00006f3a  733b               jae 0x10006f77
+00006f3c  8b1d2cc41710       mov ebx, dword ptr [0x1017c42c]
+00006f42  6881000000         push 0x81
+00006f47  6a6f               push 0x6f
+00006f49  e842dfffff         call 0x10004e90
+00006f4e  83c408             add esp, 8
+00006f51  85c0               test eax, eax
+00006f53  7537               jne 0x10006f8c
+00006f55  8d45ff             lea eax, [ebp - 1]
+00006f58  50                 push eax
+00006f59  6a6f               push 0x6f
+00006f5b  e830e4ffff         call 0x10005390
+00006f60  83c408             add esp, 8
+00006f63  85c0               test eax, eax
+00006f65  7525               jne 0x10006f8c
+00006f67  f645ff80           test byte ptr [ebp - 1], 0x80
+00006f6b  7516               jne 0x10006f83
+00006f6d  6a01               push 1
+00006f6f  ffd3               call ebx
+00006f71  46                 inc esi
+00006f72  663bf7             cmp si, di
+00006f75  72cb               jb 0x10006f42
+00006f77  5f                 pop edi
+00006f78  5b                 pop ebx
+00006f79  b80a000000         mov eax, 0xa
+00006f7e  5e                 pop esi
+00006f7f  8be5               mov esp, ebp
+00006f81  5d                 pop ebp
+00006f82  c3                 ret 
+00006f83  5f                 pop edi
+00006f84  5b                 pop ebx
+00006f85  33c0               xor eax, eax
+00006f87  5e                 pop esi
+00006f88  8be5               mov esp, ebp
+00006f8a  5d                 pop ebp
+00006f8b  c3                 ret 
+00006f8c  5f                 pop edi
+00006f8d  5b                 pop ebx
+00006f8e  c705a0491d1001000000 mov dword ptr [0x101d49a0], 1
+00006f98  c60521ef1d1000     mov byte ptr [0x101def21], 0
+00006f9f  c60520ef1d1000     mov byte ptr [0x101def20], 0
+00006fa6  5e                 pop esi
+00006fa7  8be5               mov esp, ebp
+00006fa9  5d                 pop ebp
+00006faa  c3                 ret 
+00006fab  cc                 int3 
+00006fac  cc                 int3 
+00006fad  cc                 int3 
+00006fae  cc                 int3 
+00006faf  cc                 int3 
+00006fb0  a118ef1d10         mov eax, dword ptr [0x101def18]
+00006fb5  85c0               test eax, eax
+00006fb7  7506               jne 0x10006fbf
+00006fb9  b806000000         mov eax, 6
+00006fbe  c3                 ret 
+00006fbf  ffe0               jmp eax
+00006fc1  cc                 int3 
+00006fc2  cc                 int3 
+00006fc3  cc                 int3 
+00006fc4  cc                 int3 
+00006fc5  cc                 int3 
+00006fc6  cc                 int3 
+00006fc7  cc                 int3 
+00006fc8  cc                 int3 
+00006fc9  cc                 int3 
+00006fca  cc                 int3 
+00006fcb  cc                 int3 
+00006fcc  cc                 int3 
+00006fcd  cc                 int3 
+00006fce  cc                 int3 
+00006fcf  cc                 int3 
+00006fd0  a114ef1d10         mov eax, dword ptr [0x101def14]
+00006fd5  85c0               test eax, eax
+00006fd7  7506               jne 0x10006fdf
+00006fd9  b806000000         mov eax, 6
+00006fde  c3                 ret 
+00006fdf  ffe0               jmp eax
+00006fe1  cc                 int3 
+00006fe2  cc                 int3 
+00006fe3  cc                 int3 
+00006fe4  cc                 int3 
+00006fe5  cc                 int3 
+00006fe6  cc                 int3 
+00006fe7  cc                 int3 
+00006fe8  cc                 int3 
+00006fe9  cc                 int3 
+00006fea  cc                 int3 
+00006feb  cc                 int3 
+00006fec  cc                 int3 
+00006fed  cc                 int3 
+00006fee  cc                 int3 
+00006fef  cc                 int3 
+00006ff0  a1c4ee1d10         mov eax, dword ptr [0x101deec4]
+00006ff5  85c0               test eax, eax
+00006ff7  7501               jne 0x10006ffa
+00006ff9  c3                 ret 
+00006ffa  ffe0               jmp eax
+00006ffc  cc                 int3 
+00006ffd  cc                 int3 
+00006ffe  cc                 int3 
+00006fff  cc                 int3 
+00007000  a1c0ee1d10         mov eax, dword ptr [0x101deec0]
+00007005  85c0               test eax, eax
+00007007  7506               jne 0x1000700f
+00007009  b806000000         mov eax, 6
+0000700e  c3                 ret 
+0000700f  ffe0               jmp eax
+00007011  cc                 int3 
+00007012  cc                 int3 
+00007013  cc                 int3 
+00007014  cc                 int3 
+00007015  cc                 int3 
+00007016  cc                 int3 
+00007017  cc                 int3 
+00007018  cc                 int3 
+00007019  cc                 int3 
+0000701a  cc                 int3 
+0000701b  cc                 int3 
+0000701c  cc                 int3 
+0000701d  cc                 int3 
+0000701e  cc                 int3 
+0000701f  cc                 int3 
+00007020  a1b4ee1d10         mov eax, dword ptr [0x101deeb4]
+00007025  85c0               test eax, eax
+00007027  7503               jne 0x1000702c
+00007029  b006               mov al, 6
+0000702b  c3                 ret 
+0000702c  ffe0               jmp eax
+0000702e  cc                 int3 
+0000702f  cc                 int3 
+00007030  a1b0ee1d10         mov eax, dword ptr [0x101deeb0]
+00007035  85c0               test eax, eax
+00007037  7506               jne 0x1000703f
+00007039  b806000000         mov eax, 6
+0000703e  c3                 ret 
+0000703f  ffe0               jmp eax
+00007041  cc                 int3 
+00007042  cc                 int3 
+00007043  cc                 int3 
+00007044  cc                 int3 
+00007045  cc                 int3 
+00007046  cc                 int3 
+00007047  cc                 int3 
+00007048  cc                 int3 
+00007049  cc                 int3 
+0000704a  cc                 int3 
+0000704b  cc                 int3 
+0000704c  cc                 int3 
+0000704d  cc                 int3 
+0000704e  cc                 int3 
+0000704f  cc                 int3 
+00007050  55                 push ebp
+00007051  8bec               mov ebp, esp
+00007053  83ec08             sub esp, 8
+00007056  a110ef1d10         mov eax, dword ptr [0x101def10]
+0000705b  57                 push edi
+0000705c  33ff               xor edi, edi

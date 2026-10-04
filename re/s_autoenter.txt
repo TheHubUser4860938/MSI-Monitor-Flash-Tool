@@ -1,0 +1,4 @@
+  File "/home/eugene/monitor-fw/re/fsum.py", line 13
+    if i.mnemonic in ('push','pop'): continue if False else True
+                                     ^^^^^^^^
+SyntaxError: expected expression before 'if', but statement is given
