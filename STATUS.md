@@ -162,3 +162,25 @@ $ ./msi-isp write                    -> refuses (stub, exit 3)
 EDID read = 16-byte chunked with pointer re-posed per chunk, verified
 byte-identical to /sys EDID. Model name from the 0xFC monitor-name descriptor
 (tag at desc+3, text at desc+4 in block 0 here).
+
+
+## CONSOLE (2026-10-04 11:0x) — BUILT, TESTED, NOT ROOT-TESTED YET
+- `msi_isp/console.py` + `shell` subcommand: shurectl-style REPL (cmd.Cmd).
+  Commands: status / set bin / scan / info / verify / backup [--write] /
+  flash / quit. All verified end-to-end over pipes as USER on bus 4:
+  info -> 'MAG 341CQ X28' + 'FW.009'; verify -> model match OK; gates all
+  display + abort correctly. flash requires ALL gates pass + typed 'flash'.
+- Program cycle (_program) still a stub BY DESIGN until ISP read proven.
+- i2c-dev needs only `video` group (already have). RM AUX channel (nvrm.py)
+  is what needs root.
+
+## ROOT-TEST BLOCKER (next action, needs user)
+- sudo cache is keyed to the USER'S tty; my exec shell has no shared tty, so
+  `sudo -v` in their Konsole does NOT help me. Need the drop-in once:
+    echo 'eugene ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/99-msi-isp
+- Then run: sudo python3 t_root_priv.py (checks 0x1b gone => NVOC
+  RMCTRL_FLAGS_PRIVILEGED honored via osIsAdministrator; 0x1b PERSISTS =>
+  NVOC_METHOD_FLAG_PRIVILEGED kernel-only, need kernel shim instead).
+  t_root_priv.py exists (1.7 KB) — built this session, expects to add
+  nvrm.py to its path itself (import msi_isp.nvrm or sys.path fix).
+

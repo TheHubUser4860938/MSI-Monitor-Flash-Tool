@@ -237,6 +237,11 @@ tool remains the reference flasher.
     sys.exit(3)
 
 
+def cmd_shell(args):
+    from .console import run
+    run(args.bus, args.bin)
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(prog="msi-isp", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -251,12 +256,14 @@ def main(argv=None):
     b = sub.add_parser("backup", help="dump scaler SPI flash (read-only)")
     b.add_argument("--out", required=True)
     b.add_argument("--size", type=lambda s: int(s, 0), default=Facts.FW_BIN_SIZE)
+    sub.add_parser("shell", help="interactive console (shurectl-style)")
     w = sub.add_parser("write", help="program flash (stub today, see STATUS.md)")
     w.add_argument("--allow-write", action="store_true",
                    help="required and acknowledged: a bad flash can brick the scaler")
     args = p.parse_args(argv)
     {"info": cmd_info, "verify": cmd_verify, "probe": cmd_probe,
-     "backup": cmd_backup, "write": cmd_write}[args.cmd](args)
+     "backup": cmd_backup, "write": cmd_write,
+     "shell": cmd_shell}[args.cmd](args)
 
 
 if __name__ == "__main__":
