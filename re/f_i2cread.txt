@@ -1,0 +1,15 @@
+0003b120  55                 push rbp
+0003b121  8bec               mov ebp, esp
+0003b123  56                 push rsi
+0003b124  33f6               xor esi, esi
+0003b126  3935f8272110       cmp dword ptr [rip + 0x102127f8], esi
+0003b12c  752e               jne 0x1003b15c
+0003b12e  e8ad060000         call 0x1003b7e0
+0003b133  e818edffff         call 0x10039e50
+0003b138  8bf0               mov esi, eax
+0003b13a  b901000000         mov ecx, 1
+0003b13f  a1f827211085f60f44 movabs eax, dword ptr [0x440ff685102127f8]
+0003b148  c1a3f8272110e8     shl dword ptr [rbx + 0x102127f8], 0xe8
+0003b14f  5d                 pop rbp
+0003b150  0a00               or al, byte ptr [rax]
+0003b152  0085f674058b       add byte ptr [rbp - 0x74fa8b0a], al

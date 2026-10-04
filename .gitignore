@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+# MSI proprietary Windows updater + fw payload (redistribution unclear; keep local)
+vendor/
+# flash dumps / scratch artifacts
+*.dump
