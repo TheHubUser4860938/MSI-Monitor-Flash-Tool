@@ -1,0 +1,43 @@
+10008860  push ebp
+10008861  mov ebp, esp
+10008863  and esp, 0xfffffff8
+10008866  sub esp, 0x218
+1000886c  mov eax, dword ptr [0x1023dfec]
+10008871  xor eax, esp
+10008873  mov dword ptr [esp + 0x214], eax
+1000887a  mov ecx, dword ptr [ebp + 8]
+1000887d  push esi
+1000887e  push edi
+1000887f  call 0x100080f0
+10008884  mov ecx, dword ptr [0x1024a1f8]
+1000888a  call 0x1001f750
+1000888f  test eax, eax
+10008891  jne 0x100088d8
+10008893  mov edx, dword ptr [0x1024a434]
+10008899  lea edi, [esp + 8]
+1000889d  mov ecx, 0x84
+100088a2  lea eax, [esp + 0x10]
+100088a6  mov esi, 0x1024a430
+100088ab  rep movsd dword ptr es:[edi], dword ptr [esi]
+100088ad  mov ecx, dword ptr [0x1024a430]
+100088b3  push eax
+100088b4  call 0x100239b0
+100088b9  mov esi, eax
+100088bb  add esp, 4
+100088be  test esi, esi
+100088c0  je 0x100088c9
+100088c2  call 0x1001fa90
+100088c7  jmp 0x100088d0
+100088c9  call 0x1001fa90
+100088ce  mov esi, eax
+100088d0  push esi
+100088d1  call 0x1003fab0
+100088d6  mov eax, esi
+100088d8  mov ecx, dword ptr [esp + 0x21c]
+100088df  pop edi
+100088e0  pop esi
+100088e1  xor ecx, esp
+100088e3  call 0x1017f651
+100088e8  mov esp, ebp
+100088ea  pop ebp
+100088eb  ret 

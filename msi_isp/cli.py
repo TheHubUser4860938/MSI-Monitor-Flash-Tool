@@ -39,6 +39,10 @@ TARGETS = [
 
 
 def _bus(args) -> RTBus:
+    """Transport selector: --nvrm -> NVIDIA RM DP-AUX (root), else i2c-dev."""
+    if getattr(args, "nvrm", False):
+        from .nvbus import NvRMAuxBus
+        return NvRMAuxBus()
     return RTBus(args.bus)
 
 
@@ -239,7 +243,7 @@ tool remains the reference flasher.
 
 def cmd_shell(args):
     from .console import run
-    run(args.bus, args.bin)
+    run(args.bus, args.bin, use_nvrm=getattr(args, "nvrm", False))
 
 
 def main(argv=None):
@@ -247,6 +251,9 @@ def main(argv=None):
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--bus", type=int, default=int(os.environ.get("MSI_ISP_BUS", 4)),
                    help="i2c bus number (default $MSI_ISP_BUS or 4; check `ddcutil detect`)")
+    p.add_argument("--nvrm", action="store_true",
+                   help="NVIDIA GPU: use the RM DP-AUX transport instead of "
+                        "i2c-dev (native, no Wine/NVAPI; needs sudo)")
     p.add_argument("-v", "--verbose", action="store_true")
     p.add_argument("--bin", help="firmware .bin for info/verify")
     sub = p.add_subparsers(dest="cmd", required=True)

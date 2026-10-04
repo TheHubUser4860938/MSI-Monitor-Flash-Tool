@@ -39,9 +39,11 @@ class Console(cmd.Cmd):
              "monitors\n`help` for commands — flash requires: set bin -> "
              "verify -> backup -> confirm")
 
-    def __init__(self, bus_num: int, bin_path: str | None = None):
+    def __init__(self, bus_num: int, bin_path: str | None = None,
+                 use_nvrm: bool = False):
         super().__init__()
         self.bus_num = bus_num
+        self.use_nvrm = use_nvrm
         self.bin_hdr = None
         self.bin_path = None
         self.verified = False
@@ -52,6 +54,9 @@ class Console(cmd.Cmd):
 
     # ------------------------------------------------------------ helpers --
     def _bus(self) -> RTBus:
+        if self.use_nvrm:
+            from .nvbus import NvRMAuxBus
+            return NvRMAuxBus()
         return RTBus(self.bus_num)
 
     def _load_bin(self, path: str) -> bool:
@@ -88,7 +93,9 @@ class Console(cmd.Cmd):
                                          else "bus unopenable")
         root = "root" if os.geteuid() == 0 else \
             "NOT root -- NVIDIA RM AUX path needs sudo"
-        print(f"bus        : /dev/i2c-{self.bus_num}")
+        bus_txt = ("nvrm RM DP-AUX (NVIDIA, root)" if self.use_nvrm
+                   else f"/dev/i2c-{self.bus_num}")
+        print(f"bus        : {bus_txt}")
         print(f"euid       : {os.geteuid()}  ({root})")
         print(f"ISP slaves : {isp_txt}")
         print(f"bin        : {self.bin_path or '(set bin <path>)'}")
@@ -266,5 +273,6 @@ class Console(cmd.Cmd):
         pass
 
 
-def run(bus_num: int, bin_path: str | None = None) -> None:
-    Console(bus_num, bin_path).cmdloop()
+def run(bus_num: int, bin_path: str | None = None,
+        use_nvrm: bool = False) -> None:
+    Console(bus_num, bin_path, use_nvrm=use_nvrm).cmdloop()

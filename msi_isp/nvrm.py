@@ -242,18 +242,28 @@ class NvRM:
             return None, None
 
     def _alloc_root(self, hClass):
+        # LIVE-VERIFIED 2026-10-05 (root, 615.71.09): NVOS21_v1 (32 B) builds
+        # the whole tree with real handles (0xcaf00000-style). The 48-byte
+        # NVOS21-with-pRightsRequested variant returns status==0 but leaves
+        # hObjectNew==0 on child allocs -- a silent mis-bind, so status alone
+        # is NOT sufficient: a zero handle is a failure. v1 first, and hh!=0
+        # required.
         last = None
-        for cls in (NVOS21, NVOS21_v1):
+        for cls in (NVOS21_v1, NVOS21):
             st, hh = self._alloc_once(cls, hClass)
-            if st == 0:
+            if st == 0 and hh:
                 return 0, hh, cls
             last = st if last is None else last
-        return (last if last is not None else "EINVAL"), 0, NVOS21
+        return (last if last is not None else "EINVAL"), 0, NVOS21_v1
 
     def alloc_client(self, use_root=True):
-        """Try NV01_ROOT_CLIENT first (what NVAPI/libnvidia-use internally),
-        then NV01_ROOT (0), then NON_PRIV (1)."""
-        classes = (self.NV01_ROOT_CLIENT, 0, 1) if use_root else (1,)
+        """Allocate the client root.  Order matters and is LIVE-VERIFIED:
+        NV01_ROOT (hClass 0) first -- the proven tree (t_kern*.py) builds
+        root class 0 and its AUXCH controls dispatch fine.  NV01_ROOT_CLIENT
+        (9) allocs succeed but the SAME controls then answer
+        NV_ERR_INVALID_CLIENT (0x23), and class 1 (NON_PRIV) trips the
+        administrator gate. So: 0, then 9, then 1 as fallbacks."""
+        classes = (0, self.NV01_ROOT_CLIENT, 1) if use_root else (1,)
         for cls in classes:
             st, hh, self.os21 = self._alloc_root(cls)
             if st == 0:
@@ -269,32 +279,51 @@ class NvRM:
         p0080.vaMode = 0
         st, hh = self._alloc_once(self.os21, NV01_DEVICE_0,
                                   pAllocParms=p0080, hParent=self.hClient)
-        if st is None:                      # EINVAL -> try the other variant
+        if st is None or st != 0 or hh == 0:   # EINVAL or silent zero-fill
             other = NVOS21_v1 if self.os21 is NVOS21 else NVOS21
             st, hh = self._alloc_once(other, NV01_DEVICE_0,
                                       pAllocParms=p0080, hParent=self.hClient)
-            if st == 0:
+            if st == 0 and hh:
                 self.os21 = other
-        if st != 0:
-            raise RMError(f"alloc device: status {st}")
+        if st != 0 or hh == 0:
+            raise RMError(f"alloc device: status {st} handle {hh:#x}")
         self.hDevice = hh
         return hh
 
     def alloc_disp_common(self):
         st, hh = self._alloc_once(self.os21, NV04_DISPLAY_COMMON,
                                   hParent=self.hDevice)
-        if st is None or st != 0:
+        if st is None or st != 0 or hh == 0:
             other = NVOS21_v1 if self.os21 is NVOS21 else NVOS21
             st2, hh2 = self._alloc_once(other, NV04_DISPLAY_COMMON,
                                         hParent=self.hDevice)
-            if st2 == 0:
+            if st2 == 0 and hh2:
                 st, hh, self.os21 = 0, hh2, other
-        if st != 0:
-            raise RMError(f"alloc NV0073: status {st}")
+        if st != 0 or hh == 0:
+            raise RMError(f"alloc NV0073: status {st} handle {hh:#x}")
         self.hDisp = hh
         return hh
 
     # --- control --------------------------------------------------------
+    GET_ID_INFO_V2 = 0x205      # NV2080_CTRL_CMD_GPU_GET_ID_INFO_V2
+
+    def id_info(self, gpuId):
+        """Run GET_ID_INFO_V2 on the client (fills device/subdevice
+        instances for gpuId). Params are exactly
+        NV2080_CTRL_GPU_GET_ID_INFO_V2_PARAMS = 8 x NvU32 = 32 bytes:
+        {gpuId, gpuFlags, deviceInstance, subDeviceInstance, nvmlIndex,
+         busy, gpuInstance, numaId}. FINN validates paramsSize strictly:
+        24 (V1) and 40 both rejected on 615.x; 32 is exact.
+        Returns (deviceInstance, subDeviceInstance)."""
+        q = ctypes.create_string_buffer(32)
+        u = ctypes.cast(q, ctypes.POINTER(ctypes.c_uint32))
+        u[0] = gpuId
+        st = self.control(self.hClient, self.GET_ID_INFO_V2, q, size=32)
+        if st != 0:
+            raise RMError(f"GET_ID_INFO_V2 gpu {gpuId:#x}: status {st:#x}")
+        deviceInstance, subDeviceInstance = u[2], u[3]
+        return deviceInstance, subDeviceInstance
+
     def control(self, hObject, cmd, params, size=None):
         p = NVOS54()
         p.hClient = self.hClient
@@ -357,69 +386,94 @@ class NvRM:
         got = bytes(p.data[:p.size]) if req == AUX_REQ_READ else b""
         return name, got, st
 
-    # --- I2C-over-AUX bulk primitives (control 0x73137C) ------------------
-    # RM builds the full DP-spec transaction (request word + data, MOT
-    # chunking up to max packet, status-byte handling, defers). We only
-    # supply: slave8/offset, payload, direction.
-    @staticmethod
-    def _i2c_addr(slave8, offset, nbytes):
-        """DP-spec 2.4 I2C-over-AUX 20-bit request-address word as RM places
-        it in AUX request bytes 0-2 (bit layout per DPCD i2c_aux scheme):
-        bits[19:12] = slave8 (8-bit write addr), bits[11:4] = reg/offset,
-        bits[3:1]  = slave R/W bit (bit0 of the 8-bit addr),
-        bits[2:0]  = nbytes-1 (per-transaction size, max 7 raw; the bulk
-        control re-encodes chunk sizes itself, direction = bWrite field).
-        Verified against t_aux_root2.py's working DPCD/EDID encodings."""
-        return (slave8 << 12) | (offset << 4) | ((slave8 & 1) << 3) | ((nbytes - 1) & 7)
+    # --- I2C-over-AUX primitives (control 0x731341 I2C mode) -------------
+    # VERIFIED 2026-10-05 on RTX 4090 + MAG 341CQP QD-OLED (t_kern5/6.py):
+    #   * addr field = PLAIN 7-bit slave address.  RM composes the DP-spec
+    #     wire address field itself; the R/W direction rides in the cmd
+    #     REQ_TYPE bits, NOT in addr.  (Matches NVIDIA dp_deviceimpl.cpp:
+    #     `address >>= 1; // right shifted DDC Address (request identifier
+    #     in spec)` -- their verbatim form is the 8-bit DDC addr >> 1.)
+    #   * size is 0-based IN (n-1), and returns bytes-completed OUT.
+    #   * MOT (cmd bit2) chains pieces into one I2C message (repeated
+    #     start); clearing it emits the STOP at the end.
+    #   * The bulk control 0x73137C answers NV_ERR_INVALID_CLIENT (0x23)
+    #     for userland even as root -- unusable; 0x731341 is the path.
+    # Oracle: EDID slave 0x50 returned the kernel's EDID bytes verbatim at
+    # offsets 0x00 and 0x50, 16 B/transaction.
+    AUX_REQ_MOT = 0x4        # cmd bit2: chain with next transaction (no STOP)
 
-    def i2c_write(self, displayId, slave8, offset, payload, retries=3):
-        """I2C write (combined: offset + payload in one txn) via RM bulk ctrl."""
-        data = bytes([offset]) + bytes(payload)
-        last = "ERR"
+    def aux_i2c(self, displayId, slave7, req, data=b"", mot=False,
+                addr_only=False, retries=3, subdevice=0):
+        """Full-access variant: returns (reply_name, bytes_read)."""
+        p = AUXCHParams()
+        p.subDeviceInstance = subdevice
+        p.displayId = displayId
+        p.bAddrOnly = 1 if addr_only else 0
+        p.cmd = req | (self.AUX_REQ_MOT if mot else 0)
+        p.addr = slave7 & 0x7F
+        payload = bytes(data)
+        if req == AUX_REQ_READ:
+            p.size = (len(payload) if payload else 16) - 1
+        else:
+            for i, b in enumerate(payload[:16]):
+                p.data[i] = b
+            p.size = max(len(payload) - 1, 0)
+        name = "ERROR"
         for _ in range(retries):
-            p = I2CXferParams()
-            p.subDeviceInstance = 0
-            p.displayId = displayId
-            p.addr = self._i2c_addr(slave8, offset, len(data), write=True)
-            p.bWrite = 1
-            ctypes.memmove(p.data, data, len(data))
-            p.size = len(data)
-            st = self.control(self.hDisp, CTRL_DP_AUXCH_I2C_TRANSFER, p)
-            last = st
-            if st == 0:
-                return True
+            self.control(self.hDisp, CTRL_DP_AUXCH_CTRL, p)
+            name = REPLY.get(p.replyType, f"?{p.replyType:#x}")
+            if name in ("ACK", "NACK", "TIMEOUT", "I2CNACK", "INVALID_ARG"):
+                break
             time.sleep(0.005)
-        return False, last if isinstance(last, int) else last
+        got = bytes(p.data[:p.size]) if req == AUX_REQ_READ and name == "ACK" \
+            else b""
+        return name, got
 
-    def i2c_read(self, displayId, slave8, offset, n, retries=3):
-        """I2C read n bytes via RM bulk ctrl (offset-set write then MOT read).
-        Returns (bytes, ok) — bytes may be short on partial ACK."""
-        ok = self.i2c_write(displayId, slave8, offset, b"", retries=retries)
-        if ok is not True:
-            return b"", ok
+    def i2c_read(self, displayId, slave7, offset, n, retries=3, subdevice=0):
+        """Read n bytes from 7-bit slave at register offset. Verified form:
+        offset-write with MOT, then chained READ|MOT 16-byte chunks; the
+        final chunk clears MOT (STOP) so the slave releases the bus."""
+        name, _ = self.aux_i2c(displayId, slave7, AUX_REQ_WRITE,
+                               data=bytes([offset & 0xFF]), mot=True,
+                               retries=retries, subdevice=subdevice)
+        if name != "ACK":
+            return b"", name
         buf = bytearray()
-        pos = 0
         while len(buf) < n:
-            chunk = min(16, n - len(buf))   # DP max data per txn is 16
-            p = I2CXferParams()
-            p.subDeviceInstance = 0
-            p.displayId = displayId
-            p.addr = self._i2c_addr(slave8, 0, chunk, write=False)
-            p.bWrite = 0
-            p.size = chunk
-            got_any = False
-            for _ in range(retries):
-                st = self.control(self.hDisp, CTRL_DP_AUXCH_I2C_TRANSFER, p)
-                if st == 0:
-                    got = bytes(p.data[:p.size])
-                    buf += got
-                    got_any = True
-                    break
-                time.sleep(0.005)
-            if not got_any:
-                return bytes(buf[:n]), st
-            pos += 1
-        return bytes(buf[:n]), True
+            chunk = min(16, n - len(buf))
+            name, got = self.aux_i2c(displayId, slave7, AUX_REQ_READ,
+                                     data=bytes(chunk),
+                                     mot=(len(buf) + chunk < n),
+                                     retries=retries, subdevice=subdevice)
+            if name != "ACK":
+                return bytes(buf[:n]), name
+            buf += got[:chunk]
+        return bytes(buf[:n]), "ACK"
+
+    def i2c_write(self, displayId, slave7, offset, payload, retries=3,
+                  subdevice=0):
+        """Write payload at register offset: [offset]+payload in 16-byte
+        MOT-chained pieces, STOP on the last (verified addressing form)."""
+        data = bytes([offset & 0xFF]) + bytes(payload)
+        pos = 0
+        while pos < len(data):
+            chunk = min(16, len(data) - pos)
+            name, _ = self.aux_i2c(displayId, slave7, AUX_REQ_WRITE,
+                                   data=data[pos:pos + chunk],
+                                   mot=(pos + chunk < len(data)),
+                                   retries=retries, subdevice=subdevice)
+            if name != "ACK":
+                return name
+            pos += chunk
+        return "ACK"
+
+    def i2c_probe(self, displayId, slave7, retries=1, subdevice=0):
+        """Bare address-phase write (address-only packet, 0 data bytes).
+        Cannot alter the monitor. True on ACK."""
+        name, _ = self.aux_i2c(displayId, slave7, AUX_REQ_WRITE,
+                               mot=True, addr_only=True, retries=retries,
+                               subdevice=subdevice)
+        return name == "ACK"
 
     def close(self):
         try:
