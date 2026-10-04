@@ -184,3 +184,56 @@ byte-identical to /sys EDID. Model name from the 0xFC monitor-name descriptor
   t_root_priv.py exists (1.7 KB) — built this session, expects to add
   nvrm.py to its path itself (import msi_isp.nvrm or sys.path fix).
 
+
+## 2026-10-04 session 4 — SUPERUSER UNLOCKS NV0073 AUX ON NVIDIA (major)
+
+The session-3 "0x1b INSUFFICIENT_PERMISSIONS" verdict is **superseded**: the
+AUXCH controls are permissive but not `RS_PRIV_LEVEL_USER_ROOT`-exempt as
+normal user; **with sudo they work.** Verified live on the 4090:
+
+* Root client tree builds end-to-end: version-check → ATTACH_GPUS_TO_FD (esc
+  **212**, array of internal gpu_id u32s; internal id for bus 01:00 is
+  **0x100**, not 0) → device alloc (deviceInstance from
+  `NV0073_CTRL_SYSTEM_GET_ID_INFO_V2`, authoritative) → NV01_DISPLAY(0x3) common
+  (0xE0 class) → NV01_HEAD_0 (0x90 entries +0x4).
+* `displayId` is a **bitmask power-of-two**, found empirically: **0x200** =
+  the DP head on this box.
+* `NV0073_CTRL_CMD_DP_AUXCH_CTRL (0x731341)` in **native AUX mode**
+  (bIsI2C=0, AUX type WRITE then READ at DPCD 0x0000): **reads DPCD0 = 0x12**.
+  Working raw AUX on NVIDIA from userland — the NVAPI ctlAUXAccess equivalent.
+* Byte layout for native mode: `address` u32 = big-endian DP AUX request word
+  (addr24 | (rw<<4) | n  — RM maps wire byte0 = address>>24 etc); data buffer
+  u8[16]; paramsSize exactly 28 (NV0073_CTRL_DP_AUXCH_CTRL_PARAMS).
+
+## What is still blocked (measured today)
+
+**I2C mode of 0x731341 and bulk 0x73137C both TIMEOUT for I2C transactions**,
+while native AUX works. Cause measured: DPCD 0x00D0 reads **0x01 with bit7
+clear** — the RTD2711 DP branch device does **not advertise the I2C-over-AUX
+tunnel** (0x00D1-0x00D5 all zero). RM's I2C mode routes through the kernel/DM
+tunnel machinery which bails without capability; Windows NVAPI instead does
+transparent raw transactions and hand-rolls the I2C framing.
+Status codes seen: 0x23 INVALID_CLIENT (fixed via GPU-fd attach / secInfo),
+I2C-mode → NV_ERR_TIMEOUT, reply-type fields odd on timeouts.
+
+## Consequence / plan
+
+The Windows tool's `Comm_Aux.dll` reaches the ISP slaves with **hand-rolled
+I2C-over-AUX framing over transparent raw AUX** (start, 0x6F<<1|(bit13), addr,
+repeated start, stop — encoded as native AUX BURST/request sequences), because
+the tunnel isn't available on this monitor either on Windows! Options ranked:
+
+1. **Compose I2C-over-AUX manually in native AUX mode** (chunked requests per
+   DP spec §2.7.11.2 tunnel semantics: I2CWrite request = MOT|I2C_WRITE_CMD...).
+   On NVIDIA raw AUX the hardware sends whatever request bytes we hand it —
+   try putting I2C-tunnel-style requests directly (works if RM just forwards).
+2. Vendor **DDC/CI opcode tunnel** (0x37 is reachable via i2c-dev DDC shim on
+   NVIDIA AND via our AUX path): if `Comm.dll`'s DDCCIWrite/DDCCIRead wrap
+   flash traffic in vendor opcodes, the whole flash rides DDC/CC — GPU-agnostic,
+   no root needed. NEXT DISASSEMBLY TARGET: WinIspPlugIn `IspFlash`/`DumpFlash`
+   → which Comm vtable slot (DDCCIWrite vs I2CWrite) carries flash bytes.
+3. Kernel-shim module calling 0x731341 from kernel context (dead-last).
+
+Files: nvrm.py = working RM client (root-validated tree + native aux read).
+t_* scratch tests all reproducible; re/ holds 32-bit disasm dumps.
+console.py has shurectl-style REPL + flash gates (all refusing correctly).

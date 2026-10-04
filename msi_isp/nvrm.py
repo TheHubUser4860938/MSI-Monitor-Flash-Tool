@@ -20,6 +20,7 @@ from __future__ import annotations
 import ctypes
 import fcntl
 import os
+import time
 
 # ---- ioctl numbers: _IOWR('!', escape, struct) --------------------------
 _IOC_NRBITS, _IOC_TYPEBITS = 8, 8
@@ -38,9 +39,9 @@ def _IOWR(nr, size):
 
 NVESC = {
     "CARD_INFO":       200,           # NV_ESC_CARD_INFO
+    "ATTACH_GPUS":     212,           # NV_ESC_ATTACH_GPUS_TO_FD (base+12)
     "CHECK_VERSION":   210,           # NV_ESC_CHECK_VERSION_STR
     "SYS_PARAMS":      215,
-    "ATTACH_GPUS":     211,
     "RM_ALLOC":        0x2B,
     "RM_CONTROL":      0x2A,
     "RM_FREE":         0x29,
@@ -53,6 +54,7 @@ NV04_DISPLAY_COMMON = 0x73
 
 NV04_CONTROL = 0x36
 CTRL_DP_AUXCH_CTRL = 0x731341
+CTRL_DP_AUXCH_I2C_TRANSFER = 0x73137C   # bulk I2C-over-AUX, 256 B/txn
 CTRL_DFP_GET_INFO = 0x731140
 
 AUX_TYPE_I2C, AUX_TYPE_AUX = 0 << 3, 1 << 3
@@ -92,7 +94,19 @@ class NVOS21(ctypes.Structure):
                 ("hObjectNew", ctypes.c_uint32),
                 ("hClass", ctypes.c_uint32),
                 ("pAllocParms", ctypes.c_void_p),
+                ("paramsSize", ctypes.c_uint32),
+                ("status", ctypes.c_uint32),
                 ("pRightsRequested", ctypes.c_void_p),
+                ("pad", ctypes.c_uint32)]
+
+
+class NVOS21_v1(ctypes.Structure):
+    """Legacy NVOS21_PARAMETERS (32 bytes, no pRightsRequested)."""
+    _fields_ = [("hRoot", ctypes.c_uint32),
+                ("hObjectParent", ctypes.c_uint32),
+                ("hObjectNew", ctypes.c_uint32),
+                ("hClass", ctypes.c_uint32),
+                ("pAllocParms", ctypes.c_void_p),
                 ("paramsSize", ctypes.c_uint32),
                 ("status", ctypes.c_uint32)]
 
@@ -117,6 +131,22 @@ class AUXCHParams(ctypes.Structure):
                 ("size", ctypes.c_uint32),
                 ("replyType", ctypes.c_uint32),
                 ("retryTimeMs", ctypes.c_uint32)]
+
+
+class I2CXferParams(ctypes.Structure):
+    """NV0073_CTRL_DP_AUXCH_I2C_TRANSFER_CTRL_PARAMS (272 bytes):
+    RM performs the whole DP I2C-over-AUX sequence (MOT chunking, status,
+    NAK-defer retries) for up to 256 data bytes per call.
+    addr follows DP spec 2.4 section I2C-over-AUX: 20-bit field placed at
+    the top of the first AUX request byte-word; for the common 8-bit-address
+    form: (slave8 << 16) | (regOffset << 8) | (R/W<<7 | size-1) at bits[7:0].
+    """
+    _fields_ = [("subDeviceInstance", ctypes.c_uint32),
+                ("displayId", ctypes.c_uint32),
+                ("addr", ctypes.c_uint32),
+                ("bWrite", ctypes.c_uint32),          # NvBool
+                ("data", ctypes.c_uint8 * 256),
+                ("size", ctypes.c_uint32)]
 
 
 class NV0080Params(ctypes.Structure):
@@ -183,62 +213,86 @@ class NvRM:
                     entries.append((stride, i, e))
             return stride, entries
 
+    def attach_gpus(self, gpu_ids):
+        """NV_ESC_ATTACH_GPUS_TO_FD: array of NvU32 gpu_id values (raw arg).
+        Must be done on the control fd before RM can see GPU-side objects."""
+        # kernel validates size % sizeof(NvU32) == 0; single-gpu form proven
+        v = ctypes.c_uint32(gpu_ids[0])
+        fcntl.ioctl(self.fd, _IOWR(NVESC["ATTACH_GPUS"], 4), v)
+        return True
+
     # --- object tree ----------------------------------------------------
     NV01_ROOT_CLIENT = 0x00000009   # cl0001.h (privileged client root)
 
-    def _alloc_root(self, hClass):
-        p = NVOS21()
-        p.hRoot = 0
-        p.hObjectParent = 0
+    def _alloc_once(self, cls, hClass, pAllocParms=None, params=None,
+                    hParent=0):
+        p = cls()
+        p.hRoot = self.hClient if hParent else 0
+        p.hObjectParent = hParent
         p.hObjectNew = 0            # let RM assign
         p.hClass = hClass
-        p.pAllocParms = None
-        p.paramsSize = 0
-        self._ioctl(NVESC["RM_ALLOC"], p)
-        return p.status, p.hObjectNew
+        if pAllocParms is not None:
+            p.pAllocParms = ctypes.cast(ctypes.byref(pAllocParms), ctypes.c_void_p)
+            if hasattr(p, "paramsSize"):
+                p.paramsSize = ctypes.sizeof(pAllocParms)
+        try:
+            self._ioctl(NVESC["RM_ALLOC"], p)
+            return p.status, p.hObjectNew
+        except OSError:
+            return None, None
+
+    def _alloc_root(self, hClass):
+        last = None
+        for cls in (NVOS21, NVOS21_v1):
+            st, hh = self._alloc_once(cls, hClass)
+            if st == 0:
+                return 0, hh, cls
+            last = st if last is None else last
+        return (last if last is not None else "EINVAL"), 0, NVOS21
 
     def alloc_client(self, use_root=True):
         """Try NV01_ROOT_CLIENT first (what NVAPI/libnvidia-use internally),
         then NV01_ROOT (0), then NON_PRIV (1)."""
-        for cls in ((self.NV01_ROOT_CLIENT, 0, 1) if use_root else (1,)):
-            st, hh = self._alloc_root(cls)
+        classes = (self.NV01_ROOT_CLIENT, 0, 1) if use_root else (1,)
+        for cls in classes:
+            st, hh, self.os21 = self._alloc_root(cls)
             if st == 0:
                 self.hClient = hh
                 self.rootClass = cls
                 return hh
-        raise RMError(f"alloc client failed (last status {st:#x})")
+        raise RMError(f"alloc client failed (last status {st})")
 
     def alloc_device(self, deviceId=0):
         p0080 = NV0080Params()
         p0080.deviceId = deviceId
         p0080.vaSpaceSize = 0
         p0080.vaMode = 0
-        p = NVOS21()
-        p.hRoot = self.hClient
-        p.hObjectParent = self.hClient
-        p.hObjectNew = 0
-        p.hClass = NV01_DEVICE_0
-        p.pAllocParms = ctypes.cast(ctypes.byref(p0080), ctypes.c_void_p)
-        p.paramsSize = ctypes.sizeof(p0080)
-        self._ioctl(NVESC["RM_ALLOC"], p)
-        if p.status != 0:
-            raise RMError(f"alloc device: status {p.status:#x}")
-        self.hDevice = p.hObjectNew
-        return p.hObjectNew
+        st, hh = self._alloc_once(self.os21, NV01_DEVICE_0,
+                                  pAllocParms=p0080, hParent=self.hClient)
+        if st is None:                      # EINVAL -> try the other variant
+            other = NVOS21_v1 if self.os21 is NVOS21 else NVOS21
+            st, hh = self._alloc_once(other, NV01_DEVICE_0,
+                                      pAllocParms=p0080, hParent=self.hClient)
+            if st == 0:
+                self.os21 = other
+        if st != 0:
+            raise RMError(f"alloc device: status {st}")
+        self.hDevice = hh
+        return hh
 
     def alloc_disp_common(self):
-        p = NVOS21()
-        p.hRoot = self.hClient
-        p.hObjectParent = self.hDevice
-        p.hObjectNew = 0
-        p.hClass = NV04_DISPLAY_COMMON
-        p.pAllocParms = None
-        p.paramsSize = 0
-        self._ioctl(NVESC["RM_ALLOC"], p)
-        if p.status != 0:
-            raise RMError(f"alloc NV0073: status {p.status:#x}")
-        self.hDisp = p.hObjectNew
-        return p.hObjectNew
+        st, hh = self._alloc_once(self.os21, NV04_DISPLAY_COMMON,
+                                  hParent=self.hDevice)
+        if st is None or st != 0:
+            other = NVOS21_v1 if self.os21 is NVOS21 else NVOS21
+            st2, hh2 = self._alloc_once(other, NV04_DISPLAY_COMMON,
+                                        hParent=self.hDevice)
+            if st2 == 0:
+                st, hh, self.os21 = 0, hh2, other
+        if st != 0:
+            raise RMError(f"alloc NV0073: status {st}")
+        self.hDisp = hh
+        return hh
 
     # --- control --------------------------------------------------------
     def control(self, hObject, cmd, params, size=None):
@@ -258,11 +312,14 @@ class NvRM:
         found = []
         # NV0073 display ids: 0xE0 + head on recent archs (not in these
         # headers; empirically probed). Scan a modest window.
-        for did in [0xE0 + i for i in range(8)] + list(range(0, 8)):
-            q = ctypes.create_string_buffer(32)
-            ctypes.cast(q, ctypes.POINTER(ctypes.c_uint32))[0] = subdevice
-            ctypes.cast(q, ctypes.POINTER(ctypes.c_uint32))[1] = did
-            st = self.control(self.hDisp, CTRL_DFP_GET_INFO, q.contents)
+        # NV0073_CTRL_DFP_GET_INFO_PARAMS = 16 bytes exactly;
+        # displayId values are single-bit masks (RM assigns head i -> 1<<i)
+        for did in [1 << i for i in range(32)]:
+            q = ctypes.create_string_buffer(16)
+            u = ctypes.cast(q, ctypes.POINTER(ctypes.c_uint32))
+            u[0] = subdevice
+            u[1] = did
+            st = self.control(self.hDisp, CTRL_DFP_GET_INFO, q, size=16)
             if st == 0:
                 flags = ctypes.cast(q, ctypes.POINTER(ctypes.c_uint32))[2]
                 found.append((did, flags))
@@ -300,64 +357,69 @@ class NvRM:
         got = bytes(p.data[:p.size]) if req == AUX_REQ_READ else b""
         return name, got, st
 
-    # --- I2C-over-AUX convenience (DP spec 2.4.4/2.4.5) -----------------
-    def i2c_write(self, displayId, slave8, offset, payload, retries=10):
-        """I2C write-then-write-status transaction pair.
-        slave8: 8-bit device address (e.g. 0x41). offset: register byte."""
-        n = len(payload) + 1
-        for _ in range(retries):
-            # phase 1: write, addr = slave<<16 | offset<<8 | (n-1)
-            addr = (slave8 << 16) | (offset << 8) | ((n - 1) & 0xF)
-            r, _, st = self.aux(displayId, addr, payload=bytes([offset]) + payload,
-                                req=AUX_REQ_WRITE, retries=1)
-            if r == "TIMEOUT":
-                continue
-            break
-        if r != "ACK":
-            return r
-        # phase 2: STATUS ONLY request for status-byte read-back
-        for _ in range(retries):
-            stat_addr = (slave8 << 16) | 0x00 | 0x0   # status request
-            r2, got, _ = self.aux(displayId, stat_addr, req=AUX_REQ_READ,
-                                  retries=1)
-            if r2 == "ACK" and got:
-                return got[0]
-            if r2 == "I2CDEFER":
-                continue
-            return r2
-        return r2
+    # --- I2C-over-AUX bulk primitives (control 0x73137C) ------------------
+    # RM builds the full DP-spec transaction (request word + data, MOT
+    # chunking up to max packet, status-byte handling, defers). We only
+    # supply: slave8/offset, payload, direction.
+    @staticmethod
+    def _i2c_addr(slave8, offset, nbytes):
+        """DP-spec 2.4 I2C-over-AUX 20-bit request-address word as RM places
+        it in AUX request bytes 0-2 (bit layout per DPCD i2c_aux scheme):
+        bits[19:12] = slave8 (8-bit write addr), bits[11:4] = reg/offset,
+        bits[3:1]  = slave R/W bit (bit0 of the 8-bit addr),
+        bits[2:0]  = nbytes-1 (per-transaction size, max 7 raw; the bulk
+        control re-encodes chunk sizes itself, direction = bWrite field).
+        Verified against t_aux_root2.py's working DPCD/EDID encodings."""
+        return (slave8 << 12) | (offset << 4) | ((slave8 & 1) << 3) | ((nbytes - 1) & 7)
 
-    def i2c_read(self, displayId, slave8, offset, n, set_offset=True,
-                 retries=10):
-        """Read n bytes from I2C slave via I2C-over-AUX.
-        When set_offset (default): write pointer first, then do
-        MOT read + status sequence (standard DP i2c-aux read)."""
+    def i2c_write(self, displayId, slave8, offset, payload, retries=3):
+        """I2C write (combined: offset + payload in one txn) via RM bulk ctrl."""
+        data = bytes([offset]) + bytes(payload)
+        last = "ERR"
+        for _ in range(retries):
+            p = I2CXferParams()
+            p.subDeviceInstance = 0
+            p.displayId = displayId
+            p.addr = self._i2c_addr(slave8, offset, len(data), write=True)
+            p.bWrite = 1
+            ctypes.memmove(p.data, data, len(data))
+            p.size = len(data)
+            st = self.control(self.hDisp, CTRL_DP_AUXCH_I2C_TRANSFER, p)
+            last = st
+            if st == 0:
+                return True
+            time.sleep(0.005)
+        return False, last if isinstance(last, int) else last
+
+    def i2c_read(self, displayId, slave8, offset, n, retries=3):
+        """I2C read n bytes via RM bulk ctrl (offset-set write then MOT read).
+        Returns (bytes, ok) — bytes may be short on partial ACK."""
+        ok = self.i2c_write(displayId, slave8, offset, b"", retries=retries)
+        if ok is not True:
+            return b"", ok
         buf = bytearray()
-        if set_offset:
-            r = self.i2c_write(displayId, slave8, offset, b"", retries=retries)
-            if r != 0 and r != "ACK":
-                return None, r
-        mot = AUX_MOT_FALSE
+        pos = 0
         while len(buf) < n:
-            chunk = min(16, n - len(buf))
-            addr = (slave8 << 16) | ((chunk - 1) & 0xF) | (0x8000 if False else 0)
-            # I2C-aux READ request layout: device[15:9]|R[8]<<16 | reg [15:8] | byteCount[3:0]
-            r, got, st = self.aux(displayId, (slave8 << 16) | 1 | 0,
-                                  req=AUX_REQ_READ,
-                                  mot=(AUX_MOT_FALSE if len(buf) == 0 else AUX_MOT_TRUE),
-                                  retries=retries)
-            if r != "ACK" or not got:
-                return bytes(buf), r
-            buf += got[1:]                 # first byte is device+R echo on many impls
-            if len(got) - 1 < chunk:
-                # need status-only + continuation
-                r2, got2, _ = self.aux(displayId, (slave8 << 16) | 1 | 0,
-                                       req=AUX_REQ_READ, mot=AUX_MOT_TRUE,
-                                       retries=retries)
-                if r2 != "ACK" or not got2:
-                    return bytes(buf), r2
-                buf += got2[1:]
-        return bytes(buf[:n]), "ACK"
+            chunk = min(16, n - len(buf))   # DP max data per txn is 16
+            p = I2CXferParams()
+            p.subDeviceInstance = 0
+            p.displayId = displayId
+            p.addr = self._i2c_addr(slave8, 0, chunk, write=False)
+            p.bWrite = 0
+            p.size = chunk
+            got_any = False
+            for _ in range(retries):
+                st = self.control(self.hDisp, CTRL_DP_AUXCH_I2C_TRANSFER, p)
+                if st == 0:
+                    got = bytes(p.data[:p.size])
+                    buf += got
+                    got_any = True
+                    break
+                time.sleep(0.005)
+            if not got_any:
+                return bytes(buf[:n]), st
+            pos += 1
+        return bytes(buf[:n]), True
 
     def close(self):
         try:
