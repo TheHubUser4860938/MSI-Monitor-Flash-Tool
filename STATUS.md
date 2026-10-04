@@ -457,3 +457,39 @@ Monitor state: FW.009 untouched, DP-only, healthy. sudo NOPASSWD drop-in
   unchanged and remains THE next step: mine opcode-switch at WinIspPlugIn+0x3c80 + IspFlash body.
 - re/u_*.txt: fresh 32-bit dumps of the USB exports (dispatcher thunks -> backend vtable) kept for
   reference in case a hub-populated model (271QPX/321UP family) is ever ported.
+
+## Session 11 (final) — fork CLOSED: verdict Fork B (NVAPI-proprietary dataplane)
+
+Re-disassembled with the fixed 32-bit toolchain (fresh exports, RVAs from
+WinIspPlugIn.dll): IspFlash@0x8520, DumpFlash@0x8860, ReadFlashData@0x7e50
+(dumps: re/x_ispflash.txt, x_dumpflash2.txt, x_readflash.txt — zero movabs,
+clean 32-bit).
+
+Findings:
+- NO vendor-DDC packet opcode constants anywhere in the flash engine.
+  The "opcode switch at 0x3c80" was a vtable stub (earlier RVA guess wrong);
+  the real data plane is what Session 7 read and today re-verified:
+  per-page (I2C_PAGE_LEN=32) calls through Comm interface slot +0x14 to
+  I2C_READ/I2C_WRITE with slave const 0x41 (burst), 0x44 (MCU regs),
+  0x6F (ISP/status) — i.e. Comm_Aux.dll -> NVAPI ctlAUXAccess ->
+  driver-internal transparent I2C-over-AUX.
+- Therefore Fork B is the recorded verdict: the flash read/write/burst
+  protocol is NOT expressible as vendor DDC/CC packets on 0x37 (all such
+  opcode candidates proven dead by two live probe rounds), and the raw-AUX
+  framing NVAPI uses is not issuable from Linux on NVIDIA:
+  * NVAPI absent on Linux (libnvidia-api.so.1 = NGX shim),
+  * RM AUX controls: native DPCD + I2C-tunnel mode only; sink lacks tunnel
+    (DPCD 0x00D0 measured), non-allowlisted slaves (0x20/0x22/0x41) never
+    ACK (write-decisive sweeps pre/post ISP entry, both DP and HDMI),
+  * NV2080 I2C controls wired to GPU-internal ports only (all DP port
+    numbers rejected on 615.71.09).
+- Consequence for the tool: backup/write stay gated (honest refusal with
+  this reason); info/verify/probe/shell/progress all ship as v0.1. Flash
+  path today = Windows reference tool (verified everything else correct:
+  cable, port, DP-only lane, file model-match OK).
+
+Housekeeping at close:
+- sudo NOPASSWD drop-in REMOVED (was agent test scaffolding). User runs
+  `sudo msi-isp shell` from their own terminal when root mode is wanted.
+- Monitor: FW.009, verified healthy, never flashed. HDMI lane: keep cable
+  only if testing Intel/AMD machines later; not required for v0.1 modes.
