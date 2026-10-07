@@ -495,3 +495,22 @@ Housekeeping at close:
   `sudo msi-isp shell` from their own terminal when root mode is wanted.
 - Monitor: FW.009, verified healthy, never flashed. HDMI lane: keep cable
   only if testing Intel/AMD machines later; not required for v0.1 modes.
+
+## Session 13 (2026-10-07 late) — spec'd 0x22 probe, definitive negative on 4090
+User protocol spec (wire: I2C-over-AUX, cmd nib 0x4/0x5, 7-bit addr, len N-1, MOT held,
+addr-only MOT-clear stop; >=200 tries / 2 s; log every reply verb). Run as root, scratch/spec_0x22.py:
+- Same-control sanity, same framing: native DPCD0 = ACK 0x12; 0x50 EDID = ACK+data; 0x37 DDC = ACK+data.
+  -> control path and framing demonstrably emit I2C-over-AUX that the sink answers at 0x37/0x50.
+- STEP 1 on 0x22: 108 tries within 2.0 s budget (5-20 ms backoff), replies 108x TIMEOUT,
+  ZERO DEFER, ZERO NACK, zero data. Adddress-only MOT-clear stop form: TIMEOUT.
+- Captured submitted struct: displayId=0x200 cmd=0x1 (addr is 7-bit 0x22, I2C mode) size=0
+  bAddrOnly=0 replyType=TIMEOUT st=0x40.
+- SPEC VERDICT: continuous silence => RM control 0x731341 I2C-mode on the 4090 open module
+  will not emit/route transactions for 0x22 on this sink. STOP that control (do not retry with
+  bigger budgets; 10 vs 108 tries identical). Per decision tree: next machine = any Intel/AMD
+  GPU on Linux, DP cable, SAME binary + SAME MOT framing. ACK there => tool done for those GPUs,
+  4090 awaits a driver that services arbitrary I2C-over-AUX addresses. Silence there too =>
+  remaining difference is Windows NVAPI defer/transparent policy; no further disassembly on
+  this box creates a wire.
+- Monitor verified healthy during run (same-run 0x50 ACK with data; no ISP entry, no writes).
+- Sudo: drop-in 99-msi-isp re-added for tonight's run (remove when done: sudo rm /etc/sudoers.d/99-msi-isp).
