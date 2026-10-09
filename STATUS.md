@@ -552,3 +552,33 @@ unless stated; monitor untouched):
   unchanged (109 tries / 2.0 s, all TIMEOUT). Future driver updates no longer
   break the RM path.
 - Monitor: FW.009, DP-only, healthy, never flashed.
+
+## Session 14b (2026-10-09) — portable spec_0x22 (Phase 5 of the workflow) + new NVIDIA 0x50 quirk
+
+`scratch/spec_0x22.py` rewritten as ONE script with two transports
+(--transport auto|rm|i2cdev, --bus N, bus auto-detect via 0x50 EDID magic):
+
+- **RM path unchanged** semantics; re-run verified byte-identical verdict vs
+  session 13 (108 tries / 2.0 s TIMEOUT; addr-only WRITE-form stop probe →
+  TIMEOUT).
+- **i2c-dev path** (the Intel/AMD gate): per-try errno verbs logged
+  (NACK/EIO, ENXIO, TIMEOUT, BUSY, EMPTY-READ guard for the NVIDIA shim's
+  zero-length "successes"); DEFER retries live in-kernel there, so try-count
+  is ~50 vs 108 on RM — same 2.0 s wall, same pass criterion (ACK+data only).
+- Dry-run on this box (user, --transport i2cdev): autodetect → bus 4, EDID
+  sanity OK, controls 0x50/0x37 ACK, **0x22 = STABLE-NACK/EIO ×50/2.0 s →
+  NO CONTACT exit 1**. Known negative reproduced through the new backend ⇒
+  backend validated; same code is what the Intel/AMD box will run.
+- **NEW measured fact: the NVIDIA i2c-dev shim corrupts the FIRST byte of
+  every 0x50 read** (returns 0x00 where the EDID has 0xFF; bytes 1..15
+  verified correct against the real header + vendor ID 0x0dc4 at the right
+  offset). Hence EDID-presence detection uses a 6-FF run within the first 10
+  bytes. Intel/AMD adapters are expected to return byte 0 normally; the test
+  tolerates both alignments.
+- TEST-INTEL-AMD.md: user-facing runbook (commands, verdict table, capture
+  list). spec_0x22.py + probe + info are stdlib-only ⇒ copy-the-directory
+  portability.
+- Workflow state: Phase 1 (session records) DONE; Phase 4 (nvrm version
+  autodetect, 68e3fe5) DONE; Phase 5 DONE this entry. Phase 2 (GitHub MCP)
+  configured — awaiting user's /mcps OAuth sign-in; Phase 3 (repo) gated on
+  it. Phase 6 (capstone+RE) next executable without user action.
