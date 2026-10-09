@@ -788,3 +788,13 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
   logging. Method note: pdump's 3rd arg is BYTES (linear capstone stops at
   data gaps); string-pipeline extraction = grep `push 0x10XXXXXX` + UTF-16
   resolve per site.
+- RE follow-up (same session): **Flash.dat is keyed by capacity code, not
+  JEDEC.** GetFlashType(0x1d560) gets identity from fn 0x1da20, branched on
+  the scaler enum ('I','H','N','P' → Comm vtable[0xd0] reg 0x85A read;
+  'G','A','P' → 1-byte I2C at 0x77 with bit-5 mask): a 16-bit capacity
+  ladder code that indexes the table. Record layout: `"70" + code pair +
+  name + config + CSV` (A25L020=`12 11`, A25L040=`13 12`, A25L080=`14 13`,
+  ours A25L032M=`16 15`); mismatch → 'Default' row, no abort. So the tool
+  never compares a 0x9F response — our JEDEC gate stays as our own safety
+  addition, while the vendor's real protections are per-bank read-back
+  ("Get Final Code") + WP discipline. Dumps: re/f_getflash_type.txt.

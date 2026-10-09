@@ -107,7 +107,15 @@ def bin_content_checksum(data: bytes) -> int:
 #   0x17300  "TypeC Usb Isp Check"
 #   0x1a050  "Set Mcu Reg Default Value"      (scaler SPI/pin defaults)
 #   0x1d560  "Get Flash Type"                 (chip detect -> "Flash Name: %ls"
-#                                             matched against Flash.dat entries)
+#                                             matched against Flash.dat table)
+# 0x1d560's identity read is family-branched (fn 0x1da20, scaler enum 'I','H',
+#  'N','P' via Comm vtable[0xd0](reg 0x85A, 0xDF, 0); 'G','A','P' via 1-byte
+#  I2C read-modify at 0x77, bit5 masked): it returns a 16-bit CAPACITY CODE,
+#  and Flash.dat entries are indexed by that code, NOT by a raw JEDEC ID --
+#  each record = "70" + capacity-ladder pair + chip name + config + CSV script
+#  (A25L020->12 11, A25L040->13 12, A25L080->14 13, A25L032M->16 15: a
+#  2/4/8/16/32-Mbit ladder; our flash IS in the table). Mismatch is not fatal:
+#  "Flash MisMatch Use Default Value" -> falls back to the 'Default' script.
 #   0x1db90  "Detect And Config Flash Address Mode"
 #   0x1db20  bank-space check                 ("Flash bank not enough!")
 #   0x1ad20  "Set WP Pin"
@@ -122,10 +130,11 @@ def bin_content_checksum(data: bytes) -> int:
 # teardown:
 #   0x1e7c0  "EnableSoftWareWP"               (restore write protect)
 #   0x1b8f0/0x18fa0/0x2d7c0 restore/reset; logs total "Isp time : %d ms"
-# Notable for our tool: the updater itself does chip-detect (so the
-# JEDEC-identity gate is VENDOR-sanctioned, not only our invention), erases
-# per bank with per-sector fallback, verifies after program, and restores WP
-# even on failure paths. Error codes 0xd39/0xd56 = message ids of this plugin.
+# Notable for our tool: pre-erase chip-detect, per-bank erase with
+# per-sector fallback, read-back verify after program, and WP restore even
+# on failure paths are all VENDOR practice; the JEDEC 0x1F gate is not (the
+# vendor keys on the capacity code above) — it stays our own safety
+# addition. Error codes 0xd39/0xd56 = message ids of this plugin.
 ISP_PIPELINE = [
     ("get_flash_mode",     0x1AA50),
     ("typec_usb_check",    0x17300),
