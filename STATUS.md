@@ -806,3 +806,14 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
   with a proper "How it works" transport-chain section; new `CONTRIBUTING.md`
   (safety-first onboarding, DoD checklist incl. regression baselines, ranked
   help-wanted list). Awaiting GitHub MCP sign-in for repo creation + push.
+- **GO-LIVE (2026-10-09):** GitHub MCP connected via header auth (`oauth:
+  false` + `Authorization: Bearer {env:GITHUB_PAT}` — classic PAT, scopes
+  repo/read:org/workflow, 90-day expiry; GitHub's hosted MCP rejected the
+  OAuth-DCR flow because GitHub publishes no registration endpoint — that
+  is a GitHub limitation, not a config fault). Created
+  `TheHubUser4860938/MSI-Monitor-Flash-Tool` (public, uninitialized,
+  description exact) through the MCP; `git push -u origin main` over SSH.
+  Verified anonymously: private=false, vendor/ + .venv absent, 30 commits
+  all authored `msi-isp-dev <dev@msi-isp.local>` with NO GitHub account
+  linkage (linked-account: null). Public:
+  https://github.com/TheHubUser4860938/MSI-Monitor-Flash-Tool
