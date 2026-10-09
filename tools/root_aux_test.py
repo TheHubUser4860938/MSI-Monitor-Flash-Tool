@@ -9,7 +9,7 @@ ISP slaves 0x20/0x21/0x22 that i2c-dev can never reach on NVIDIA.
 Pure reads: no ISP-entry command, no erase, no write. Brick risk: zero.
 """
 import sys, ctypes
-sys.path.insert(0, "/home/eugene/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 from msi_isp import nvrm
 from msi_isp.nvrm import (NvRM, AUX_TYPE_AUX, AUX_TYPE_I2C, AUX_REQ_READ,
                           AUX_REQ_WRITE, CTRL_DFP_GET_INFO)

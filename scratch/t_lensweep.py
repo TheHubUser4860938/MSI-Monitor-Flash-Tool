@@ -13,7 +13,7 @@ sys.path.insert(0, ".")
 from msi_isp.ddc import RTBus, ddc_packet, ddc_parse_reply
 
 BUS = int(sys.argv[1]) if len(sys.argv) > 1 else 3
-BIN = ("/home/eugene/Projects/monitor-fw/vendor/"
+BIN = (str(__import__("pathlib").Path(__file__).resolve().parent.parent) + "/vendor/"
        "MSI_MAG_341CQP_QD-OLED_X28_FW.012_4023.bin")
 data = open(BIN, "rb").read()          # new 012 image (differs from live 009
                                        # at version bytes only)

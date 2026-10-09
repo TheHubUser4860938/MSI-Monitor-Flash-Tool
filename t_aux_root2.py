@@ -5,7 +5,7 @@ then ACK-probe the ISP flash slave. subDeviceInstance taken seriously.
 Encoding: addr word = dev8<<16 | reg8<<8 | (n-1) (DP 2.4.4); write data in data[].
 Read-only."""
 import ctypes, os, sys, fcntl, glob, hashlib
-sys.path.insert(0, "/home/eugene/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 from msi_isp import nvrm
 
 class OS21(ctypes.Structure):

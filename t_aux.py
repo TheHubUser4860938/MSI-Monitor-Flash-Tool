@@ -1,5 +1,5 @@
 import sys
-sys.path.insert(0, "/home/eugene/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 import dp_aux as D
 
 fd = D.open_card()

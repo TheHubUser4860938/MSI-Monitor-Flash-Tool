@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Dump export bodies from any tool DLL (32-bit), with IAT-referenced names
 resolved so callees show as names, not raw addresses. Output -> stdout."""
+import os
 import re as _re
 import pefile
 
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DLLS = {
-    "P": "/home/eugene/Projects/monitor-fw/vendor/PlugIn/WinIspPlugIn.dll",
-    "C": "/home/eugene/Projects/monitor-fw/vendor/Comm.dll",
-    "A": "/home/eugene/Projects/monitor-fw/vendor/Comm/Comm_Aux.dll",
+    "P": os.path.join(_ROOT, "vendor/PlugIn/WinIspPlugIn.dll"),
+    "C": os.path.join(_ROOT, "vendor/Comm.dll"),
+    "A": os.path.join(_ROOT, "vendor/Comm/Comm_Aux.dll"),
 }
 
 
@@ -73,4 +75,6 @@ def dump(tag, name, n=140):
 
 if __name__ == "__main__":
     import sys
+    if len(sys.argv) < 3:
+        sys.exit(f"usage: {sys.argv[0]} <P|C|A> <export-name|0xRVA> [n_insns]")
     dump(sys.argv[1], sys.argv[2], int(sys.argv[3]) if len(sys.argv) > 3 else 140)

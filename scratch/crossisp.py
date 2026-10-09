@@ -11,7 +11,7 @@ Strictly read-only except (a) the twice-proven ISP magic bytes, (b) EDID
 pointer byte. No erase, no program. Non-root (HDMI i2c-dev works unprivileged?
 runs either way; sudo is fine)."""
 import sys, time, glob, pathlib
-sys.path.insert(0, "/home/eugene/Projects/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 from msi_isp import isp
 from msi_isp.ddc import RTBus
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Probe 2: attach-GPU size, then find the RM deviceId that the client may use."""
 import sys, ctypes
-sys.path.insert(0, "/home/eugene/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 from msi_isp import nvrm
 
 r = nvrm.NvRM()

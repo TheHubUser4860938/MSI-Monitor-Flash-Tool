@@ -13,7 +13,7 @@ reverted DPCD write). Three theories tested in one pass, as root:
 Oracle chain: DPCD0=0x12 -> EDID bytes -> flash header @0xF806 ('MAG 341..').
 """
 import sys, time
-sys.path.insert(0, "/home/eugene/Projects/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 from msi_isp import nvrm, nvbus
 
 AUX = nvrm.AUX_TYPE_AUX

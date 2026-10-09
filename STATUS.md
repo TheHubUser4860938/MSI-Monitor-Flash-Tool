@@ -177,7 +177,7 @@ byte-identical to /sys EDID. Model name from the 0xFC monitor-name descriptor
 ## ROOT-TEST BLOCKER (next action, needs user)
 - sudo cache is keyed to the USER'S tty; my exec shell has no shared tty, so
   `sudo -v` in their Konsole does NOT help me. Need the drop-in once:
-    echo 'eugene ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/99-msi-isp
+    echo '<user> ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/99-msi-isp
 - Then run: sudo python3 t_root_priv.py (checks 0x1b gone => NVOC
   RMCTRL_FLAGS_PRIVILEGED honored via osIsAdministrator; 0x1b PERSISTS =>
   NVOC_METHOD_FLAG_PRIVILEGED kernel-only, need kernel shim instead).
@@ -288,7 +288,7 @@ Command: ./msi-isp --bus <hdmi bus#> probe   (bus list: ddcutil detect or
    erase/program from WinIspPlugIn 0x8520 dump; gates already in console.
 
 ## STATE
-git HEAD c1be88c + these notes; safe modes + shell work as user; --nvrm
+git HEAD 6794200 + these notes; safe modes + shell work as user; --nvrm
 works as root (sudoers.d/99-msi-isp still active, REMOVE at wrap-up).
 Monitor: FW.009, DP-1, never flashed. DP cable currently; HDMI test pending
 user cable swap. t_flash41.py / t_cmd37.py / t_tun4.py = latest probes,
@@ -435,7 +435,7 @@ Monitor state: FW.009 untouched, DP-only, healthy. sudo NOPASSWD drop-in
   Plan t_crossisp.py: HDMI-only (or DP-enter + HDMI-probe cross if ISP state is
   global to the scaler, which the design says it is):
     1. magic 94/9a/... candidate write to 0x37, status read flips bit7 (proven on HDMI,
-       c4da6ba, user perms)
+       3fb6f11, user perms)
     2. on 0x22: write [0x60, 9F, 00, 00, 00]? — per Flash.dat semantics:
        write reg=0x60 strobe; window: write [0x60,<idx>] pairs, read data regs;
     3. oracle: JEDEC 0x9F via SPI bridge -> A25L032 ID 0x1F4010, or model string
@@ -491,7 +491,7 @@ Findings:
 Housekeeping at close:
 - sudo NOPASSWD drop-in (/etc/sudoers.d/99-msi-isp) still on disk — agent shell lost
   sudo access at close; USER should remove: `sudo rm /etc/sudoers.d/99-msi-isp`.
-  (Until removed, passwordless sudo is active for eugene.) User runs
+  (Until removed, passwordless sudo is active for the dev user.) User runs
   `sudo msi-isp shell` from their own terminal when root mode is wanted.
 - Monitor: FW.009, verified healthy, never flashed. HDMI lane: keep cable
   only if testing Intel/AMD machines later; not required for v0.1 modes.
@@ -579,7 +579,7 @@ unless stated; monitor untouched):
   list). spec_0x22.py + probe + info are stdlib-only ⇒ copy-the-directory
   portability.
 - Workflow state: Phase 1 (session records) DONE; Phase 4 (nvrm version
-  autodetect, 68e3fe5) DONE; Phase 5 DONE this entry. Phase 2 (GitHub MCP)
+  autodetect, 94f256a) DONE; Phase 5 DONE this entry. Phase 2 (GitHub MCP)
   configured — awaiting user's /mcps OAuth sign-in; Phase 3 (repo) gated on
   it. Phase 6 (capstone+RE) next executable without user action.
 
@@ -620,4 +620,46 @@ unless stated; monitor untouched):
   answer, _4023 answer, working matrix, NVIDIA status, safety model) + MIT
   LICENSE added. Phase 8 (kernel-module kill-switch check) is the remaining
   executable item; Phase 3 (repo push) awaits user sign-in + STATUS skim.
+
+## Session 14d (2026-10-09) — Phase 8 KILL-Switch verdict: GO (kernel-context AUXCH is clean)
+
+Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
+`/tmp/opencode/ogkm`, tag matches the running driver exactly):
+
+- A formal KERNEL-CLIENT RM API exists, purpose-built for in-kernel RM
+  clients (it's what nvidia-modeset uses): `nvidia_get_rm_ops()`
+  (EXPORT_SYMBOL_**GPL**, kernel-open/nvidia/nv-modeset-interface.c:146)
+  → `.op = rm_kernel_rmapi_op` (osapi.c:5218) → switch covering
+  NV04_ALLOC (NVOS64), NV04_CONTROL (NVOS54), NV01_FREE, NV01_ALLOC_OBJECT
+  (NVOS05 root client), dup/share — i.e. every escape our nvrm.py uses
+  from userspace, but entered from kernel with KERNEL params.
+- Privilege chain, the decisive question: these entries call
+  `_nv04Control(pArgs, NV_FALSE, NV_FALSE)` (entry_points.c:127) →
+  `rmapiInitDeprecatedContext(..., bUserModeArgs=NV_FALSE)` →
+  `secInfo.privLevel = RS_PRIV_LEVEL_KERNEL` (deprecated_context.c:184).
+  The only process-identity gate found on our path, `osIsGpuAccessible`
+  (nv.c:6088 `iterate_fd` over **the caller's fd table** requiring an open
+  /dev/nvidiaN), runs in device.c:140-148 **only when
+  privLevel < RS_PRIV_LEVEL_KERNEL** ⇒ skipped for kernel clients.
+- NV0073 AUXCH control 0x731341: host dispatch table entry
+  (g_disp_objs_nvoc.c [108]) carries **accessRight=0x0** — no RS access
+  right required. Implementation is NOT in the open tree (only
+  `disp_common_kern_ctrl_minimal.c`): 615.x display controls execute in
+  **GSP-RM firmware**, which only ever sees host-kernel-originated RPC —
+  user vs module origin is indistinguishable there. Our proven root
+  userspace sequence therefore implies the identical kernel-context sequence.
+- Bonus: `rm_kernel_rmapi_op` never passes NV_ESC_CHECK_VERSION (the
+  userspace handshake), so the 615.78 strict version-string gate is
+  irrelevant in-kernel too.
+- Caveats for the prototype build: GPL-symbol use ⇒ module must declare a
+  GPL-compatible license ("Dual MIT/GPL" fine for an MIT project);
+  `nvidia_get_rm_ops` handshake compares `version_string` against
+  NV_VERSION_STRING — read it from /proc/driver/nvidia/version (same trick
+  as commit 94f256a); an nvidia_stack_t per call via alloc_stack().
+- Verdict: proceed to chardev prototype — user ioctl → alloc_stack →
+  NVOS05 root client → NVOS64 device/subdevice/NV0073 chain → NVOS54
+  control 0x731341 relay; acceptance = nvbus EDID-identical test run
+  **unprivileged** through the module. Kernel build env ready
+  (/usr/src/linux-cachyos 7.2.9-2, symvers present).
+- GitHub MCP still "needs authentication" (user-side /mcps sign-in pending).
 - Monitor: FW.009, DP-only, healthy, never flashed.

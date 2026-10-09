@@ -1,8 +1,8 @@
 Traceback (most recent call last):
-  File "/home/eugene/Projects/monitor-fw/re/dumpfn.py", line 9, in <module>
+  File "<repo>/re/dumpfn.py", line 9, in <module>
     for i in pexray.md().disasm(data, base, count=5000):
              ~~~~~~~~~^^
-  File "/home/eugene/Projects/monitor-fw/re/pexray.py", line 14, in md
+  File "<repo>/re/pexray.py", line 14, in md
     return Cs(CS_ARCH_X86, CS_MODE_64)
                            ^^^^^^^^^^
 NameError: name 'CS_MODE_64' is not defined. Did you mean: 'CS_MODE_32'?

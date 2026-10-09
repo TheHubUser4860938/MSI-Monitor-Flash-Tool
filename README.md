@@ -63,7 +63,7 @@ nodes. The decisive test is one run of `scratch/spec_0x22.py` on an
 Intel/AMD box — [`TEST-INTEL-AMD.md`](TEST-INTEL-AMD.md) is the runbook.
 
 Driver-update note: 615.78+ tightened the RM version handshake (strict
-string gate) — auto-detected at runtime since commit `68e3fe5`, so future
+string gate) — auto-detected at runtime since commit `94f256a`, so future
 driver bumps won't break the `--nvrm` path. The open module's in-kernel
 DDC/CI workstream (announced mid-2026) may eventually provide
 `/dev/drm_dp_aux*` natively; re-check after each driver update.

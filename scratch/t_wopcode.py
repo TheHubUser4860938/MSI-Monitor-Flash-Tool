@@ -21,7 +21,7 @@ Blast radius: worst case the on-screen FW version string shows wrong until
 power cycle. Flash itself is untouched; no ISP entry, no SPI traffic.
 """
 import sys, time
-sys.path.insert(0, "/home/eugene/Projects/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 from msi_isp.ddc import RTBus, ddc_packet, ddc_parse_reply
 
 BUS = 4          # DP bus (DDC/CI shim works here without root)

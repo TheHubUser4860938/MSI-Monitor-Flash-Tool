@@ -15,7 +15,7 @@ Oracle: EDID slave 0x50 (0xa0/8-bit) at reg 0x00 must return EDID header
 bytes 00 ff ff ff ff ff ff 00. Read-only everywhere.
 """
 import ctypes, sys, fcntl, glob, os
-sys.path.insert(0, "/home/eugene/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 from msi_isp import nvrm
 
 # ---- rebuild the proven root tree (same as t_tun2) ----

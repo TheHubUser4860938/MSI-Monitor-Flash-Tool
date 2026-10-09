@@ -9,7 +9,7 @@ and native AUX writes are proven to ACK. Steps:
   4. restore 0x00D1 to original value
 Oracle for full read: kernel EDID bytes."""
 import ctypes, os, sys, fcntl, glob
-sys.path.insert(0, "/home/eugene/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 from msi_isp import nvrm
 
 class OS21(ctypes.Structure):

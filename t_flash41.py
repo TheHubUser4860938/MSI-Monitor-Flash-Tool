@@ -14,7 +14,7 @@ Protocol as the tool runs it:
 Read-only. Pointer left wherever; exit ISP at end. Run as root.
 """
 import sys, time
-sys.path.insert(0, "/home/eugene/Projects/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 from msi_isp.nvbus import NvRMAuxBus
 from msi_isp.nvrm import AUX_REQ_WRITE, AUX_REQ_READ
 from msi_isp.isp import enter_isp, exit_isp, isp_alive

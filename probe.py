@@ -7,7 +7,7 @@ No flash erase/program command is ever sent.
 import sys
 import time
 
-sys.path.insert(0, "/home/eugene/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 from rt_i2c import I2CBus, I2C_RD, I2C_WR, ddcci_checksum
 
 BUS = int(sys.argv[1]) if len(sys.argv) > 1 else 4

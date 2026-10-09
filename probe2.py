@@ -3,7 +3,7 @@
 Non-destructive: reads only + the tool's routine vendor VCP write.
 """
 import sys, time
-sys.path.insert(0, "/home/eugene/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 import rt_ddc as R
 
 BUS = int(sys.argv[1]) if len(sys.argv) > 1 else 4

@@ -8,7 +8,7 @@ Read-only: DPCD[0] native AUX read, I2C-tunnel EDID@0x50 (compare vs sysfs),
 address-only ACK probes on EDID slave then ISP flash slave 0x40.
 """
 import ctypes, os, sys, fcntl, glob
-sys.path.insert(0, "/home/eugene/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 from msi_isp import nvrm
 
 class OS21(ctypes.Structure):

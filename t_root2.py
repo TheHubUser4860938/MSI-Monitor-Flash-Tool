@@ -8,7 +8,7 @@
 5. ACK-probe ISP flash slave (7-bit 0x20 = 8-bit 0x40) -- address-only write
 """
 import sys, glob
-sys.path.insert(0, "/home/eugene/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 from msi_isp import nvrm
 
 rm = nvrm.NvRM(verbose=False)

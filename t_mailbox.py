@@ -15,7 +15,7 @@ Nothing can erase/program: those commands (0x10-prefixed data + erase
 opcodes) are never sent.  Exits ISP mode at the end.  Run as root.
 """
 import sys, time
-sys.path.insert(0, "/home/eugene/Projects/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 from msi_isp import Facts
 from msi_isp.nvbus import NvRMAuxBus
 from msi_isp.nvrm import AUX_REQ_WRITE, AUX_REQ_READ

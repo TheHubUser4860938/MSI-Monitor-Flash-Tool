@@ -9,7 +9,7 @@ and only trust... hmm no: dead-write DROPS ISP, so a hit could equally be
 AutoDetectSlaveAddr (from f_autodetect disasm): WRITE candidate, then READ
 status from 0x37 and decide on the STATUS REPLY, not on ACK of the probe."""
 import sys, time
-sys.path.insert(0, "/home/eugene/Projects/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 from msi_isp import isp
 from msi_isp.nvbus import NvRMAuxBus
 

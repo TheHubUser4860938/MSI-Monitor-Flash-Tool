@@ -4,7 +4,7 @@ Probes opcode 0x01 + 3-byte reg over FE E0..E3 / E1 E0..EF to decide whether
 the window is real and address-sensitive (values vary) or a single canned reply.
 """
 import sys, time
-sys.path.insert(0, "/home/eugene/Projects/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 from msi_isp.ddc import RTBus, ddc_packet, ddc_parse_reply, SLAVE_DDC
 
 def vread(bus, reg3):

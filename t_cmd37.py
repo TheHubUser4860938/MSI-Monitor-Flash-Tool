@@ -20,7 +20,7 @@ Between candidates, re-send entry magic 0x94 (idempotent; proven).
 Oracle: b"MAG 341CQ" in payload.  Read-mostly, exit ISP at end. Root only.
 """
 import sys, time
-sys.path.insert(0, "/home/eugene/Projects/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 from msi_isp.nvbus import NvRMAuxBus
 from msi_isp.isp import enter_isp, exit_isp, isp_alive
 

@@ -5,7 +5,7 @@ NAK vs TIMEOUT vs BUSY is the whole answer here), with 7ms x 20 retry like
 the kernel's drm_dp_i2c_do_msg. Read-only apart from proven ISP enter/exit.
 Direct rm.aux_i2c (not nvbus), root required, bus = RM displayId (DP)."""
 import sys, time
-sys.path.insert(0, "/home/eugene/Projects/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 from msi_isp import isp
 from msi_isp.nvbus import NvRMAuxBus
 

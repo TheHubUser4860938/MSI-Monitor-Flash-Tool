@@ -14,7 +14,7 @@ Read-mostly: only ISP magic bytes ride the wire (proven reversible via 0x24);
 no erase/program commands.  Run as root.
 """
 import sys, time
-sys.path.insert(0, "/home/eugene/Projects/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 from msi_isp import Facts
 from msi_isp.nvbus import NvRMAuxBus
 from msi_isp.nvrm import AUX_REQ_WRITE, AUX_REQ_READ

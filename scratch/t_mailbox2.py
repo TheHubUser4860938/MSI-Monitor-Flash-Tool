@@ -4,7 +4,7 @@ addr form: [page, b1, b0], page FE = version/window). If the window honors
 the pointer, FE F8 00 / FE F8 06 return flash content (009 / MAG oracle).
 Read-only; exits ISP and EDID-verifies."""
 import sys, time
-sys.path.insert(0, "/home/eugene/Projects/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 from msi_isp.nvbus import NvRMAuxBus
 from msi_isp.isp import enter_isp, exit_isp, isp_alive, IspError
 

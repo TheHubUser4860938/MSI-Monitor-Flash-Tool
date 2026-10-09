@@ -1,5 +1,5 @@
 import sys, ctypes
-sys.path.insert(0, "/home/eugene/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 from msi_isp import nvrm
 rm = nvrm.NvRM()
 rm.alloc_client(use_root=False); rm.alloc_device(deviceId=0); rm.alloc_disp_common()

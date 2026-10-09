@@ -4,7 +4,7 @@ user-usable one). addr = 20-bit (slave8<<12)|reg12; dir/size in cmd+size.
 Sequence: offset-write 0x00 to slave 0xA0, MOT-read 8 from 0xA1.
 Oracle: kernel EDID card1-DP-1."""
 import ctypes, os, sys, fcntl, glob
-sys.path.insert(0, "/home/eugene/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 from msi_isp import nvrm
 
 class OS21(ctypes.Structure):

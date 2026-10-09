@@ -10,7 +10,7 @@ EDID-device offset pointer (as ddcutil/EDID reads do).
 Run under sudo to test the privilege hypothesis.
 """
 import ctypes, os, sys, fcntl, hashlib
-sys.path.insert(0, "/home/eugene/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 from msi_isp import nvrm
 
 print(f"euid={os.geteuid()} uid={os.getuid()}")

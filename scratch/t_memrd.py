@@ -16,7 +16,7 @@ Oracles: FW.009 (live version), MAG 341CQ X28 (model), 0x1f/4a/1c/9f-adjacent
 (JEDEC ID of A25L032 via SPI opcode 0x9F through the PWM2SPI bridge).
 """
 import sys, time
-sys.path.insert(0, "/home/eugene/Projects/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 from msi_isp.nvbus import NvRMAuxBus
 
 SL = 0x37

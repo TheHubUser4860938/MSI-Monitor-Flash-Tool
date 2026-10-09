@@ -3,7 +3,7 @@
 userland as root: native DPCD reads ACK). ReplyType is the oracle:
 0=ACK 4=I2CNACK 2=DEFER 3=TIMEOUT. Read-only throughout (EDID slave 0x50)."""
 import ctypes, os, sys, fcntl, glob
-sys.path.insert(0, "/home/eugene/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 from msi_isp import nvrm
 
 class OS21(ctypes.Structure):

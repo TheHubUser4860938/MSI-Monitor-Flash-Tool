@@ -4,7 +4,7 @@ over RM AUX, probed ONLY while ISP is verified alive, in one process with no
 polluting dead-slave writes in between. Read-only apart from the twice-proven
 ISP enter/exit magic. Root required."""
 import sys, time
-sys.path.insert(0, "/home/eugene/Projects/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 from msi_isp import isp, Facts
 from msi_isp.nvbus import NvRMAuxBus
 

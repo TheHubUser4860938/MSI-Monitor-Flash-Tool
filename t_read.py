@@ -1,5 +1,5 @@
 import sys, time, fcntl, os, ctypes
-sys.path.insert(0, "/home/eugene/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 from rt_i2c import I2CBus, I2C_RD, I2C_WR, I2C_SLAVE, I2CBus as B
 
 fd = os.open("/dev/i2c-4", os.O_RDWR)

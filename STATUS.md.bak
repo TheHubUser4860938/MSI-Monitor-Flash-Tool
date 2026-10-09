@@ -177,7 +177,7 @@ byte-identical to /sys EDID. Model name from the 0xFC monitor-name descriptor
 ## ROOT-TEST BLOCKER (next action, needs user)
 - sudo cache is keyed to the USER'S tty; my exec shell has no shared tty, so
   `sudo -v` in their Konsole does NOT help me. Need the drop-in once:
-    echo 'eugene ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/99-msi-isp
+    echo '<user> ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/99-msi-isp
 - Then run: sudo python3 t_root_priv.py (checks 0x1b gone => NVOC
   RMCTRL_FLAGS_PRIVILEGED honored via osIsAdministrator; 0x1b PERSISTS =>
   NVOC_METHOD_FLAG_PRIVILEGED kernel-only, need kernel shim instead).

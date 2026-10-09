@@ -17,7 +17,7 @@ All READ-only wrt flash; entry/exit magic are the tool's own commands.
 Works as ordinary user over i2c-dev (no root, no RM) -- and on any GPU.
 """
 import sys, time
-sys.path.insert(0, "/home/eugene/Projects/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 from msi_isp.ddc import RTBus, ddc_packet, ddc_parse_reply, SLAVE_DDC
 
 ORACLE = b"MAG 341CQ"

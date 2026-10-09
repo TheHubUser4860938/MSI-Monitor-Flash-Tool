@@ -1,5 +1,5 @@
 import sys, re, ctypes
-sys.path.insert(0, "/home/eugene/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 from msi_isp import nvrm
 src = open("/tmp/ogkm/src/nvidia/generated/g_disp_objs_nvoc.c").read()
 pat = re.compile(r"/\*flags=\*/\s+(0x[0-9a-f]+)u,\s*/\*accessRight=\*/\s+(0x[0-9a-f]+)u,\s*/\*methodId=\*/\s+(0x[0-9a-f]+)u", re.S)

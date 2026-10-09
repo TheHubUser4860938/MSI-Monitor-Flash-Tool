@@ -1,5 +1,5 @@
 import sys, os, ctypes
-sys.path.insert(0, "/home/eugene/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 from msi_isp import nvrm
 rm = nvrm.NvRM()
 stride, cards = rm.card_info_raw()

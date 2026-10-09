@@ -4,7 +4,7 @@ byte layout means effective register = word >> 2 for native AUX (proven: word
 0 read DPCD[0]=0x12 earlier). Baseline restore, then I2C word sweep on 0x731341.
 Read-only."""
 import ctypes, os, sys, fcntl, glob
-sys.path.insert(0, "/home/eugene/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 from msi_isp import nvrm
 class OS21(ctypes.Structure):
     _fields_ = [("hRoot", ctypes.c_uint32), ("hObjectParent", ctypes.c_uint32),

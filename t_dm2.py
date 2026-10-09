@@ -2,7 +2,7 @@
 """Root: alloc NV01_DEVICE with deviceId = (pci_bus << 16), then system
 controls + DFP enumeration + AUXCH DPCD read. Read-only."""
 import sys, ctypes
-sys.path.insert(0, "/home/eugene/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 from msi_isp import nvrm
 
 def words(buf, n):

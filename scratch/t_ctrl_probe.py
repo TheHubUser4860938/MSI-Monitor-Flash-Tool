@@ -8,7 +8,7 @@ If A works on 0x50 while B/C ERROR on 0x50 -> addr-only is broken in RM:
 all sweep conclusions built on addr-only are void, and the correct sweep is
 A-style full-message probes. Root."""
 import sys, time
-sys.path.insert(0, "/home/eugene/Projects/monitor-fw")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 from msi_isp.nvbus import NvRMAuxBus
 
 with NvRMAuxBus() as bus:
