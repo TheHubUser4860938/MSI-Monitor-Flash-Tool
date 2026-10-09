@@ -26,7 +26,7 @@ Native Linux firmware tool for the **MSI MAG 341CQP QD-OLED X28** monitor (Realt
 
 - EDID: 256 B, **model string in the `0xFC` text descriptor (block 0, descriptor 3)** = `MAG 341CQ X28`; PNP `MSI`, product `0x3DE3`. EDID reads need 16-byte chunks with pointer re-posing on this adapter.
 - Live firmware: **`FW.009`** via the vendor DDC/CC query (below). Input-select VCP: `0x8D` unsupported, `0x08` never answered (unresolved).
-- Target image: `vendor/MSI_MAG_341CQP_QD-OLED_X28_FW.012_4023.bin` — 1,835,008 B, SHA-256 in `Facts.py`/STATUS.md; **version `012` @ `0xF800`, model `MAG 341CQ X28` @ `0xF806`** (exact match with monitor ⇒ file is correct; 0x45 is NOT a file problem); `4023` in the filename = expected 32-bit checksum (`ulBinChecksum=0x4023`) over a **4,194,304-byte** region — algorithm undecoded.
+- Target image: `vendor/MSI_MAG_341CQP_QD-OLED_X28_FW.012_4023.bin` — 1,835,008 B, SHA-256 in `Facts.py`/STATUS.md; **version `012` @ `0xF800`, model `MAG 341CQ X28` @ `0xF806`** (exact match with monitor ⇒ file is correct; 0x45 is NOT a file problem); `4023` in the filename = **low 16 bits of the plain byte-sum of the .bin as stored on disk** — cracked 2026-10-09 (session 14c) from the updater exe (`0x4119a0` two interleaved byte-sum loops; `0x4137cc` `movzx ax` mask; verified `sum == 0x0C964023`). Earlier "32-bit over 4 MiB" assumption superseded; helper `Facts.bin_content_checksum()`.
 - Vendor package (`vendor/`, gitignored): `ISPToolForMsi.exe`, `Comm/Comm.dll`, `Comm/Comm_Aux.dll`, `PlugIn/WinIspPlugIn.dll`, `PlugIn/Flash.dat`, `rtd38/Comm_GFXI2C.dll`, PDF manual. **All binaries are 32-bit PE32/i386 — disassemble `CS_MODE_32`** (a 64-bit-mode bug corrupted early results; telltale: `movabs` in dumps).
 - Tool config: `IspSetting.ini` copies exist under the Heroic/Wine prefix (paths in STATUS.md). Key values: `enumCommID=1` (AUX backend), ISP slave `0x6F`, `AUX_I2CPageLen=32`, delays 3000/200/10000 ms, 10 retries, `CheckModelName=1` @ `0xF806`, `CheckChecksum=1`, `strVersionDdcciCmd = 6e 51 84 01 fe e1 e6` (reproduced byte-exact), `0xEA60` (60 s) values in several places = ISP-watchdog suspects.
 
@@ -86,7 +86,7 @@ sudo python3 scratch/spec_0x22.py    # the spec protocol experiment (see below)
 3. PWM2SPI strobe/busy semantics — what `0x38→0x39` latches, which bit to poll; planned oracle: `06,61,9f`-style opcode load + strobe → read `0x64` expecting **`0x1F`** manufacturer byte.
 4. Page-read mechanics: 32 sequential data-port reads vs length-armed burst.
 5. Which magic candidate actually enables flash access (cand0 vs cand4 gave different status bytes; `strInitialDdcciCmd` values `[133,160]` semantics unverified).
-6. Checksum algorithm for `0x4023` over 4 MiB (needed for post-flash verify + custom firmware).
+6. ~~Checksum algorithm for `0x4023`~~ **SOLVED session 14c**: low 16 bits of the plain byte-sum over the file (see `Facts.BIN_CHECKSUM_EXPECTED`); post-flash verify can now be done natively once a flash dump exists.
 7. Flash layout/erase plan (exports show `SectorErase` + `BankErase`; ROM-region skip list unknown).
 8. Brick recovery: no evidence of ROM/USB self-recovery for RTD2711; MSI's own failed-update path is service-flash ⇒ assume clip programmer (CH341A + SOIC-8) as last resort.
 9. ISP mode vs live video during a 30–60 min dump (watchdog? `0xEA60`=60 s suspects); dump duration unmeasured.

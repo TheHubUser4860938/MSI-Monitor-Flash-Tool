@@ -582,3 +582,38 @@ unless stated; monitor untouched):
   autodetect, 68e3fe5) DONE; Phase 5 DONE this entry. Phase 2 (GitHub MCP)
   configured — awaiting user's /mcps OAuth sign-in; Phase 3 (repo) gated on
   it. Phase 6 (capstone+RE) next executable without user action.
+
+## Session 14c (2026-10-09) — RE toolchain restored; OPEN Q6 SOLVED: the _4023 checksum
+
+- capstone 5.0.7 + pefile 2024.8.26 reinstalled in repo-local `.venv` (system
+  python is PEP 668 externally-managed); `.gitignore` += `.venv/`; `re/env.sh`
+  now exports the venv PATH + `$PY`. Toolchain sanity: WinIspPlugIn exports
+  re-derived and exact vs session 8b RVAs — IspFlash 0x8520, DumpFlash 0x8860,
+  GetFWInfo 0x8800, RecordFWVersion 0x8750, EnterISPModeExport 0x8c50. Name
+  correction: full export names are **BankEraseFlash**@0x8a20 /
+  **ChipEraseFlash**@0x8af0 (8b listed short forms); ReadFlashData@0x7e50
+  lives in Comm.dll (re-confirmed, as session 11 recorded).
+- Method notes (vendor binaries speak UTF-16): string hunt must use utf-16-le
+  patterns; xref = scan .text for the LE-packed VA; function start = backscan
+  for `55 8b ec` prologue; then capstone CS_MODE_32 linear dump.
+- **Q6 cracked — updater filename checksum = low 16 bits of the plain byte
+  sum of the .bin as stored on disk.** Evidence chain (MSI Firmware Update
+  Utility V1.0.6.exe, RVAs):
+  * fn 0x4119a0: two interleaved `movzx`/`add` loops (even/odd offsets) + odd
+    tail = plain 32-bit Σbytes;
+  * caller 0x4137c9-0x4137d5: `movzx eax, ax` → compare low 16 only vs value
+    parsed from filename tail (strings "Checksum from bin file name string to
+    int:0x%x checksum from bin content:0x%x" @0x413796; missing suffix →
+    "Get bin file name checksum fail!" @0x4136e3);
+  * verdict gate: call 0x4133b0, fail → "Compare checksum fail!" @0x40febb.
+  Reproduction: sum(FW.012 bytes) = 0x0C964023 → low16 = 0x4023 = filename ✓.
+  The earlier "32-bit over 4,194,304 B region" assumption is superseded (the
+  0x4133b0 function reads the actual file, chunked 32 KiB, no padding).
+- Red herring cleared: WinIspPlugIn "CheckSum calculate from read buffer:
+  0x%x" (fn 0x10026d90) is the DDC/CI page XOR seeded 0x50 — the same rule
+  ddc.py already implements; unrelated to bin validation.
+- Facts.py += BIN_CHECKSUM_EXPECTED + bin_content_checksum() helper (pure
+  stdlib, usable for future post-flash verify once a dump exists).
+- GitHub MCP: `opencode mcp list` → "⚠ github needs authentication" — config
+  confirmed live; OAuth sign-in is the user-side step (Phase 3 gated).
+- Monitor: FW.009, DP-only, healthy, never flashed.

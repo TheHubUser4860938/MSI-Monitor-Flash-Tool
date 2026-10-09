@@ -67,3 +67,29 @@ TIMING = {
 ISP_HANDSHAKE_SLAVE7 = 0x37
 STATUS_READY_BIT = 0x80
 EXIT_ISP_CMD = 0x24          # shared with flashrom's mstarddc_spi
+
+# ---- The "_4023" filename checksum, cracked 2026-10-09 (session 14c) ------
+# Disassembly evidence (MSI Firmware Update Utility V1.0.6.exe, all RVA):
+#   fn 0x4119a0  content checksum: two interleaved movzx/add byte loops
+#                (even/odd offsets) + odd-tail byte  ==  plain 32-bit SUM of
+#                every byte of the .bin as stored on disk (actual file size).
+#   site 0x4137cc `movzx eax, ax` then `cmp eax, [filename-parsed value]`
+#                => only the LOW 16 BITS of the sum are compared.
+#   value source: last 4 hex chars of the filename (exe strings "Checksum from
+#                bin file name string to int:0x%x ..." at 0x413796; absence of
+#                the suffix => "Get bin file name checksum fail!").
+#   mismatch path: "Compare checksum fail!" MessageBox (xref 0x40febb,
+#                verdict from call 0x4133b0 -> 0).
+# The WinIspPlugIn strings "CheckSum calculate from read buffer: 0x%x" belong to
+# an UNRELATED check: DDC/CI page XOR seeded 0x50 (fn 0x10026d90) -- same rule
+# as ddc.py's packet checksum.
+# Verified: sum(FW.012 .bin bytes) == 0x0C964023 -> low16 == 0x4023 == filename.
+BIN_CHECKSUM_EXPECTED = 0x4023
+
+
+def bin_content_checksum(data: bytes) -> int:
+    """The check the MSI updater compares against the filename's trailing
+    4 hex digits: low 16 bits of the plain byte sum (exe:0x4119a0 + mask at
+    0x4137cc). Padded-to-4MiB regions agree in low16 whenever the 0xFF pad
+    count is a multiple of 0x100 (0xFF * n == 0 mod 2^16)."""
+    return sum(data) & 0xFFFF
