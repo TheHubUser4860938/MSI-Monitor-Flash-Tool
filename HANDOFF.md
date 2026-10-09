@@ -1,6 +1,6 @@
 # msi-isp — Project Handoff Brief (2026-10-09)
 
-Point a new agent at this file plus `STATUS.md` (516-line chronological session log — the canonical deep state). Git log is the authoritative changelog; working tree is clean at `17e0047` as of writing.
+Point a new agent at this file plus `STATUS.md` (chronological session log, sessions 1–14 — the canonical deep state). Git log is the authoritative changelog; working tree clean at the session-14 commit as of this 2026-10-09 update.
 
 ## Mission
 
@@ -16,7 +16,7 @@ Native Linux firmware tool for the **MSI MAG 341CQP QD-OLED X28** monitor (Realt
 ## Environment (verified facts)
 
 - CachyOS (Arch-based), KDE/Konsole, Wayland+XWayland. Kernel: CachyOS build; headers-only source at `/usr/src/linux-cachyos` (no `.c` files). `CONFIG_DRM_DISPLAY_DP_AUX_CHARDEV=y` exists but nvidia-drm doesn't use it.
-- GPU: **RTX 4090**, NVIDIA open module **615.71.09**, `modeset=1`. `nvidia-drm` registers **no** `/dev/drm_dp_aux*`; `DRM_IOCTL_DP_AUX` → EINVAL; `/sys/class/drm_dp_aux_dev` empty.
+- GPU: **RTX 4090**, NVIDIA open module **615.78.08** (updated 2026-10-09; prior 615.71.09, kernel 7.2.9-2-cachyos). `nvidia-drm` registers **no** `/dev/drm_dp_aux*`; `DRM_IOCTL_DP_AUX` → EINVAL; `/sys/class/drm_dp_aux_dev` empty — all re-verified unchanged on 615.78.08. **615.78 broke `nvrm.py`: pinned `VERSION` string → version-check ioctl EINVAL; runtime autodetect from `/proc/driver/nvidia/version` pending (session 14).**
 - Cables: **DP = active video (keep it)**; HDMI currently unplugged; Type-C in (Billboard device only — this model's Type-C has no data functions by design, per MSI manual p.7).
 - `/dev/i2c-4` = DP connector. NVIDIA services an **allow-list only**: `0x50` real EDID, `0x37` DDC/CI shim, `0x30` emulated (reads zeros), ACK-noise at `0x4a/0x4b`. **`I2C_RDWR` → ENOTTY** and repeated-start reads return zeros — must use **separate `write()`/`read()` with a 1-byte warm-up write** (ddcutil's method; matched byte-exact via `ddcutil --trace=io_detail` + journal).
 - sudo: agent shell is non-interactive and **`sudo -v` does not help** (credentials cache is per-tty; user's Konsole ≠ agent shell). The working pattern is the global drop-in: `echo 'eugene ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/99-msi-isp` (currently **installed**; remove after root testing with `sudo rm /etc/sudoers.d/99-msi-isp`).
@@ -77,7 +77,7 @@ sudo python3 scratch/spec_0x22.py    # the spec protocol experiment (see below)
 8. Raw byte reads at `0x37` as a flash window (it's the DDC/CC packet FIFO — the early "MAG 341CQ X28 oracle hits" were cached-descriptor **false positives**, proven by address ladder).
 9. `drm_dp_aux` chardev / `DRM_IOCTL_DP_AUX` on nvidia-drm.
 10. More than two strobe polarities without a JEDEC match (we never got a contact to strobe).
-11. **Spec Step 1 final verdict (commit `17e0047`)**: patient I2C-mode probe of `0x22` via `0x731341` as root — **108 tries / 2.0 s: all TIMEOUT, zero DEFER/NACK/data**, while `0x50` and `0x37` ACK real data with the same control and framing in the same run (native DPCD0=`0x12` sanity passed). The 4090 open module will not emit I2C transactions to `0x22` on this sink.
+11. **Spec Step 1 final verdict (commit `17e0047`)**: patient I2C-mode probe of `0x22` via `0x731341` as root — **108 tries / 2.0 s: all TIMEOUT, zero DEFER/NACK/data**, while `0x50` and `0x37` ACK real data with the same control and framing in the same run (native DPCD0=`0x12` sanity passed). The 4090 open module will not emit I2C transactions to `0x22` on this sink. **Re-measured 2026-10-09 on 615.78.08: identical (109 tries / 2.0 s, 100% TIMEOUT; same-run controls ACK). Verdict stands on both .71 and .78.**
 
 ## Open questions (ranked)
 
@@ -102,7 +102,7 @@ sudo python3 scratch/spec_0x22.py    # the spec protocol experiment (see below)
 
 ## Next actions (ordered)
 
-1. (User, hardware) Intel/AMD Linux box + DP cable: run `./msi-isp probe` and `scratch/spec_0x22.py` (i2c-dev path auto-selected there). Log every reply verb.
+1. (User, hardware) Intel/AMD Linux box + DP cable: run `./msi-isp probe` and `scratch/spec_0x22.py` (i2c-dev path auto-selected there — **correction 2026-10-09: `spec_0x22.py` is currently NVIDIA-RM-only, session 14; the portable i2c-dev transport is the next repo task, and `./msi-isp probe` is stdlib-only and already runs there today**). Log every reply verb.
 2. **ACK path**: implement `backup` — ISP entry → register window per Flash.dat grammar → JEDEC gate (`0x1F`) → page-loop dump of 1,835,008 B at 32 B/page with INI pacing + progress bar → dump must contain `FW.009`-era image + model string @ `0xF806` → then decode `IspFlash` write sequence from `re/` dumps → implement `write` behind gates → README/packaging for release (the user's "everyone on Linux needs this" goal).
 3. **Silence path**: ship v0.1 conclusion; watch NVIDIA's in-kernel DDC/CI driver work (Phoronix, July 2026) — the i2c-dev code path adopts it unchanged; optionally prototype a tiny kernel module that calls the PRIVILEGED AUXCH control in kernel context for NVIDIA boxes.
 4. Housekeeping: remove the sudo drop-in when root testing ends; keep `STATUS.md` as the append-only session log; commit after every experiment.

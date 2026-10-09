@@ -514,3 +514,36 @@ addr-only MOT-clear stop; >=200 tries / 2 s; log every reply verb). Run as root,
   this box creates a wire.
 - Monitor verified healthy during run (same-run 0x50 ACK with data; no ISP entry, no writes).
 - Sudo: drop-in 99-msi-isp re-added for tonight's run (remove when done: sudo rm /etc/sudoers.d/99-msi-isp).
+
+## Session 14 (2026-10-09) — 615.78.08 driver + kernel 7.2.9-2: dead-end re-measured; nvrm version-string break found
+
+User package update + reboot. New baseline: NVIDIA open module **615.78.08**, kernel
+**7.2.9-2-cachyos** (headers 7.2.9-2 installed, match running kernel). Checks (read-only
+unless stated; monitor untouched):
+
+- i2c-dev probe (/dev/i2c-4): identical allow-list — 0x30/0x37/0x50 ACK,
+  0x22/0x20/0x18-1b no-ack. info/verify green, live FW.009.
+- No /dev/drm_dp_aux*; /sys/class/drm_dp_aux_dev empty; nvidia-drm.ko 615.78.08 still
+  **zero `dp_aux` string references** (same strings test as session 3); no new
+  AUX/I2C/DDC module params. Release-note sweep (Phoronix/GoL/9to5Linux): VKD3D-Proton
+  latency, Wayland HDR fixes, suspend/SELinux, UseKernelSuspendNotifiers=1 default —
+  **no display I2C/AUX/DDC changes**.
+- **NEW BREAK — nvrm.py pinned version string:** NV_ESC_CHECK_VERSION on 615.78.08
+  rejects the hardcoded `VERSION = b"615.71.09"` with **EINVAL** (proved side-by-side:
+  b"615.71.09" → EINVAL, b"615.78.08" → handshake OK). Affects `sudo ./msi-isp --nvrm
+  probe` and `scratch/spec_0x22.py` alike. .78 branch evidently tightened the relaxed
+  gate. TODO: derive the version string at runtime from /proc/driver/nvidia/version —
+  until then every future driver update re-breaks the RM path.
+- spec_0x22 re-run (root, via in-memory VERSION patch; same framing + controls):
+  native DPCD0=0x12 ACK; 0x50/0x37 ACK+data; STEP 1 on 0x22: **SILENCE — 109 tries /
+  2.0 s, 100% TIMEOUT, zero DEFER/NACK/data**; addr-only MOT-clear stop form TIMEOUT.
+  Dead-end #11 re-stamped on 615.78.08: verdict unchanged vs 615.71.09 (108 tries).
+  Next gate remains the Intel/AMD box, same binary + MOT framing.
+- Scratch finding: spec_0x22.py is **NVIDIA-RM-only** (builds NvRMAuxBus at startup) —
+  HANDOFF's "i2c-dev path auto-selected there" is false for this script; portable
+  transport = next workflow item. msi_isp/ itself is 100% stdlib (verified by import
+  audit) ⇒ `./msi-isp probe` is already portable to Intel/AMD boxes unchanged.
+- Env: sudoers drop-in 99-msi-isp re-installed by user (active); remove after root
+  testing ends. capstone 5.0.7 currently MISSING from system python (pefile 2024.8.26
+  present) — re/ toolchain blocked until restored (repo-local .venv planned).
+- Monitor: FW.009, DP-only, healthy, never flashed.
