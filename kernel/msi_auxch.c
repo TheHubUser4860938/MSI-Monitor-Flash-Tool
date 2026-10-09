@@ -325,7 +325,8 @@ static int __init msi_auxch_init(void)
         else
             memset(edid, 0xEE, sizeof(edid));
         pr_info(DRV ": 0x50 read 8B: st=%#x reply=%u data=%*ph "
-                     "(expect ff*7 00)\n", st, a.replyType, 8, edid);
+                     "(EDID header: 00 ff ff ff ff ff ff 00)\n",
+                st, a.replyType, 8, edid);
 
         memset(&a, 0, sizeof(a));
         a.bAddrOnly = 1;                   /* bare-address close, MOT clear */
@@ -344,8 +345,8 @@ static int __init msi_auxch_init(void)
     }
     vclass = class_create(DRV);
     if (IS_ERR(vclass)) {
-        vclass = NULL;
         ret = PTR_ERR(vclass);
+        vclass = NULL;
         goto out_cdev_region;
     }
     vclass->devnode = msi_devnode;
@@ -355,8 +356,8 @@ static int __init msi_auxch_init(void)
         goto out_class;
     vdevice = device_create(vclass, NULL, devt, NULL, "msi-auxch");
     if (IS_ERR(vdevice)) {
-        vdevice = NULL;
         ret = PTR_ERR(vdevice);
+        vdevice = NULL;
         goto out_cdev;
     }
     pr_info(DRV ": /dev/msi-auxch ready (tree_ok=%d gpu=%#x disp=%#x)\n",

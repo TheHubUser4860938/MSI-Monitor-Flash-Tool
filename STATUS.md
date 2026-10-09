@@ -663,3 +663,38 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
   (/usr/src/linux-cachyos 7.2.9-2, symvers present).
 - GitHub MCP still "needs authentication" (user-side /mcps sign-in pending).
 - Monitor: FW.009, DP-only, healthy, never flashed.
+
+## Session 14e (2026-10-09) — Phase 8 module VERIFIED: unprivileged DP-AUX on NVIDIA
+
+- PII/anonymization for public release: repo-relative paths everywhere
+  (also fixes 31 stale `/home/eugene/monitor-fw` insertions), `<user>`/
+  `<repo>` placeholders in docs+transcripts, LICENSE holder + module
+  author de-named, __pycache__ untracked, kernel build artifacts
+  gitignored; full git history rewritten to `msi-isp-dev
+  <dev@msi-isp.local>` (nothing pushed pre-rewrite, so zero traces) and
+  doc hash references re-pointed. `git grep` = tree clean of
+  name/handle/email/hostname.
+- kernel/msi_auxch.ko now LINKS + LOADS. Build facts: CachyOS kernel is
+  clang-built → `make LLVM=1 CC=clang`; CONFIG_MODVERSIONS is OFF →
+  modpost needs only symbol NAMES: Makefile generates `nvidia-syms`
+  from live /proc/kallsyms into KBUILD_EXTRA_SYMBOLS (this kernel's
+  dump format is 5 tab fields: crc/sym/module/export/namespace — even
+  an empty namespace column is mandatory).
+- insmod, first load, all from kernel context (NVRM 615.78.08):
+  ops handshake OK, open_gpu(0x100) OK, NV01_ROOT/DEVICE_0/NV0073 all
+  status=0x0, displayId discovery 0x200, DPCD0 read **ACK b0=0x12** and
+  0x50 read **00 ff ff ff ff ff ff 00** — byte-identical to the
+  session-13 root-userspace oracles. Kill-switch GO confirmed at
+  runtime, not just statically.
+- Acceptance (kernel/test_relay.py, stdlib ctypes): as **uid 1000, no
+  sudo**, DPCD0 + EDID-header oracles both ACK byte-exact →
+  `UNPRIVILEGED RELAY: PASS`.
+- Repeatability: insmod→pass→rmmod→insmod→pass→rmmod; every RM free
+  returns 0x0, /dev node vanishes on unload, no residual state.
+- Bugs fixed during bring-up: two `ret = PTR_ERR(NULL)` ordering bugs in
+  chardev error paths; oracle comment said "expect ff*7 00" but the
+  EDID magic genuinely starts with 0x00.
+- Deliberately NOT done yet (polish gate): node is 0666 (plan: 0660
+  group `msi-isp` + unlock-gated writes per security discussion),
+  ioctl still relays write-direction transactions ungated.
+- Monitor: untouched by all of this — read-only oracles; FW.009, DP-only.
