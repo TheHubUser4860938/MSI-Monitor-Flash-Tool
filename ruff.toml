@@ -1,0 +1,49 @@
+# Ruff policy: strict on the shipping surfaces (msi_isp/, kernel/, re/),
+# minimal on the research archives (root t_*/probe*/rt_* scripts, scratch/,
+# tools/, re/*.py one-shots) — those are session records, not libraries.
+# Line length (E501) is deliberately unenforced: RE dumps keep long lines.
+
+[lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "SIM", "PIE", "RUF", "BLE",
+          "EXE", "N", "PLW", "FURB", "S"]
+
+[lint.per-file-ignores]
+# Deliberate catch-all error boundaries: the CLI/console report a concrete
+# refusal reason instead of crashing (see STATUS sessions 8-10).
+"msi_isp/cli.py" = ["BLE001"]
+"msi_isp/console.py" = ["BLE001", "N802"]   # error boundary; OK/BAD/WARN/DIM
+                                      # style helpers + cmd's required do_EOF
+"msi_isp/isp.py" = ["BLE001"]      # read-only probes: any bus error == "absent"
+"msi_isp/nvbus.py" = ["BLE001"]    # discovery logs every exception instead
+"msi_isp/Facts.py" = ["N999"]      # intentional name: this module IS a fact registry
+"msi_isp/nvrm.py" = ["N", "RUF005"]   # ctypes mirror of NVIDIA's SDK: identifiers
+                                      # (hClass, NVOS21_v1, …) deliberately match
+                                      # nvos.h and must stay greppable against it
+"re/*.py" = ["BLE001", "S", "N", "E7"]   # 32-bit RE helpers, compact idiom
+# Archives keep only REAL-BUG coverage: E9 (syntax errors), F8xx (undefined /
+# redefined names), comparisons & bare-except (E71x/E72x) — but not formatting
+# noise, because these are frozen experiment records:
+"t_*.py" = ["I", "UP", "SIM", "PIE", "RUF", "BLE", "EXE", "N", "PLW", "FURB", "S",
+            "F401", "F841", "F811", "E401", "E402", "E701", "E702", "E703", "E731",
+            "F403", "F405", "E741"]
+"probe*.py" = ["I", "UP", "SIM", "PIE", "RUF", "BLE", "EXE", "N", "PLW", "FURB", "S",
+               "F401", "F841", "F811", "E401", "E402", "E701", "E702", "E703", "E731",
+               "F403", "F405", "E741"]
+"rt_*.py" = ["I", "UP", "SIM", "PIE", "RUF", "BLE", "EXE", "N", "PLW", "FURB", "S",
+             "F401", "F841", "F811", "E401", "E402", "E701", "E702", "E703", "E731",
+             "F403", "F405", "E741"]
+"ddcci.py" = ["I", "UP", "SIM", "PIE", "RUF", "BLE", "EXE", "N", "PLW", "FURB", "S",
+              "F401", "F841", "F811", "E401", "E402", "E701", "E702", "E703", "E731",
+              "F403", "F405", "E741"]
+"dp_aux.py" = ["I", "UP", "SIM", "PIE", "RUF", "BLE", "EXE", "N", "PLW", "FURB", "S",
+               "F401", "F841", "F811", "E401", "E402", "E701", "E702", "E703", "E731",
+               "F403", "F405", "E741"]
+"scratch/*" = ["I", "UP", "SIM", "PIE", "RUF", "BLE", "EXE", "N", "PLW", "FURB", "S",
+               "F401", "F841", "F811", "E401", "E402", "E701", "E702", "E703", "E731",
+               "F403", "F405", "E741"]
+"tools/*" = ["I", "UP", "SIM", "PIE", "RUF", "BLE", "EXE", "N", "PLW", "FURB", "S",
+             "F401", "F841", "F811", "E401", "E402", "E701", "E702", "E703", "E731",
+             "F403", "F405", "E741"]
+".smoke/*" = ["I", "UP", "SIM", "PIE", "RUF", "BLE", "EXE", "N", "PLW", "FURB", "S",
+              "F401", "F841", "F811", "E401", "E402", "E701", "E702", "E703", "E731",
+              "F403", "F405", "E741"]

@@ -11,13 +11,12 @@ import cmd
 import hashlib
 import os
 import sys
-import time
 
 from . import Facts
-from .ddc import RTBus
-from .progress import Bar
-from .isp import I2CTarget, ScalerBus
 from .cli import TARGETS, bin_header, read_edid, vendor_fw_version
+from .ddc import RTBus
+from .isp import I2CTarget, ScalerBus
+from .progress import Bar
 
 try:
     from .cli import _edid_model_name as edid_model_name
@@ -203,7 +202,8 @@ class Console(cmd.Cmd):
                             done += n
                             bar.update(done)
                     bar.done()
-                    sha = hashlib.sha256(open(out, "rb").read()).hexdigest()
+                    with open(out, "rb") as fb:
+                        sha = hashlib.sha256(fb.read()).hexdigest()
                     print(f"\nbackup saved: {out}  (sha256 in status)")
                     self.last_sha = sha
                     self.backup_path, self.backup_ok = out, True

@@ -21,8 +21,8 @@ import sys
 import time
 
 from . import Facts
-from .ddc import RTBus, ddc_packet, ddc_parse_reply, SLAVE_DDC
-from .isp import I2CTarget, ScalerBus, IspError
+from .ddc import SLAVE_DDC, RTBus, ddc_packet, ddc_parse_reply
+from .isp import I2CTarget, IspError, ScalerBus
 from .progress import Bar
 
 # ISP-relevant slaves the Windows tool uses; 8-bit forms kept in Facts.SLAVES
@@ -88,7 +88,7 @@ def _edid_model_name(e: bytes) -> str:
             if t:
                 texts.append((0 if tag == 0xFA else 1, t.decode(errors="replace").strip()))
     if texts:
-        return sorted(texts)[0][1]
+        return min(texts)[1]
     return e[54:72].decode(errors="replace").strip()
 
 
@@ -256,7 +256,7 @@ def cmd_shell(args):
 def main(argv=None):
     p = argparse.ArgumentParser(prog="msi-isp", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--bus", type=int, default=int(os.environ.get("MSI_ISP_BUS", 4)),
+    p.add_argument("--bus", type=int, default=int(os.environ.get("MSI_ISP_BUS", "4")),
                    help="i2c bus number (default $MSI_ISP_BUS or 4; check `ddcutil detect`)")
     p.add_argument("--nvrm", action="store_true",
                    help="NVIDIA GPU: use the RM DP-AUX transport instead of "

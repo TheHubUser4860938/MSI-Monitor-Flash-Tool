@@ -20,6 +20,7 @@ Everything is read-safe: alloc/free/control, no modeset, no memory.
 """
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import fcntl
 import os
@@ -579,7 +580,5 @@ class NvRM:
         return name == "ACK"
 
     def close(self):
-        try:
+        with contextlib.suppress(OSError):
             os.close(self.fd)
-        except OSError:
-            pass

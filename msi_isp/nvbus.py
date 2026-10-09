@@ -27,6 +27,7 @@ CLI refuses this backend unless running under sudo).
 """
 from __future__ import annotations
 
+import contextlib
 import os
 import time
 
@@ -44,7 +45,7 @@ class NvRMAuxBus:
         self.fd = None
         self._last = None              # last slave (warm-up/bookkeeping parity)
         self.rm = nvrm.NvRM(verbose=verbose)
-        stride, entries = self.rm.card_info_raw()
+        _, entries = self.rm.card_info_raw()
         if not entries:
             raise RMError("CARD_INFO returned no GPUs (is the NVIDIA driver loaded?)")
         # nv_pci_info_t inside nv_ioctl_card_info_t: bytes 4-7 domain LE,
@@ -84,18 +85,14 @@ class NvRMAuxBus:
                 m = self._card_minor(e)
                 if m is not None:
                     minors.add(m)
-        minors.update(range(0, 3))          # scratch-proven /dev/nvidia0
+        minors.update(range(3))          # scratch-proven /dev/nvidia0
         for m in sorted(minors):
-            try:
+            with contextlib.suppress(OSError):
                 self.fd_gpu.append(os.open(f"/dev/nvidia{m}", os.O_RDWR))
-            except OSError:
-                pass
         self.rm.alloc_client()
         dev_inst, sub_inst = 0, 0
-        try:
+        with contextlib.suppress(RMError):
             dev_inst, sub_inst = self.rm.id_info(self.gpu_id)
-        except RMError:
-            pass
         self.sub_inst = sub_inst
         self.rm.alloc_device(deviceId=dev_inst)
         try:

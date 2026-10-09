@@ -30,7 +30,7 @@ class Bar:
         el = time.monotonic() - self.t0
         rate = done / el if el > 0.01 else 0.0
         eta = (self.total - done) / rate if rate > 0 else 0.0
-        fill = int(round(pct / 100.0 * self.width))
+        fill = round(pct / 100.0 * self.width)
         bar = "█" * fill + "░" * (self.width - fill)
         return (f"\r{' ' if self.tty else ''}{self.label} [{bar}] "
                 f"{pct:5.1f}%  {el:6.0f}s elapsed  eta {eta:6.0f}s   ")

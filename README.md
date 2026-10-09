@@ -62,6 +62,13 @@ real data in the same run. `nvidia-drm` registers no `/dev/drm_dp_aux*`
 nodes. The decisive test is one run of `scratch/spec_0x22.py` on an
 Intel/AMD box — [`TEST-INTEL-AMD.md`](TEST-INTEL-AMD.md) is the runbook.
 
+Sudo note: a small opt-in kernel module (`kernel/msi_auxch.ko`, prototype)
+drives that same AUXCH control from kernel context — the entry point
+NVIDIA's own `nvidia-modeset` module uses — and exposes a
+world-writable `/dev/msi-auxch`. `kernel/test_relay.py` proves unprivileged
+DPCD0 + EDID reads are byte-identical to the root path. It removes the
+**sudo** requirement; it does not change the 0x22 silence.
+
 Driver-update note: 615.78+ tightened the RM version handshake (strict
 string gate) — auto-detected at runtime since commit `94f256a`, so future
 driver bumps won't break the `--nvrm` path. The open module's in-kernel
@@ -82,6 +89,9 @@ DDC/CI workstream (announced mid-2026) may eventually provide
   (ISP protocol), `nvrm.py`/`nvbus.py` (NVIDIA RM transport), `Facts.py`
   (constants + verified protocol facts).
 - `scratch/spec_0x22.py` — portable decisive probe (RM + i2c-dev transports).
+- `kernel/` — `msi_auxch.c`: opt-in kernel-context AUXCH relay prototype
+  (+ `test_relay.py`, its unprivileged acceptance test; build notes in the
+  Makefile header).
 - `re/` — RE kit for the vendor PE32 binaries (`env.sh` → repo `.venv`);
   `STATUS.md` — the full session-by-session research log.
 - `vendor/` — MSI's proprietary Windows updater + `FW.012` `.bin`

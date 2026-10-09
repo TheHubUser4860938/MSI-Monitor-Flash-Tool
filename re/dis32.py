@@ -1,6 +1,9 @@
 """32-bit x86 helper for the MSI/Realtek ISP DLLs (all are PE32/i386)."""
-import sys, pefile
-from capstone import Cs, CS_ARCH_X86, CS_MODE_32
+import sys
+
+import pefile
+from capstone import CS_ARCH_X86, CS_MODE_32, Cs
+
 
 def load(p):
     pe = pefile.PE(p, fast_load=True)

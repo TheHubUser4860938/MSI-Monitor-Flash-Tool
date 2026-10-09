@@ -1,4 +1,8 @@
-import os, sys, pexray
+import os
+import sys
+
+import pexray
+
 D = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                  "vendor/PlugIn/WinIspPlugIn.dll")
 pe = pexray.load(D)

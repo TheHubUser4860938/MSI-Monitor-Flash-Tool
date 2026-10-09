@@ -33,7 +33,7 @@ with NvRMAuxBus() as bus:
         try:
             nm, _ = rm.aux_i2c(disp, a, 0x0, addr_only=True, retries=0)
         except Exception as e:
-            nm = f"EXC"
+            nm = "EXC"
         if nm == "ACK":
             hits.append(a)
             print(f"  {a:#04x} WRITE-ACK  <-- candidate")

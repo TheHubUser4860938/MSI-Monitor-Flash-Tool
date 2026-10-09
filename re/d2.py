@@ -1,4 +1,7 @@
-import sys, pefile, capstone
+import sys
+
+import capstone
+import pefile
 
 DLL = sys.argv[1]
 pe = pefile.PE(DLL)

@@ -12,7 +12,7 @@ question the `probe` command answers.
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from .ddc import RTBus
 
@@ -110,7 +110,7 @@ class ScalerBus:
 # so entry is idempotent: if the scaler is already in ISP mode, the probe
 # succeeds with zero writes.
 
-def isp_alive(bus, verbose: bool = False) -> "int | None":
+def isp_alive(bus, verbose: bool = False) -> int | None:
     """Non-invasive probe: one I2C read of one byte from 0x37.
 
     Returns the status byte when bit 0x80 is set (scaler in ISP mode),
@@ -128,8 +128,8 @@ def isp_alive(bus, verbose: bool = False) -> "int | None":
 
 
 def enter_isp(bus, verbose: bool = False,
-              only_candidate: "int | None" = None,
-              retries: "int | None" = None):
+              only_candidate: int | None = None,
+              retries: int | None = None):
     """Bring the scaler into ISP mode, exactly as comm!AutoEnterIspMode does.
 
     Returns (index_of_winning_candidate, status_byte) on success;

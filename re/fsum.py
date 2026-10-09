@@ -2,6 +2,7 @@
 carry immediates, calls or rets — quick eyeball of a function's shape."""
 import re
 import sys
+
 import dis32
 
 path, name = sys.argv[1], sys.argv[2]

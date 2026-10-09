@@ -698,3 +698,28 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
   group `msi-isp` + unlock-gated writes per security discussion),
   ioctl still relays write-direction transactions ungated.
 - Monitor: untouched by all of this — read-only oracles; FW.009, DP-only.
+- **Debug & polish gate (user-imposed, passed — gates the TUI work):**
+  * `ruff.toml` pins the lint policy: strict on shipping surfaces
+    (msi_isp/, kernel/, re/), real-bug-families-only on the research
+    archives. Whole-repo `ruff check .` = **All checks passed** (started
+    at 648 findings; every one triaged, none silenced blindly —
+    policy exceptions are documented per entry: SDK-name mirror in
+    nvrm.py, error boundaries in cli/console/isp/nvbus).
+  * Real defects fixed: dead local `push_name` in re/pdump.py, unused
+    unpack `stride` in nvbus, `sorted()[0]`→`min()`, env-default type
+    bug (`MSI_ISP_BUS` default int→"4"), redundant int() cast in
+    progress, 3 files opened without context manager, try/except-pass →
+    contextlib.suppress, dead imports (console.time, isp.field),
+    shebangs without exec bit ×4, plus the long-dead fsum.py (above).
+  * Kernel module: `make W=1` = **zero warnings** (sparse not installed;
+    W=1 tier covers it); earlier PTR_ERR ordering + wrong oracle-comment
+    fixes already listed.
+  * Dynamic regression after every edit: `info`/`verify`/`probe` output
+    byte-stable vs baselines; `spec_0x22.py` both transports unchanged
+    (i2c-dev STABLE-NACK/EIO, RM 108x TIMEOUT); `--nvrm probe` healthy;
+    console `flash` gate refuses with the right five-gate table; module
+    insmod→unprivileged PASS→rmmod, three cycles.
+  * Hygiene: STATUS.md.bak untracked + `*.bak` ignored; README gained a
+    truthful kernel/ entry (relay removes the sudo requirement, **not**
+    the 0x22 silence); HANDOFF working-commands extended with the module
+    flow. PII re-sweep post-edit: clean.

@@ -3,6 +3,7 @@
 resolved so callees show as names, not raw addresses. Output -> stdout."""
 import os
 import re as _re
+
 import pefile
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -15,7 +16,7 @@ DLLS = {
 
 class PE:
     def __init__(self, key):
-        from capstone import Cs, CS_ARCH_X86, CS_MODE_32
+        from capstone import CS_ARCH_X86, CS_MODE_32, Cs
         self.image = 0x10000000
         self.pe = pefile.PE(DLLS[key])
         self.base = self.pe.OPTIONAL_HEADER.ImageBase
@@ -35,7 +36,6 @@ class PE:
         va = self.base + rva
         code = self.pe.get_data(rva, n)
         print(f"==== {label or self.by_rva.get(rva, hex(rva))}  VA {va:#x} ====")
-        push_name = None
         for ins in self.md.disasm(code, va):
             m = _re.search(r"\[0x([0-9a-f]+)\]", ins.op_str)
             note = ""
@@ -54,8 +54,6 @@ class PE:
                             note = f'   ; "{txt.decode()}"'
                     except Exception:
                         pass
-            if ins.mnemonic == "push" and ins.op_str.startswith("0x"):
-                push_name = ins.op_str
             print(f"  {ins.address:#010x}  {ins.bytes.hex():<10} {ins.mnemonic} {ins.op_str}{note}")
 
 

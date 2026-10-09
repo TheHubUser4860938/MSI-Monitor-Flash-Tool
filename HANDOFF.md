@@ -40,6 +40,9 @@ cd ~/Projects/monitor-fw
 ./msi-isp shell          # gated REPL: info/set bin/verify/gate/flash
 sudo ./msi-isp --nvrm probe          # NVIDIA RM-backend bus (nvbus.py) — root
 sudo python3 scratch/spec_0x22.py    # the spec protocol experiment (see below)
+make -C kernel LLVM=1 CC=clang       # build prototype relay module (sudoless RM path)
+sudo insmod kernel/msi_auxch.ko && python3 kernel/test_relay.py   # -> PASS, as user
+sudo rmmod msi_auxch                 # fully reversible; nothing auto-loads it
 ```
 
 ## Repo map

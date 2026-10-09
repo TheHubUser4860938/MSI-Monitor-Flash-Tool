@@ -1,4 +1,8 @@
-import sys, re, pefile
+import re
+import sys
+
+import pefile
+
 p = sys.argv[1]
 pe = pefile.PE(p)          # full parse so section bytes are mapped
 pat = re.compile(rb'[ -~]{5,}')

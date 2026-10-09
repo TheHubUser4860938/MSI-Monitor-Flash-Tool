@@ -1,5 +1,8 @@
 """dumpd.py <dll> <export_name> [n_insns] -- generic 32-bit export dumper."""
-import sys, pexray
+import sys
+
+import pexray
+
 pe = pexray.load(sys.argv[1])
 fns = pexray.exports(pe)
 name = sys.argv[2]; n = int(sys.argv[3]) if len(sys.argv) > 3 else 150

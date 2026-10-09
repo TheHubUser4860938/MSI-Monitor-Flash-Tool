@@ -1,5 +1,8 @@
 """Dump a function body (linear disasm until ret-padding) to stdout."""
-import sys, pexray
+import sys
+
+import pexray
+
 path, rva = sys.argv[1], int(sys.argv[2], 16)
 size = int(sys.argv[3]) if len(sys.argv)>3 else 2000
 pe = pexray.load(path)

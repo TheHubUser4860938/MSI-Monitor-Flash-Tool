@@ -16,3 +16,6 @@ modules.order
 Module.symvers
 .tmp_versions/
 nvidia-syms
+
+# editor/session backups
+*.bak
