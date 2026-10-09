@@ -667,7 +667,7 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
 ## Session 14e (2026-10-09) — Phase 8 module VERIFIED: unprivileged DP-AUX on NVIDIA
 
 - PII/anonymization for public release: repo-relative paths everywhere
-  (also fixes 31 stale `/home/eugene/monitor-fw` insertions), `<user>`/
+  (also fixes 31 stale `<old-repo-location>` insertions), `<user>`/
   `<repo>` placeholders in docs+transcripts, LICENSE holder + module
   author de-named, __pycache__ untracked, kernel build artifacts
   gitignored; full git history rewritten to `msi-isp-dev
@@ -723,3 +723,14 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
     truthful kernel/ entry (relay removes the sudo requirement, **not**
     the 0x22 silence); HANDOFF working-commands extended with the module
     flow. PII re-sweep post-edit: clean.
+  * Full-file re-read of the shipping package (cli/console/ddc/progress,
+    targeted re-reads isp/nvrm/nvbus): docstring corruption in cli's
+    `--help` headline ("5 words of write") fixed; `cmd_probe` no longer
+    opens the transport twice (halves `--nvrm probe` setup cost);
+    `bin_header` single-pass read; console: dead ImportError fallback
+    (silently empty model string) removed, `last_sha` initialized +
+    actually shown in `status` (the old message promised it),
+    `do_flash`'s leaked bus fd wrapped in `with`; progress: redundant
+    local. HANDOFF TL;DR corrected (backup exits 1 with reason; only
+    `write` exits 3). Regression re-run after: probe identical on both
+    transports, shell gate table unchanged, verify OK, PII clean.

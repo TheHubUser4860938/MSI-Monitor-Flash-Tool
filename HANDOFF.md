@@ -8,7 +8,7 @@ Native Linux firmware tool for the **MSI MAG 341CQP QD-OLED X28** monitor (Realt
 
 ## Status TL;DR
 
-- **v0.1 shipped and verified**: `info` / `verify` / `probe` / `shell` work on the 4090, no Wine, normal user (RM path needs sudo). Progress bars implemented. `backup`/`write` exist but exit honestly (code 3) with the verified reason.
+- **v0.1 shipped and verified**: `info` / `verify` / `probe` / `shell` work on the 4090, no Wine, normal user (RM path needs sudo). Progress bars implemented. `backup`/`write` exist but refuse honestly with the concrete blocking reason (`write` exits code 3).
 - **The blocking wall (measured, not guessed)**: the scaler's flash register file — **7-bit I2C slave `0x22`** — has never answered from Linux on this machine, on any lane. Flash access = plain I2C register pokes to `0x22`; Windows reaches it via **NVAPI's driver-internal transparent I2C-over-AUX**, which does not exist on Linux (NVAPI absent; RM's AUX controls service native DPCD + DP-spec tunnel mode only; this monitor's DP branch **does not implement the I2C-over-AUX tunnel**, measured at DPCD `0x00D0` bit7=0; the NVIDIA kernel driver allow-lists which I2C addresses DP ever sees).
 - **Decisive next experiment (off this box)**: same binary, any **Intel/AMD GPU** Linux machine, DP cable. ACK at `0x22` → finish backup/write for those GPUs, NVIDIA awaits an in-kernel DDC/CI driver (NVIDIA team is actively working on one per Phoronix, July 2026). Silence there too → Windows NVAPI defer/transparent policy is the remaining difference; more disassembly on this box cannot create a wire.
 - **Monitor is untouched at `FW.009`.** Zero erase/program bytes ever sent from Linux. All experiments were reads + the tool's own ISP enter/exit handshake.

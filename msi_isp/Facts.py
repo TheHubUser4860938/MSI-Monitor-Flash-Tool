@@ -1,8 +1,9 @@
 """Verified facts about the MAG 341CQP QD-OLED X28 flashing target.
 
 Everything here was established empirically on this machine (RTX 4090,
-nvidia open-kernel-module 615.71.09, DP cable, /dev/i2c-4) or by
-disassembly of the MSI v1.0.6 ISP tool DLLs. See STATUS.md for provenance.
+nvidia open-kernel-module 615.71.09 and 615.78.08, DP cable, /dev/i2c-4)
+or by disassembly of the MSI v1.0.6 ISP tool DLLs. See STATUS.md for
+provenance.
 """
 
 MONITOR = {

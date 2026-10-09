@@ -14,15 +14,10 @@ import sys
 
 from . import Facts
 from .cli import TARGETS, bin_header, read_edid, vendor_fw_version
+from .cli import _edid_model_name as edid_model_name
 from .ddc import RTBus
 from .isp import I2CTarget, ScalerBus
 from .progress import Bar
-
-try:
-    from .cli import _edid_model_name as edid_model_name
-except ImportError:                      # older cli.py layout
-    def edid_model_name(edid: bytes) -> str:
-        return ""
 
 _TTY = sys.stdout.isatty()
 def _c(t, code):
@@ -49,6 +44,7 @@ class Console(cmd.Cmd):
         self.verified = False
         self.backup_path = None
         self.backup_ok = False
+        self.last_sha = None
         if bin_path:
             self._load_bin(bin_path)
 
@@ -103,6 +99,8 @@ class Console(cmd.Cmd):
         print(f"verified   : {ver}")
         bak = OK(self.backup_path) if self.backup_path else BAD("none")
         print(f"backup     : {bak}")
+        if self.last_sha:
+            print(f"backup sha : {self.last_sha}")
 
     def do_set(self, arg):
         """set bin <path>   select the firmware .bin file"""
@@ -230,7 +228,8 @@ class Console(cmd.Cmd):
         gate("trusted backup this session", self.backup_path is not None,
              "backup <file> --write")
         try:
-            cur = vendor_fw_version(self._bus())
+            with self._bus() as bus:
+                cur = vendor_fw_version(bus)
         except Exception:
             cur = "?"
         gate("running as root", os.geteuid() == 0, "sudo msi-isp shell")

@@ -10,7 +10,7 @@ Modes, in increasing confidence order:
   backup   dump the scaler SPI flash                            (needs ISP ACKs)
   write    full flash program cycle                             (--allow-write + typed confirm)
 
-Nothing below 5 words of "write" can alter the monitor.
+Only `write` can alter the monitor; everything else is strictly read-only.
 """
 from __future__ import annotations
 
@@ -124,10 +124,12 @@ def bin_header(path: str) -> dict:
         model = f.read(64)
         f.seek(0, os.SEEK_END)
         size = f.tell()
+        f.seek(0)
+        sha = hashlib.sha256(f.read()).hexdigest()
     def _cstr(b):
         return b.split(b"\xff")[0].split(b"\x00")[0].decode(errors="replace")
     return {"version": _cstr(ver), "model": _cstr(model), "size": size,
-            "sha256": hashlib.sha256(open(path, 'rb').read()).hexdigest()}
+            "sha256": sha}
 
 
 def cmd_info(args):
@@ -184,17 +186,16 @@ def cmd_verify(args):
 def cmd_probe(args):
     with _bus(args) as bus:
         print(f"# read-only ACK scan of /dev/i2c-{args.bus}")
+        isp_visible = False
         for t in TARGETS:
             ack = bus.probe(t.addr7)
             note = ""
             if ack and t.addr7 not in (0x30, 0x37, 0x50, 0x4a, 0x4b):
                 note = "  <-- ISP slave visible!"
+            if ack and t.addr7 in (0x20, 0x22, 0x18):
+                isp_visible = True
             print(f"  {t.name:<20} 7-bit {t.addr7:#04x} (8-bit {t.w:#04x}/{t.r:#04x})"
                   f"  {'ACK' if ack else 'no-ack'}{note}")
-    isp_visible = None
-    with _bus(args) as bus:
-        isp_visible = any(bus.probe(t.addr7) for t in TARGETS
-                          if t.addr7 in (0x20, 0x22, 0x18))
     print(f"\nISP slaves visible: {isp_visible}  "
           f"({'flash read/backup possible' if isp_visible else 'flash dump needs ISP slave access -- see STATUS.md'})")
 

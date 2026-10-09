@@ -15,8 +15,7 @@ class Bar:
                  width: int = 38, min_step: float = 5.0):
         self.total = max(1, int(total))
         self.label = (label or "").strip()
-        self_stream = stream or sys.stderr
-        self.stream = self_stream
+        self.stream = stream or sys.stderr
         self.width = width
         self.min_step = min_step          # non-TTY reporting granularity (%)
         self.t0 = time.monotonic()
