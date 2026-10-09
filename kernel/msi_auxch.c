@@ -19,8 +19,10 @@
  * This module rebuilds the EXACT proven userspace tree (msi_isp/nvrm.py +
  * nvbus.py: root client -> device -> NV0073 -> displayId discovery ->
  * DPCD0 + EDID oracles) from kernel context at insmod, then exposes
- * /dev/msi-auxch (mode 0666 — that is the point) relaying raw AUXCH
- * transactions via ioctl for UNPRIVILEGED userspace.
+ * /dev/msi-auxch relaying raw AUXCH transactions via ioctl for
+ * UNPRIVILEGED userspace. Writes aimed at the ISP register-file slaves
+ * (7-bit 0x18..0x22) additionally require the timed MSI_AUXCH_UNLOCK
+ * ioctl; see the gate defines below for the security posture.
  *
  * Build: needs headers from an open-gpu-kernel-modules checkout at the
  * SAME version as the loaded driver (see Makefile OGKM=). nvidia.ko must
@@ -35,6 +37,7 @@
 #include <linux/uaccess.h>
 #include <linux/mutex.h>
 #include <linux/ioctl.h>
+#include <linux/ktime.h>
 #include <linux/slab.h>
 
 #include "nv-modeset-interface.h"      /* nvidia_get_rm_ops + ops struct   */
@@ -57,6 +60,17 @@
 #define AUX_REQ_WRITE      0u
 #define AUX_REQ_READ       1u
 
+/* Security gate: I2C-mode WRITES to the scaler's ISP register-file slaves
+ * (7-bit 0x18..0x22) are refused with EPERM until userspace explicitly
+ * unlocks.  The unlock is timed (5 s) and logged: "unlocked to run flash"
+ * is a decision, "still unlocked an hour later" is an accident.  Reads and
+ * pointer writes to 0x50/0x37 (ordinary DDC behavior) stay free.
+ * Group policy: node is 0660; ship kernel/99-msi-auxch.rules (root:video)
+ * to open it to the group that already owns the DDC bus. */
+#define ISP_SLAVE_MIN      0x18u
+#define ISP_SLAVE_MAX      0x22u
+#define UNLOCK_MS          5000u
+
 static nvidia_modeset_rm_ops_t rm_ops;
 static nvidia_modeset_stack_ptr sp;
 static DEFINE_MUTEX(rm_lock);
@@ -64,6 +78,7 @@ static DEFINE_MUTEX(rm_lock);
 static NvU32 hClient, hDevice, hDisp;
 static NvU32 gpu_id, disp_id, sub_inst;
 static bool tree_ok;
+static ktime_t unlock_deadline;            /* ISP writes allowed only before */
 
 static dev_t devt;
 static struct cdev vcdev;
@@ -84,6 +99,27 @@ struct auxch_xfer {
     NvU32 rmStatus;                              /* [OUT] control status  */
 };
 #define MSI_AUXCH_XFER _IOWR('M', 0x41, struct auxch_xfer)
+/* arming write access to ISP slaves for UNLOCK_MS; logged, timed, and
+ * deliberately cheap: the gate is intention, not inconvenience. */
+#define MSI_AUXCH_UNLOCK _IO('M', 0x42)
+
+static bool isp_write_gated(u32 cmd, u32 addr7, bool addr_only)
+{
+    if (addr_only)                          /* bare address phase: zero data
+                                             * bytes, cannot alter state —
+                                             * same shape nvbus proved safe
+                                             * against the ISP slaves */
+        return false;
+    if (cmd & AUX_MODE_AUX)                 /* native AUX: DPCD space, free */
+        return false;
+    if ((cmd & 3u) != AUX_REQ_WRITE)
+        return false;
+    if (addr7 < ISP_SLAVE_MIN || addr7 > ISP_SLAVE_MAX)
+        return false;
+    /* unlocked only *before* the deadline: deadline=0 at module load, so
+     * ISP writes start locked and a forgotten unlock expires by itself */
+    return ktime_after(ktime_get(), unlock_deadline);
+}
 
 /* ---- rm_kernel_rmapi_op wrappers (kernel-memory params, KERNEL priv) -- */
 static NvU32 rm_alloc(NvU32 hParent, NvU32 hClass, void *params,
@@ -148,6 +184,16 @@ static long msi_ioctl(struct file *f, unsigned int ioc, unsigned long arg)
     NV0073_CTRL_DP_AUXCH_CTRL_PARAMS a;
     struct auxch_xfer u;
 
+    if (ioc == MSI_AUXCH_UNLOCK) {
+        mutex_lock(&rm_lock);
+        unlock_deadline = ktime_add(ktime_get(),
+                                    ktime_set(UNLOCK_MS / 1000,
+                                              (UNLOCK_MS % 1000) * 1000000ULL));
+        pr_info(DRV ": ISP slave writes unlocked for %u ms (pid %d)\n",
+                UNLOCK_MS, current->pid);
+        mutex_unlock(&rm_lock);
+        return 0;
+    }
     if (ioc != MSI_AUXCH_XFER)
         return -ENOTTY;
     if (copy_from_user(&u, (void __user *)arg, sizeof(u)))
@@ -165,6 +211,10 @@ static long msi_ioctl(struct file *f, unsigned int ioc, unsigned long arg)
     if (!tree_ok) {
         mutex_unlock(&rm_lock);
         return -ENODEV;
+    }
+    if (isp_write_gated(u.cmd, u.addr, u.bAddrOnly != 0)) {
+        mutex_unlock(&rm_lock);
+        return -EPERM;                       /* MSI_AUXCH_UNLOCK arms this */
     }
     u.rmStatus = auxch(&a);
     mutex_unlock(&rm_lock);
@@ -186,7 +236,10 @@ static const struct file_operations msi_fops = {
 static char *msi_devnode(const struct device *dev, umode_t *mode)
 {
     if (mode)
-        *mode = 0666;                    /* the whole point of the module */
+        *mode = 0660;                    /* group opens it via the shipped
+                                            udev rule (root:video); without
+                                            the rule the node stays
+                                            root-only — safe default */
     return kstrdup(dev_name(dev), GFP_KERNEL);
 }
 

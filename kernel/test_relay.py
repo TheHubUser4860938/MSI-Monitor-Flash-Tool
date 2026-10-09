@@ -11,6 +11,7 @@ import ctypes
 import fcntl
 import os
 import sys
+import time
 
 NODE = "/dev/msi-auxch"
 
@@ -32,6 +33,7 @@ def _iowr(nr, struct):
     return (3 << 30) | (ctypes.sizeof(struct) << 16) | (ord("M") << 8) | nr
 
 MSI_AUXCH_XFER = _iowr(0x41, Xfer)
+MSI_AUXCH_UNLOCK = (ord("M") << 8) | 0x42          # _IO: no size/dir bits
 
 AUX_MODE_AUX, AUX_MOT = 1 << 3, 1 << 2
 REQ_WRITE, REQ_READ = 0, 1
@@ -44,10 +46,19 @@ def xfer(fd, cmd, addr, data=b"", size0=0, addr_only=False):
              retryTimeMs=0)
     for i, b in enumerate(data):
         x.data[i] = b
-    fcntl.ioctl(fd, MSI_AUXCH_XFER, x)
+    try:
+        fcntl.ioctl(fd, MSI_AUXCH_XFER, x)
+    except OSError as e:
+        if e.errno == 1:                     # EPERM: kernel write-gate
+            return "PERM-REFUSED", b"", -1
+        raise
     n = x.sizeDone
     got = bytes(x.data[:n]) if n else b""
     return REPLY_NAME.get(x.replyType, f"?{x.replyType:#x}"), got, x.rmStatus
+
+
+def unlock(fd):
+    fcntl.ioctl(fd, MSI_AUXCH_UNLOCK)
 
 
 def main():
@@ -77,6 +88,32 @@ def main():
     ok2 = reply == "ACK" and got == bytes.fromhex("00ffffffffffff00")
     xfer(fd, REQ_WRITE, 0x50, addr_only=True)   # close the message
     ok &= ok1 and ok2
+
+    # --- security gates ----------------------------------------------------
+    # (a) I2C-mode writes at ISP slaves (0x18..0x22) refused while locked.
+    #     On this box they would TIMEOUT anyway — EPERM must arrive first.
+    isp_wr = bytes([0x60, 0, 0, 0])             # "index reg <- 0", benign
+    reply, got, st = xfer(fd, REQ_WRITE | AUX_MOT, 0x22, data=isp_wr)
+    print(f"gate 0x22 wr     : {reply} (want PERM-REFUSED)")
+    ok &= reply == "PERM-REFUSED"
+
+    # (b) unlocked: same transaction reaches the wire (TIMEOUT on this box
+    #     per dead-end #11 — anything but EPERM is the pass condition).
+    unlock(fd)
+    reply, got, st = xfer(fd, REQ_WRITE | AUX_MOT, 0x22, data=isp_wr)
+    print(f"gate 0x22/unlock : {reply} rm={st:#x} (want anything but PERM)")
+    ok &= reply != "PERM-REFUSED"
+
+    # (c) timed auto-relock (UNLOCK_MS = 5 s in the module)
+    time.sleep(5.5)
+    reply, got, st = xfer(fd, REQ_WRITE | AUX_MOT, 0x22, data=isp_wr)
+    print(f"gate relocked    : {reply} (want PERM-REFUSED)")
+    ok &= reply == "PERM-REFUSED"
+
+    # (d) unlocked state never required ordinary DDC traffic
+    reply, got, st = xfer(fd, REQ_WRITE | AUX_MOT, 0x50, data=b"\x00")
+    print(f"0x50 wr unlocked-free: {reply} (want ACK)")
+    ok &= reply == "ACK"
 
     print("UNPRIVILEGED RELAY: " + ("PASS" if ok else "FAIL"))
     return 0 if ok else 1

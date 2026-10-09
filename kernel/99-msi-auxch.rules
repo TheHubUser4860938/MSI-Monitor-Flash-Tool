@@ -1,0 +1,5 @@
+# Open the kernel-relay node to the group that already owns DDC access.
+# Install once:  sudo cp kernel/99-msi-auxch.rules /etc/udev/rules.d/
+# then  sudo udevadm control --reload  (or just reboot).  Removing the
+# file + its copy returns the system to exactly its prior state.
+KERNEL=="msi-auxch", GROUP="video", MODE="0660"

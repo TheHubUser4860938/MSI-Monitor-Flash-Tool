@@ -838,3 +838,44 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
 - Gate re-run after the moves: `ruff check .` all passed, `py_compile`
   whole tree OK, `./msi-isp info` green, `spec_0x22.py` i2cdev verdict
   byte-identical NO CONTACT (exit 1 as designed).
+
+## Session 14h (2026-10-09) — relay hardened (0660/video + timed write gate); --auxdev = first sudoless NVIDIA path
+
+- Module policy per the agreed security posture:
+  * node mode 0660 by default (without the udev rule that means root-only —
+    fail-safe); group opened to **video** via new
+    `kernel/99-msi-auxch.rules` (install = one cp + udevadm reload; removal
+    returns system exactly prior). Verified: `crw-rw---- root video`.
+  * **ISP write gate:** I2C-mode writes carrying data at slaves
+    0x18..0x22 return EPERM unless `MSI_AUXCH_UNLOCK` armed a **timed 5 s**
+    window (every unlock logged with pid; forgotten unlocks expire on
+    their own). Bare-address phases (probes, terminators) exempt —
+    zero-data packets provably cannot alter state (t_kern6 precedent);
+    native-AUX (DPCD) and DDC slaves 0x50/0x37 free. Design bug caught
+    during test: first cut had the ktime comparison sign-flipped (unlocked
+    after expiry, locked during window) — the 4-case matrix test caught
+    it red-handed.
+- New transport `msi_isp/auxdev.py` (stdlib ctypes; framing mirrors the
+  proven nvbus protocol, transport = ioctl): full RTBus parity
+  (select/warmup/probe/read/write/raw_txn), actionable error strings
+  (missing module / group hints, gate message says "call bus.unlock()").
+  `--auxdev` global flag (mutually exclusive with --nvrm), wired through
+  cli `_bus()`, `console._bus()/do_status`, TUI header. Transports now
+  self-label (`i2c-dev /dev/i2c-4` / `nvrm RM DP-AUX (NVIDIA, root)` /
+  `kernel relay /dev/msi-auxch`) — info/probe/console/TUI all show truth.
+- Build gotchas fixed en route: `msecs_to_ktime` absent on this clang-built
+  7.2 kernel (explicit ktime_set math), and a make-exit-code swallowed by a
+  grep pipe nearly shipped a stale .ko.
+- Live verification (module loaded, udev rule installed, uid 1000, zero
+  sudo): test_relay PASS incl. gate matrix (locked→EPERM, unlocked→wire
+  (TIMEOUT = dead-end #11 honestly reproduced), relock→EPERM, 0x50 free);
+  `./msi-isp --auxdev info` = FW.009 + full EDID; `--auxdev probe` =
+  identical verdict to root `--nvrm probe` (0x30/0x37/0x50 ACK, ISP all
+  no-ack, visible:False); console status reads "euid 1000 (not needed
+  (kernel relay))"; TUI header labels the relay; raw python: gated write
+  raises actionable error, post-unlock write reaches TIMEOUT. i2c-dev
+  regression byte-stable; ruff + compileall green; rmmod clean.
+- Docs: README quickstart/matrix/sudo-note/layout updated for `--auxdev`,
+  CONTRIBUTING module policy + help-wanted #2 rewritten (packaging is the
+  new open item), HANDOFF commands + item 3 refreshed. Monitor: still
+  FW.009, untouched, DP-only.

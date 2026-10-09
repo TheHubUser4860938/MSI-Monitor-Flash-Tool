@@ -35,10 +35,11 @@ class Console(cmd.Cmd):
              "verify -> backup -> confirm")
 
     def __init__(self, bus_num: int, bin_path: str | None = None,
-                 use_nvrm: bool = False):
+                 use_nvrm: bool = False, use_auxdev: bool = False):
         super().__init__()
         self.bus_num = bus_num
         self.use_nvrm = use_nvrm
+        self.use_auxdev = use_auxdev
         self.bin_hdr = None
         self.bin_path = None
         self.verified = False
@@ -50,6 +51,9 @@ class Console(cmd.Cmd):
 
     # ------------------------------------------------------------ helpers --
     def _bus(self) -> RTBus:
+        if self.use_auxdev:
+            from .auxdev import AuxDevBus
+            return AuxDevBus()
         if self.use_nvrm:
             from .nvbus import NvRMAuxBus
             return NvRMAuxBus()
@@ -87,9 +91,11 @@ class Console(cmd.Cmd):
         isp = self._isp_visible()
         isp_txt = "visible" if isp else ("silent" if isp is False
                                          else "bus unopenable")
-        root = "root" if os.geteuid() == 0 else \
-            "NOT root -- NVIDIA RM AUX path needs sudo"
-        bus_txt = ("nvrm RM DP-AUX (NVIDIA, root)" if self.use_nvrm
+        root = ("not needed (kernel relay)" if self.use_auxdev else
+                "root" if os.geteuid() == 0 else
+                "NOT root -- NVIDIA RM AUX path needs sudo")
+        bus_txt = ("kernel relay /dev/msi-auxch" if self.use_auxdev else
+                   "nvrm RM DP-AUX (NVIDIA, root)" if self.use_nvrm
                    else f"/dev/i2c-{self.bus_num}")
         print(f"bus        : {bus_txt}")
         print(f"euid       : {os.geteuid()}  ({root})")
@@ -284,5 +290,6 @@ class Console(cmd.Cmd):
 
 
 def run(bus_num: int, bin_path: str | None = None,
-        use_nvrm: bool = False) -> None:
-    Console(bus_num, bin_path, use_nvrm=use_nvrm).cmdloop()
+        use_nvrm: bool = False, use_auxdev: bool = False) -> None:
+    Console(bus_num, bin_path, use_nvrm=use_nvrm,
+            use_auxdev=use_auxdev).cmdloop()

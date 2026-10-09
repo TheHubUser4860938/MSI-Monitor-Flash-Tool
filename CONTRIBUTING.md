@@ -42,6 +42,10 @@ paperweight, not a stack trace.** Binding safety policy:
   with clang — build with `make LLVM=1 CC=clang`. The Makefile auto-
   generates the modpost symvers from `/proc/kallsyms`; nvidia.ko must be
   loaded. It declares `Dual MIT/GPL` because it consumes GPL-only exports.
+  Node policy: mode `0660` by default, group via
+  `kernel/99-msi-auxch.rules` (`root:video`); ISP-slave writes (0x18–0x22)
+  are refused in-kernel unless the timed `MSI_AUXCH_UNLOCK` ioctl armed the
+  5-second window — `kernel/test_relay.py` exercises exactly that matrix.
 
 ## Definition of done for a change
 
@@ -71,11 +75,11 @@ paperweight, not a stack trace.** Binding safety policy:
    one probe run on any Linux box with Intel/AMD graphics + DP cable
    decides whether `backup`/`write` finish for those GPUs. Open the issue
    with the log — that's the contribution.
-2. **Kernel relay hardening** (before it's offered as user-facing): device
-   node → mode `0660` + `msi-isp` group instead of `0666`; refuse
-   write-direction AUX transactions in-kernel until an explicit unlock ioctl
-   (with timeout); then wire an optional `--auxdev` transport into `msi_isp`
-   so the RM path works rootless in the normal CLI/TUI.
+2. **Kernel relay packaging** — the hardening is DONE (0660+udev group
+   policy, timed unlock gate on ISP-slave writes, `--auxdev` wired into
+   CLI/console/TUI). Remaining: a DKMS/modprobe-friendly install story so
+   the relay survives driver updates, and feedback on the 5 s unlock
+   window from anyone who runs a real backup over it.
 3. **Your monitor model**: the ISP magic candidates, ISP slave set, and
    DDC/CI vendor opcode live in `Facts.py`, per model. A port = re-deriving
    those with `probe` + the vendor updater's INI for your model. Start an

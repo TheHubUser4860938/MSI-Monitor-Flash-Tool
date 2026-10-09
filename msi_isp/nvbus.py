@@ -40,6 +40,8 @@ MAX_DATA = 16          # per-transaction data bytes, DP auxch hard limit
 class NvRMAuxBus:
     """Duck-compatible stand-in for ddc.RTBus on NVIDIA (needs root)."""
 
+    label = "nvrm RM DP-AUX (NVIDIA, root)"
+
     def __init__(self, gpu_id=None, display_id=None, verbose=False):
         self.verbose = verbose
         self.fd = None

@@ -40,11 +40,19 @@ TARGETS = [
 
 
 def _bus(args) -> RTBus:
-    """Transport selector: --nvrm -> NVIDIA RM DP-AUX (root), else i2c-dev."""
+    """Transport selector: --auxdev -> kernel relay (rootless NVIDIA),
+    --nvrm -> NVIDIA RM DP-AUX (root), else i2c-dev."""
+    if getattr(args, "auxdev", False):
+        from .auxdev import AuxDevBus
+        return AuxDevBus()
     if getattr(args, "nvrm", False):
         from .nvbus import NvRMAuxBus
         return NvRMAuxBus()
     return RTBus(args.bus)
+
+
+def _busname(bus, args) -> str:
+    return getattr(bus, "label", f"/dev/i2c-{args.bus}")
 
 
 # ---------------------------------------------------------------- info ----
@@ -134,7 +142,7 @@ def bin_header(path: str) -> dict:
 
 def cmd_info(args):
     with _bus(args) as bus:
-        print(f"bus /dev/i2c-{args.bus}")
+        print(f"bus {_busname(bus, args)}")
         try:
             print(f"  live firmware : {vendor_fw_version(bus)!r}")
         except Exception as e:
@@ -185,7 +193,7 @@ def cmd_verify(args):
 
 def cmd_probe(args):
     with _bus(args) as bus:
-        print(f"# read-only ACK scan of /dev/i2c-{args.bus}")
+        print(f"# read-only ACK scan of {_busname(bus, args)}")
         isp_visible = False
         for t in TARGETS:
             ack = bus.probe(t.addr7)
@@ -250,17 +258,20 @@ tool remains the reference flasher.
 
 
 def cmd_shell(args):
+    kw = dict(use_nvrm=getattr(args, "nvrm", False),
+              use_auxdev=getattr(args, "auxdev", False))
     if getattr(args, "plain", False) or not sys.stdout.isatty():
         from .console import run
-        run(args.bus, args.bin, use_nvrm=getattr(args, "nvrm", False))
+        run(args.bus, args.bin, **kw)
     else:
         from .tui import run_tui
-        run_tui(args.bus, args.bin, use_nvrm=getattr(args, "nvrm", False))
+        run_tui(args.bus, args.bin, **kw)
 
 
 def cmd_tui(args):
     from .tui import run_tui
-    run_tui(args.bus, args.bin, use_nvrm=getattr(args, "nvrm", False))
+    run_tui(args.bus, args.bin, use_nvrm=getattr(args, "nvrm", False),
+            use_auxdev=getattr(args, "auxdev", False))
 
 
 def main(argv=None):
@@ -268,9 +279,13 @@ def main(argv=None):
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--bus", type=int, default=int(os.environ.get("MSI_ISP_BUS", "4")),
                    help="i2c bus number (default $MSI_ISP_BUS or 4; check `ddcutil detect`)")
-    p.add_argument("--nvrm", action="store_true",
-                   help="NVIDIA GPU: use the RM DP-AUX transport instead of "
-                        "i2c-dev (native, no Wine/NVAPI; needs sudo)")
+    tg = p.add_mutually_exclusive_group()
+    tg.add_argument("--nvrm", action="store_true",
+                    help="NVIDIA GPU: use the RM DP-AUX transport instead of "
+                         "i2c-dev (native, no Wine/NVAPI; needs sudo)")
+    tg.add_argument("--auxdev", action="store_true",
+                    help="NVIDIA GPU: use the kernel relay /dev/msi-auxch "
+                         "(kernel/msi_auxch.ko; no sudo — see kernel/)")
     p.add_argument("-v", "--verbose", action="store_true")
     p.add_argument("--bin", help="firmware .bin for info/verify")
     sub = p.add_subparsers(dest="cmd", required=True)

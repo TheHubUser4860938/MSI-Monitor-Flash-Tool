@@ -38,6 +38,7 @@ class RTBus:
     def __init__(self, bus=4):
         self.bus = bus
         self.path = f"/dev/i2c-{bus}"
+        self.label = f"i2c-dev {self.path}"
         self.fd = os.open(self.path, os.O_RDWR)
         self._slave = None
 

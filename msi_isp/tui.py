@@ -227,6 +227,8 @@ class Tui:
         try:
             scr.addstr(0, 1, "MSI Monitor Flash Tool — msi-isp", bold | cb)
             bus_txt = ("nvrm RM DP-AUX (NVIDIA)" if self.c.use_nvrm
+                       else "kernel relay /dev/msi-auxch"
+                       if getattr(self.c, "use_auxdev", False)
                        else f"i2c-dev /dev/i2c-{self.c.bus_num}")
             scr.addstr(1, 1, f"transport: {bus_txt}   uid: {os.geteuid()}"
                              + ("" if os.geteuid() == 0 else "  (sudoless i2c path)"))
@@ -350,10 +352,12 @@ class Tui:
 
 
 def run_tui(bus_num: int, bin_path: str | None = None,
-            use_nvrm: bool = False) -> None:
+            use_nvrm: bool = False, use_auxdev: bool = False) -> None:
     if not (sys.stdout.isatty() and os.environ.get("TERM", "") not in ("", "dumb")):
         # no usable terminal: fall back to the plain text REPL
-        Console(bus_num, bin_path, use_nvrm=use_nvrm).cmdloop()
+        Console(bus_num, bin_path, use_nvrm=use_nvrm,
+                use_auxdev=use_auxdev).cmdloop()
         return
-    console = Console(bus_num, bin_path, use_nvrm=use_nvrm)
+    console = Console(bus_num, bin_path, use_nvrm=use_nvrm,
+                      use_auxdev=use_auxdev)
     curses.wrapper(lambda scr: Tui(scr, console).loop())

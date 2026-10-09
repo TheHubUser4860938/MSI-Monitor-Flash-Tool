@@ -21,6 +21,7 @@ Pure-stdlib Python 3 — no pip installs for the tool itself.
 ./msi-isp probe                                       # ISP slave-address ACK scan (read-only)
 ./msi-isp shell                                       # curses menu (arrow keys); --plain = text REPL
 sudo ./msi-isp --nvrm probe                           # NVIDIA RM DP-AUX transport instead (root)
+./msi-isp --auxdev probe                              # ...same, but sudoless via kernel/msi_auxch.ko
 python3 scratch/spec_0x22.py                          # the decisive 0x22 contact experiment
 ```
 
@@ -82,7 +83,7 @@ whole attempt — the failure semantics our `write` will reproduce.
 | Model/checksum `verify` (the 0x45 check) | ✅ | ✅ | also verifies the `_4023` filename checksum (see below) |
 | ISP slave ACK scan (`probe`) | ✅ runs; ISP slaves **no-ack** | ❓ the open question | allow-list quirk below |
 | Flash `backup` / `write` | ⛔ gated | ❓ | need live transactions at 7-bit `0x22` |
-| RM AUX transport | ✅ root; ✅ **unprivileged** with `kernel/msi_auxch.ko` | n/a | prototype, see below |
+| RM AUX transport | ✅ root (`--nvrm`); ✅ **sudoless** (`--auxdev` + relay) | n/a | see relay note below |
 
 ## The two vendor mysteries, solved
 
@@ -111,12 +112,17 @@ registers no `/dev/drm_dp_aux*` nodes. The decisive test is one run of
 `scratch/spec_0x22.py` on an Intel/AMD box —
 [`TEST-INTEL-AMD.md`](TEST-INTEL-AMD.md) is the runbook.
 
-**Sudo note:** a small opt-in kernel module (`kernel/msi_auxch.ko`,
-prototype) drives that same AUXCH control from kernel context — the entry
-point NVIDIA's own `nvidia-modeset` module uses — and exposes a
-world-writable `/dev/msi-auxch`. `kernel/test_relay.py` proves unprivileged
-DPCD0 + EDID reads are byte-identical to the root path. It removes the
-**sudo** requirement; it does not change the 0x22 silence.
+**Sudo note:** a small opt-in kernel module (`kernel/msi_auxch.ko`) drives
+that same AUXCH control from kernel context — the entry point NVIDIA's own
+`nvidia-modeset` module uses — and the tool consumes it via **`--auxdev`,
+with no sudo at all**. Setup: `make -C kernel LLVM=1 CC=clang`, `sudo insmod
+kernel/msi_auxch.ko`, and install `kernel/99-msi-auxch.rules` so the node is
+`0660 root:video` (the group that already owns DDC). Security posture: I2C
+writes to the ISP register-file slaves (`0x18`–`0x22`) are refused in-kernel
+until userspace explicitly unlocks — a timed 5-second window, logged — while
+reads and ordinary DDC pointer writes work freely. `kernel/test_relay.py`
+proves it end to end unprivileged. The relay removes the **sudo**
+requirement; it does not change the 0x22 silence.
 
 Driver-update note: 615.78+ tightened the RM version handshake (strict
 string gate) — auto-detected at runtime since commit `94f256a`, so future
@@ -143,9 +149,9 @@ DDC/CI workstream (announced mid-2026) may eventually provide
   `console.py` REPL core, `ddc.py` (i2c-dev transport), `isp.py`
   (ISP protocol), `nvrm.py`/`nvbus.py` (NVIDIA RM transport, sudo),
   `Facts.py` (constants + verified protocol facts), `progress.py`.
-- `kernel/` — `msi_auxch.c`: opt-in kernel-context AUXCH relay prototype
-  (+ `test_relay.py`, its unprivileged acceptance test; build notes in the
-  Makefile header).
+- `kernel/` — `msi_auxch.c`: kernel-context AUXCH relay (sudoless `--auxdev`
+  transport), `test_relay.py` acceptance test incl. the write-gate matrix,
+  `99-msi-auxch.rules` udev policy; build notes in the Makefile header.
 - `scratch/spec_0x22.py` — portable decisive probe (RM + i2c-dev transports).
 - `re/` — RE kit for the vendor PE32 binaries (`env.sh` → repo `.venv`);
   `STATUS.md` — the full session-by-session research log (**read it first
