@@ -914,3 +914,29 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
   ops + busy-wait + program body). Facts.py += ISP_WINDOW documentation
   block. No monitor contact this session (pure offline RE); gates: ruff +
   compileall green.
+
+## Session 14j (2026-10-09) — DDC bus arbitration: cooperative per-bus lock
+
+- New `msi_isp/buslock.py`: `bus_lock(bus, timeout)` context manager +
+  `BusBusyError` with an actionable message (holder pid when knowable).
+- Lock carrier = **flock on the /dev/i2c-N device inode itself** (no
+  lockfile): one inode shared root/user, no DAC/creation races, `open()`
+  alone never emits bus traffic so passive observers (ddcutil indexer)
+  are undisturbed, and our own transports co-open the node without
+  self-deadlock (they don't flock). Design learned the hard way this
+  session: a /run/lock-first scheme split root and user into different
+  files (mutual exclusion silently void), and a /tmp lockfile hit
+  kernel protected-regulars EACCES for the root opener — both dead,
+  documented in the module header. pid-tagging only on the file-fallback
+  path (a write() to the chardev fd would be bus traffic); device path
+  reports "pid ?" honestly (flock owner is not exposed via F_GETLK).
+- Scope wired where it matters: `cli backup` (clean one-line refusal,
+  exit 1), `console backup` (2 s cooperative wait then refusal),
+  `console flash -> _program` (exclusive). info/verify/probe stay
+  lock-free (reads, cheap, no ISP mode toggling). Transport-agnostic by
+  bus number (the AUX wire is the shared resource).
+- Live matrix on this box: root-holder → user CLI refuses ✓, user
+  console refuses ✓; user-holder → sudo CLI refuses ✓ (same inode
+  cross-uid); after release → baseline ISP refusal restored ✓. ruff +
+  compileall + CLI green. Honest limit unchanged: ddcutil/GNOME never
+  take the lock — close them during ISP work per safety policy.

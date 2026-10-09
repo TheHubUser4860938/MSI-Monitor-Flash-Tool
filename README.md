@@ -139,16 +139,19 @@ DDC/CI workstream (announced mid-2026) may eventually provide
   (The JEDEC gate is our own addition; the vendor updater instead keys on a
   capacity code — details in `Facts.ISP_PIPELINE`.)
 - No ISP magic bytes have ever been sent to a monitor by this tool.
-- The DDC bus is shared with your desktop (GNOME/ddcutil poll `0x37`);
-  there is no inter-process lock yet — close other DDC users during
-  transfers.
+- The DDC bus is shared with your desktop (GNOME/ddcutil poll `0x37`).
+  Tool instances serialize through a cooperative per-bus lock (flock on
+  the bus device inode) — external pollers don't participate, so close
+  other DDC users during ISP transfers.
 
 ## Layout
 
 - `msi_isp/` — the tool: `cli.py`, `tui.py` (curses menu) driving the
-  `console.py` REPL core, `ddc.py` (i2c-dev transport), `isp.py`
-  (ISP protocol), `nvrm.py`/`nvbus.py` (NVIDIA RM transport, sudo),
-  `Facts.py` (constants + verified protocol facts), `progress.py`.
+  `console.py` REPL core, `ddc.py` (i2c-dev transport), `auxdev.py`
+  (kernel-relay transport, sudoless), `isp.py` (ISP protocol),
+  `nvrm.py`/`nvbus.py` (NVIDIA RM transport, sudo), `buslock.py`
+  (cooperative per-bus lock), `Facts.py` (constants + verified protocol
+  facts), `progress.py`.
 - `kernel/` — `msi_auxch.c`: kernel-context AUXCH relay (sudoless `--auxdev`
   transport), `test_relay.py` acceptance test incl. the write-gate matrix,
   `99-msi-auxch.rules` udev policy; build notes in the Makefile header.

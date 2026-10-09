@@ -102,7 +102,7 @@ sudo rmmod msi_auxch                 # fully reversible; nothing auto-loads it
 ## Safety policy (user rules, binding)
 
 - **No erase or program until a JEDEC read returns `0x1Fxxxx` from `0x22`.** Full `backup` (+ re-read compare) mandatory before any `write`; no erase during backup.
-- Every ISP experiment ends with `0x24` exit + EDID re-verify at `0x50`. Exclusive DDC bus during transfers (GNOME/ddcutil must not touch `0x37` mid-dump; no inter-process lock exists yet).
+- Every ISP experiment ends with `0x24` exit + EDID re-verify at `0x50`. Exclusive DDC bus during transfers: `msi_isp/buslock.py` now enforces this **between tool instances** (cooperative flock on the bus device inode; session 14j) — external pollers (GNOME/ddcutil) still need closing by hand, they don't participate in the lock.
 - The user decides whether to flash — they have no brick-recovery rig. Console gates and typed `flash` confirmation stay mandatory. `write` additionally requires `--allow-write`.
 
 ## Next actions (ordered)

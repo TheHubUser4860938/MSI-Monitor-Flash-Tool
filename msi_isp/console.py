@@ -162,6 +162,7 @@ class Console(cmd.Cmd):
 
     def do_backup(self, arg):
         """dump scaler SPI flash -> file. --write actually writes it out"""
+        from .buslock import BusBusyError, bus_lock
         write_out = "--write" in arg
         out = None
         for tok in arg.split():
@@ -170,6 +171,13 @@ class Console(cmd.Cmd):
         if write_out and not out:
             print("usage: backup <file> --write")
             return
+        try:
+            with bus_lock(self.bus_num, timeout=2.0):
+                self._backup_locked(write_out, out)
+        except BusBusyError as e:
+            print(BAD(f"backup refused: {e}"))
+
+    def _backup_locked(self, write_out, out):
         isp = self._isp_visible()
         if not isp:
             print(BAD("ISP flash slave does not ACK — nothing to dump yet.\n"
@@ -262,7 +270,12 @@ class Console(cmd.Cmd):
         if ans.strip() != "flash":
             print("aborted, monitor untouched.")
             return
-        self._program()
+        from .buslock import BusBusyError, bus_lock
+        try:
+            with bus_lock(self.bus_num):
+                self._program()
+        except BusBusyError as e:
+            print(BAD(f"flash aborted: {e}"))
 
     def _confirm(self, prompt: str) -> str:
         """Typed-confirmation reader; the TUI overrides this instance hook."""

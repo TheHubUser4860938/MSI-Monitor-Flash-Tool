@@ -209,6 +209,15 @@ def cmd_probe(args):
 
 
 def cmd_backup(args):
+    from .buslock import BusBusyError, bus_lock
+    try:
+        with bus_lock(args.bus):
+            _backup_locked(args)
+    except BusBusyError as e:
+        sys.exit(str(e))
+
+
+def _backup_locked(args):
     with _bus(args) as bus:
         sb = ScalerBus(bus, verbose=args.verbose, delay_ms=1)
         t = I2CTarget("ISP flash", 0x20)
