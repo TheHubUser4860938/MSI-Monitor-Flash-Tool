@@ -798,3 +798,11 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
   never compares a 0x9F response — our JEDEC gate stays as our own safety
   addition, while the vendor's real protections are per-bank read-back
   ("Get Final Code") + WP discipline. Dumps: re/f_getflash_type.txt.
+- Pre-publication pass (per plan step "skim STATUS.md for the user"): full
+  800-line read — verdict publishable: chronology self-corrects in place,
+  no PII/secrets anywhere (paranoid grep: IPs, MACs, tokens, emails), the
+  two ancient typos (`JECID` in the rules section, one stray CJK word in
+  session 7's notes) left untouched per append-only policy. README rewritten
+  with a proper "How it works" transport-chain section; new `CONTRIBUTING.md`
+  (safety-first onboarding, DoD checklist incl. regression baselines, ranked
+  help-wanted list). Awaiting GitHub MCP sign-in for repo creation + push.

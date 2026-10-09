@@ -4,7 +4,8 @@ Native Linux firmware utility for MSI MAG/MPG OLED monitors built on Realtek
 RTD scalers. Developed against one target so far — the **MSI MAG 341CQP
 QD-OLED X28** (RTD2711 scaler) driven by an NVIDIA RTX 4090 — with the design
 goal of becoming the `shurectl`-style tool this family never had: no Wine, no
-Windows USB tool, transparent read-before-write safety gates.
+booting Windows just to bump a version, transparent read-before-write safety
+gates.
 
 Status: **inspector/verifier works today; flash backup/write are gated on one
 open hardware question** (see `TEST-INTEL-AMD.md`). The monitor in the dev
@@ -27,6 +28,52 @@ Requirements: the monitor on **DisplayPort**, your user in the `video` group
 (or `sudo`), and a bus number — `ddcutil detect` or the auto-detect in
 `scratch/spec_0x22.py` will find it; everything takes `--bus N`.
 
+## How it works
+
+The firmware lives in a SPI flash soldered to the scaler board. There is no
+USB service port on this model (Type-C is video-only by design), so the only
+road to the flash is the **DisplayPort AUX wire**, which carries an I2C bus
+(I2C-over-AUX). The chain, hop by hop:
+
+```
+ this tool ──► transport (pick one)                    monitor side
+ ────────────────────────────────────────────────────────────────────
+ A) i2c-dev       /dev/i2c-N  (kernel DRM AUX→I2C      DP AUX pair
+    (Intel/AMD     bridge; plain I2C semantics)            │
+     or via the                                       sink DP branch (0x30)
+    kernel relay)                                          │  I2C-over-AUX
+ B) NVIDIA RM     NV0073_CTRL_CMD_DP_AUXCH_CTRL        scaler RTD2711
+    (root, or     (0x731341) — raw DP AUX from the         ├── 0x37 DDC/CI  ← info/verify
+    via the       driver's Resource Manager               ├── 0x50 EDID     ← work anywhere
+    kernel      (needs root; kernel/msi_auxch.ko         └── 0x22 "MCU register file"
+    module)      removes that requirement)                    │ PWM2SPI bit-banged master
+                                                          4 MB SPI flash (A25L032M)
+```
+
+- **Layer 1 — transports** (`msi_isp/ddc.py`, `nvbus.py`/`nvrm.py`): both
+  transports expose one primitive — "run one I2C transaction at this 7-bit
+  slave over the DP AUX wire". On NVIDIA the kernel's i2c-dev shim only
+  services an allow-list (`0x30/0x37/0x50`), so raw ISP addresses must ride
+  the RM `AUXCH` control instead; `nvrm.py` is a ctypes client for that ABI,
+  and `kernel/msi_auxch.ko` relays the same control unprivileged.
+- **Layer 2 — protocols** (`isp.py`, `Facts.py`): DDC/CI packets (MCCS +
+  MSI vendor opcodes — this is how the live `FW.009` version string is read
+  byte-exactly like the Windows tool does), and the Realtek ISP handshake
+  (magic-byte entry candidates written to `0x37`, status bit `0x80` = ISP
+  alive, `0x24` exit). Flash erasure/programming itself rides the scaler's
+  `0x22` register file (index reg `0x60`, data `0x61–0x66`, strobes
+  `0x20/0x21`, `0x38/0x39`) driving a pin-banged SPI master ("PWM2SPI").
+- **Layer 3 — session + safety** (`console.py`, `tui.py`, `cli.py`): the
+  curses menu and the text REPL share one state machine. `write` is fenced
+  by five gates (firmware loaded → model verified → ISP slave visible →
+  trusted backup this session → root) plus a typed `flash`. Everything else
+  is strictly read-only by construction.
+
+The Windows updater's own flash sequence is fully decoded (`Facts.ISP_PIPELINE`):
+chip detect → write-protect disable → bank erase (sector fallback) → program
+→ read-back verify → write-protect restore, with retry+backoff around the
+whole attempt — the failure semantics our `write` will reproduce.
+
 ## What works, on what
 
 | Capability | NVIDIA 615.x (dev box) | Intel/AMD | Notes |
@@ -35,6 +82,7 @@ Requirements: the monitor on **DisplayPort**, your user in the `video` group
 | Model/checksum `verify` (the 0x45 check) | ✅ | ✅ | also verifies the `_4023` filename checksum (see below) |
 | ISP slave ACK scan (`probe`) | ✅ runs; ISP slaves **no-ack** | ❓ the open question | allow-list quirk below |
 | Flash `backup` / `write` | ⛔ gated | ❓ | need live transactions at 7-bit `0x22` |
+| RM AUX transport | ✅ root; ✅ **unprivileged** with `kernel/msi_auxch.ko` | n/a | prototype, see below |
 
 ## The two vendor mysteries, solved
 
@@ -55,17 +103,17 @@ loops + `0x4137cc` `movzx ax` mask; `sum(FW.012) = 0x0C964023` → `0x4023` ✓)
 
 The NVIDIA open kernel module's i2c-dev shim answers **only** for the
 allow-listed addresses `0x30`/`0x37`/`0x50`; the scaler's ISP slaves
-(`0x22`, `0x18–0x1B`, `0x20`) never receive an AUX transaction. We also
-drive the RM path natively (`NV0073 CTRL_CMD_DP_AUXCH_CTRL = 0x731341`,
-root): the spec-conformant I2C-mode probe of `0x22` returns pure TIMEOUT
-(~108 tries / 2 s) on both 615.71.09 and 615.78.08 while `0x50`/`0x37` ACK
-real data in the same run. `nvidia-drm` registers no `/dev/drm_dp_aux*`
-nodes. The decisive test is one run of `scratch/spec_0x22.py` on an
-Intel/AMD box — [`TEST-INTEL-AMD.md`](TEST-INTEL-AMD.md) is the runbook.
+(`0x22`, `0x18–0x1B`, `0x20`) never receive an AUX transaction. Driving the
+RM path natively (`0x731341`, root): the spec-conformant I2C-mode probe of
+`0x22` returns pure TIMEOUT (~108 tries / 2 s) on both 615.71.09 and
+615.78.08 while `0x50`/`0x37` ACK real data in the same run. `nvidia-drm`
+registers no `/dev/drm_dp_aux*` nodes. The decisive test is one run of
+`scratch/spec_0x22.py` on an Intel/AMD box —
+[`TEST-INTEL-AMD.md`](TEST-INTEL-AMD.md) is the runbook.
 
-Sudo note: a small opt-in kernel module (`kernel/msi_auxch.ko`, prototype)
-drives that same AUXCH control from kernel context — the entry point
-NVIDIA's own `nvidia-modeset` module uses — and exposes a
+**Sudo note:** a small opt-in kernel module (`kernel/msi_auxch.ko`,
+prototype) drives that same AUXCH control from kernel context — the entry
+point NVIDIA's own `nvidia-modeset` module uses — and exposes a
 world-writable `/dev/msi-auxch`. `kernel/test_relay.py` proves unprivileged
 DPCD0 + EDID reads are byte-identical to the root path. It removes the
 **sudo** requirement; it does not change the 0x22 silence.
@@ -82,22 +130,30 @@ DDC/CI workstream (announced mid-2026) may eventually provide
 - `write` (currently a stub) will require `--allow-write` **and** a typed
   confirmation, and will refuse to run before: JEDEC `0x9F` → `0x1Fxxxx` at
   the ISP slave, a full flash backup, and a byte-compare of that backup.
+  (The JEDEC gate is our own addition; the vendor updater instead keys on a
+  capacity code — details in `Facts.ISP_PIPELINE`.)
 - No ISP magic bytes have ever been sent to a monitor by this tool.
+- The DDC bus is shared with your desktop (GNOME/ddcutil poll `0x37`);
+  there is no inter-process lock yet — close other DDC users during
+  transfers.
 
 ## Layout
 
 - `msi_isp/` — the tool: `cli.py`, `tui.py` (curses menu) driving the
   `console.py` REPL core, `ddc.py` (i2c-dev transport), `isp.py`
   (ISP protocol), `nvrm.py`/`nvbus.py` (NVIDIA RM transport, sudo),
-  `Facts.py` (constants + verified protocol facts).
-- `scratch/spec_0x22.py` — portable decisive probe (RM + i2c-dev transports).
+  `Facts.py` (constants + verified protocol facts), `progress.py`.
 - `kernel/` — `msi_auxch.c`: opt-in kernel-context AUXCH relay prototype
   (+ `test_relay.py`, its unprivileged acceptance test; build notes in the
   Makefile header).
+- `scratch/spec_0x22.py` — portable decisive probe (RM + i2c-dev transports).
 - `re/` — RE kit for the vendor PE32 binaries (`env.sh` → repo `.venv`);
-  `STATUS.md` — the full session-by-session research log.
+  `STATUS.md` — the full session-by-session research log (**read it first
+  if you want the why**).
 - `vendor/` — MSI's proprietary Windows updater + `FW.012` `.bin`
   (gitignored; grab them from MSI's support page).
+- `HANDOFF.md` — condensed project brief; `CONTRIBUTING.md` — how to hack
+  on this safely.
 
 MIT — see `LICENSE`. Not affiliated with MSI; poking scaler registers can,
 in principle, brick a monitor. The maintainers' monitor is still unflashed.
