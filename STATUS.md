@@ -734,3 +734,31 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
     local. HANDOFF TL;DR corrected (backup exits 1 with reason; only
     `write` exits 3). Regression re-run after: probe identical on both
     transports, shell gate table unchanged, verify OK, PII clean.
+
+## Session 14f (2026-10-09) — TUI: shurectl-style curses menu (plan step 4)
+
+- `msi_isp/tui.py` (~250 lines, pure-stdlib curses) drives the existing
+  `Console` session object — zero logic duplication: menu actions capture
+  stdout+stderr into a live-scrolling pane (progress bars auto-degrade to
+  line mode since the sink reports non-TTY) and share all gates/state with
+  the text REPL. Header shows transport/uid, live model+FW (queried once
+  at start, `r` refreshes), bin/verified/backup state — the verify action
+  flips the header to `verified ✓` live.
+- Keys: arrows/j/k, Enter or 1-9 run, PgUp/PgDn/Home/End scroll, ESC/q
+  back, ^L noted in footer. `.bin` file browser (dirs first, sizes shown,
+  starts in `vendor/` or `$MSI_ISP_BINDIR`). The one typed gate survives
+  by policy: `Console._confirm` hook — text REPL uses `input()`, the TUI
+  draws its own bottom-row line editor (ESC aborts).
+- Wiring: `./msi-isp shell` now opens the menu on a TTY and the text REPL
+  otherwise; `--plain` forces the REPL; a `tui` subcommand was added too.
+  Non-TTY + `tui` degrades to the REPL instead of crashing.
+- Bugs caught in self-review + testing: `ImportError` re-export subtlety
+  (`as`-aliased names bind under the alias only — import
+  `_edid_model_name` from `.cli`), operator-precedence bug in file-list
+  highlight attrs, garbled long-prompt echo in `ask`, dead statements ×2.
+- pty-tested end to end (`script -qec`): info → live data pane; verify →
+  model match + header flip; FLASH → five-gate table with correct refusals
+  (bin + verified pass, ISP/backup/root fail); browser navigates dirs;
+  `--nvrm` header renders as root (FW.009 via RM); non-TTY fallback clean;
+  ruff + compileall green repo-wide after.
+- README quickstart/layout + HANDOFF commands/repo-map updated for the TUI.

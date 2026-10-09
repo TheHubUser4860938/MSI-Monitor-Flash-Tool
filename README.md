@@ -18,6 +18,7 @@ Pure-stdlib Python 3 — no pip installs for the tool itself.
 ./msi-isp info                                        # who am I, what's in the .bin
 ./msi-isp --bin vendor/…_FW.012_4023.bin verify       # the Windows updater's 0x45 check, natively
 ./msi-isp probe                                       # ISP slave-address ACK scan (read-only)
+./msi-isp shell                                       # curses menu (arrow keys); --plain = text REPL
 sudo ./msi-isp --nvrm probe                           # NVIDIA RM DP-AUX transport instead (root)
 python3 scratch/spec_0x22.py                          # the decisive 0x22 contact experiment
 ```
@@ -85,9 +86,10 @@ DDC/CI workstream (announced mid-2026) may eventually provide
 
 ## Layout
 
-- `msi_isp/` — the tool: `cli.py`, `ddc.py` (i2c-dev transport), `isp.py`
-  (ISP protocol), `nvrm.py`/`nvbus.py` (NVIDIA RM transport), `Facts.py`
-  (constants + verified protocol facts).
+- `msi_isp/` — the tool: `cli.py`, `tui.py` (curses menu) driving the
+  `console.py` REPL core, `ddc.py` (i2c-dev transport), `isp.py`
+  (ISP protocol), `nvrm.py`/`nvbus.py` (NVIDIA RM transport, sudo),
+  `Facts.py` (constants + verified protocol facts).
 - `scratch/spec_0x22.py` — portable decisive probe (RM + i2c-dev transports).
 - `kernel/` — `msi_auxch.c`: opt-in kernel-context AUXCH relay prototype
   (+ `test_relay.py`, its unprivileged acceptance test; build notes in the

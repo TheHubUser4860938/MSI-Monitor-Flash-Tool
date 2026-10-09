@@ -250,8 +250,17 @@ tool remains the reference flasher.
 
 
 def cmd_shell(args):
-    from .console import run
-    run(args.bus, args.bin, use_nvrm=getattr(args, "nvrm", False))
+    if getattr(args, "plain", False) or not sys.stdout.isatty():
+        from .console import run
+        run(args.bus, args.bin, use_nvrm=getattr(args, "nvrm", False))
+    else:
+        from .tui import run_tui
+        run_tui(args.bus, args.bin, use_nvrm=getattr(args, "nvrm", False))
+
+
+def cmd_tui(args):
+    from .tui import run_tui
+    run_tui(args.bus, args.bin, use_nvrm=getattr(args, "nvrm", False))
 
 
 def main(argv=None):
@@ -271,14 +280,18 @@ def main(argv=None):
     b = sub.add_parser("backup", help="dump scaler SPI flash (read-only)")
     b.add_argument("--out", required=True)
     b.add_argument("--size", type=lambda s: int(s, 0), default=Facts.FW_BIN_SIZE)
-    sub.add_parser("shell", help="interactive console (shurectl-style)")
+    s = sub.add_parser("shell", help="interactive console (shurectl-style "
+                                     "curses menu on a TTY)")
+    s.add_argument("--plain", action="store_true",
+                   help="force the typed REPL instead of the curses menu")
+    sub.add_parser("tui", help="curses menu (same as shell on a terminal)")
     w = sub.add_parser("write", help="program flash (stub today, see STATUS.md)")
     w.add_argument("--allow-write", action="store_true",
                    help="required and acknowledged: a bad flash can brick the scaler")
     args = p.parse_args(argv)
     {"info": cmd_info, "verify": cmd_verify, "probe": cmd_probe,
      "backup": cmd_backup, "write": cmd_write,
-     "shell": cmd_shell}[args.cmd](args)
+     "shell": cmd_shell, "tui": cmd_tui}[args.cmd](args)
 
 
 if __name__ == "__main__":

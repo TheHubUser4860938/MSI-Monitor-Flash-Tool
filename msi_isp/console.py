@@ -252,11 +252,15 @@ class Console(cmd.Cmd):
               f"{self.bin_hdr['sha256'][:24]}…")
         print(f"  backup on disk: {self.backup_path}  "
               f"({os.path.getsize(self.backup_path)} bytes)")
-        ans = input(WARN("type 'flash' to continue (anything else aborts): "))
+        ans = self._confirm(WARN("type 'flash' to continue (anything else aborts): "))
         if ans.strip() != "flash":
             print("aborted, monitor untouched.")
             return
         self._program()
+
+    def _confirm(self, prompt: str) -> str:
+        """Typed-confirmation reader; the TUI overrides this instance hook."""
+        return input(prompt)
 
     def _program(self):
         # erase/program packet cycle lands here once verified against the
