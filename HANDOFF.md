@@ -88,7 +88,7 @@ sudo rmmod msi_auxch                 # fully reversible; nothing auto-loads it
 
 1. **Will `0x22` ACK I2C-over-AUX on Intel/AMD Linux?** The decisive test; same binary, no code changes (`nvbus.py` is NVIDIA-only; i2c-dev `ddc.py` path auto-applies there).
 2. NVAPI's exact defer/transparent policy (only matters if #1 also fails).
-3. PWM2SPI strobe/busy semantics — what `0x38→0x39` latches, which bit to poll; planned oracle: `06,61,9f`-style opcode load + strobe → read `0x64` expecting **`0x1F`** manufacturer byte.
+3. PWM2SPI strobe/busy semantics — **largely decoded session 14i**: universal primitive = ADDR←addr, CTRL←0xB8 (latch), OPCODE←JEDEC cmd, CTRL←0xB9 (GO), busy-poll ≤20 s (evidence `re/g_ispopseq.txt`, write-up `Facts.ISP_WINDOW` comment). Residual: which register surface RTD2711 traffic uses (32-bit 0x841-0x84f window vs the 0x22-slave byte grammar) — first live 0x22 transaction settles it. Planned oracle unchanged: opcode load + strobe → read data reg expecting **`0x1F`** manufacturer byte.
 4. Page-read mechanics: 32 sequential data-port reads vs length-armed burst.
 5. Which magic candidate actually enables flash access (cand0 vs cand4 gave different status bytes; `strInitialDdcciCmd` values `[133,160]` semantics unverified).
 6. ~~Checksum algorithm for `0x4023`~~ **SOLVED session 14c**: low 16 bits of the plain byte-sum over the file (see `Facts.BIN_CHECKSUM_EXPECTED`); post-flash verify can now be done natively once a flash dump exists.

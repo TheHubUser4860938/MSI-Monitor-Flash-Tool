@@ -835,10 +835,6 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
   "repo root" provenance comment updated to say `scratch/legacy/`.
 - README heading fix (user flag): "What doesn't (yet)" → "What doesn't
   work (yet) — the NVIDIA allow-list". `.gitignore` += `.ruff_cache/`.
-- Gate re-run after the moves: `ruff check .` all passed, `py_compile`
-  whole tree OK, `./msi-isp info` green, `spec_0x22.py` i2cdev verdict
-  byte-identical NO CONTACT (exit 1 as designed).
-
 ## Session 14h (2026-10-09) — relay hardened (0660/video + timed write gate); --auxdev = first sudoless NVIDIA path
 
 - Module policy per the agreed security posture:
@@ -879,3 +875,42 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
   CONTRIBUTING module policy + help-wanted #2 rewritten (packaging is the
   new open item), HANDOFF commands + item 3 refreshed. Monitor: still
   FW.009, untouched, DP-only.
+
+## Session 14i (2026-10-09) — RE: the universal ISP flash primitive decoded
+
+- Tooling: promoted the ad-hoc string/call skeleton extractor to
+  `re/steps.py` (disassembles an RVA range, resolves UTF-16 log strings,
+  flags every vtable-indirect call + immediate cmp — the exact lens that
+  cracked the pipeline in 14f).
+- **Comm vtable slot map now pinned by cross-evidence** (object
+  [0x10249d10]): +0x14 = 32 B page I2C xfer; +0xc4 = write reg32(reg,val);
+  +0xf0 = write byte(reg,val); +0xf8 = read byte; +0xd0 = read reg32.
+  Independent confirmations: GetFlashType (14f) used f0/f8 at 0x77 with
+  read-modify-writeback; erase/verify/program use c4/f0 against the same
+  register roles at 32-bit addresses 0x841-0x84f and 8-bit 0x83-0x89.
+- **The universal op sequence** (all of erase 0x3e610, program 0x3db10/
+  0x3e2a0, verify 0x3e9c0): ADDR regs ← target; CTRL ← 0xB8 (latch);
+  OPCODE ← JEDEC command (erase: 0x20 sector; 0xD8 block appears in the
+  verify-path window writes; program arms 0x100 = 256 B flash page length
+  via the 0xf5/slot+0x74 pair; payload moves through slot +0x14);
+  CTRL ← 0xB9 (GO); busy-wait 0x3ee40 with 0x4E20 = **20 s budget**.
+  B8/B9 = latch/GO inferred from invariant bracketing of every opcode
+  write — labeled as inference in Facts, since no RTD datasheet prose
+  exists; as far as I can tell this is now the ONLY written-up account of
+  the RTD2711 flash window anywhere.
+- Flash.dat structure notes: record = 4-byte chip key (either raw JEDEC
+  e.g. AT25DF041 `1f 44 01 ff`, or "70"+capacity code for the A25L family)
+  + NUL-name + size-in-64KiB-units (`40 00`=4 MB for A25L032M ✓ matches
+  Facts.FW_BIN_SIZE context) + flags; the CSV scripts live in a separate
+  block table (31 script blocks for 136 chips — scripts shared; full
+  record→script binding = its own future session).
+- Honest residual (open question #3 refined, not closed): two register
+  grammars coexist — the older `06,60,<idx> / 06,61,<data>` byte-window
+  (Flash.dat scripts) vs the 0x83-0x89/0x841-0x84f window driven by these
+  plugin functions. Which one RTD2711's wire traffic actually receives
+  will be settled by the first live 0x22 transaction on Intel/AMD hardware
+  — the probe plan in HANDOFF §Open-questions #3 works verbatim either way.
+- Evidence files: re/g_ispopseq.txt (172 lines: skeletons of all three
+  ops + busy-wait + program body). Facts.py += ISP_WINDOW documentation
+  block. No monitor contact this session (pure offline RE); gates: ruff +
+  compileall green.

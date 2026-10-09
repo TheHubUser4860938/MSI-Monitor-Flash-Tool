@@ -1,0 +1,172 @@
+# ISP operation register sequences — extracted 2026-10-09 from WinIspPlugIn
+# (IspFlash pipeline callees). vtable slots (Comm object 0x10249d10):
+#   +0x14 = page I2C xfer (32B); +0xc4 = write reg32(reg16,val);
+#   +0xf0 = write byte(reg8,val); +0xf8 = read byte(reg8,*p);
+#   +0xd0 = read32(reg16, mask?, *p). reg maps: 0x841-0x84f/0x851/0x853/0x879/0x87a (32-bit window);
+#   0x83-0x89 + 0xf3-0xf5 + 0xff (8-bit legacy window; same roles).
+# Universal op shape observed in erase/verify/program:
+#   addr -> 0x845/846/847/848 ; 0x841=0xb8 (latch) ; 0x842=JEDEC opcode
+#   (erase: 0x20 sector, verify pass issues 0xd8 block; program: page 0x100 len)
+#   ; 0x841=0xb9 (GO) ; busy-wait via 0x3ee40 with 0x4e20 = 20000 ms budget.
+
+### ERASE 0x3e610
+0x03e61d       cmp dword ptr [ecx + 0x58], 0
+0x03e62e  CALL  0x3cb60
+0x03e63b       cmp dword ptr [0x1024a360], 0
+0x03e64b       cmp dword ptr [0x1024e45c], 1
+0x03e667  CALL  call dword ptr [edx + 0xc4]   <-- indirect
+0x03e683  CALL  call dword ptr [eax + 0xc4]   <-- indirect
+0x03e6aa  CALL  call dword ptr [edx + 0xc4]   <-- indirect
+0x03e6c7  CALL  call dword ptr [eax + 0xc4]   <-- indirect
+0x03e6e7  CALL  call dword ptr [eax + 0xc4]   <-- indirect
+0x03e704  CALL  call dword ptr [eax + 0xc4]   <-- indirect
+0x03e724  CALL  call dword ptr [eax + 0xc4]   <-- indirect
+0x03e73b  CALL  0x1c450
+0x03e750  RET
+0x03e753       cmp dword ptr [0x1024a3bc], 0
+0x03e76e  CALL  call dword ptr [eax + 0xf0]   <-- indirect
+0x03e795  CALL  call dword ptr [edx + 0xf0]   <-- indirect
+0x03e7b2  CALL  call dword ptr [eax + 0xf0]   <-- indirect
+0x03e7d2  CALL  call dword ptr [eax + 0xf0]   <-- indirect
+0x03e7ef  CALL  call dword ptr [eax + 0xf0]   <-- indirect
+0x03e80f  CALL  call dword ptr [eax + 0xf0]   <-- indirect
+0x03e827  CALL  0x1c4c0
+0x03e83c  RET
+0x03e83f       cmp dword ptr [0x1024e45c], 1
+0x03e858  CALL  call dword ptr [edx + 0xf0]   <-- indirect
+0x03e871  CALL  call dword ptr [eax + 0xf0]   <-- indirect
+0x03e895  CALL  call dword ptr [edx + 0xf0]   <-- indirect
+0x03e8af  CALL  call dword ptr [eax + 0xf0]   <-- indirect
+0x03e8bd       cmp dword ptr [0x1024e45c], 1
+0x03e8d5  CALL  call dword ptr [eax + 0xf0]   <-- indirect
+0x03e8e4  RET
+0x03e8ee  CALL  call dword ptr [eax + 0xf0]   <-- indirect
+0x03e908  CALL  call dword ptr [eax + 0xf0]   <-- indirect
+0x03e916       cmp dword ptr [0x1024e45c], 1
+0x03e92e  CALL  call dword ptr [eax + 0xf0]   <-- indirect
+0x03e93d  RET
+0x03e947  CALL  call dword ptr [eax + 0xf0]   <-- indirect
+0x03e95c  CALL  0x1c4c0
+0x03e970  CALL  call dword ptr [eax + 0x14]   <-- indirect
+0x03e98b  CALL  0x1c530
+0x03e9a7  RET
+0x03e9b1  RET
+0x03e9cf       cmp dword ptr [ecx + 0x58], 0
+0x03e9e0  CALL  0x3cb60
+0x03e9ed       cmp dword ptr [0x1024a360], 0
+0x03e9fd       cmp dword ptr [0x1024e45c], 1
+0x03ea19  CALL  call dword ptr [edx + 0xc4]   <-- indirect
+0x03ea35  CALL  call dword ptr [eax + 0xc4]   <-- indirect
+0x03ea52  CALL  call dword ptr [eax + 0xc4]   <-- indirect
+0x03ea6f  CALL  call dword ptr [eax + 0xc4]   <-- indirect
+0x03ea7d       cmp dword ptr [0x1024e45c], 1
+0x03ea98  CALL  call dword ptr [eax + 0xc4]   <-- indirect
+0x03eaa7  RET
+0x03eab4  CALL  call dword ptr [eax + 0xc4]   <-- indirect
+0x03ead4  CALL  call dword ptr [eax + 0xc4]   <-- indirect
+0x03eae2       cmp dword ptr [0x1024e45c], 1
+0x03eafd  CALL  call dword ptr [eax + 0xc4]   <-- indirect
+0x03eb0c  RET
+0x03eb19  CALL  call dword ptr [eax + 0xc4]   <-- indirect
+0x03eb31  CALL  0x1c450
+0x03eb48  RET
+0x03eb4b       cmp dword ptr [0x1024a3bc], 0
+0x03eb66  CALL  call dword ptr [eax + 0xf0]   <-- indirect
+0x03eb83  CALL  call dword ptr [eax + 0xf0]   <-- indirect
+0x03eba0  CALL  call dword ptr [eax + 0xf0]   <-- indirect
+0x03ebc0  CALL  call dword ptr [eax + 0xf0]   <-- indirect
+0x03ebe0  CALL  call dword ptr [eax + 0xf0]   <-- indirect
+0x03ec00  CALL  call dword ptr [eax + 0xf0]   <-- indirect
+
+### VERIFY 0x3e9c0
+0x03e9cf       cmp dword ptr [ecx + 0x58], 0
+0x03e9e0  CALL  0x3cb60
+0x03e9ed       cmp dword ptr [0x1024a360], 0
+0x03e9fd       cmp dword ptr [0x1024e45c], 1
+0x03ea19  CALL  call dword ptr [edx + 0xc4]   <-- indirect
+0x03ea35  CALL  call dword ptr [eax + 0xc4]   <-- indirect
+0x03ea52  CALL  call dword ptr [eax + 0xc4]   <-- indirect
+0x03ea6f  CALL  call dword ptr [eax + 0xc4]   <-- indirect
+0x03ea7d       cmp dword ptr [0x1024e45c], 1
+0x03ea98  CALL  call dword ptr [eax + 0xc4]   <-- indirect
+0x03eaa7  RET
+0x03eab4  CALL  call dword ptr [eax + 0xc4]   <-- indirect
+0x03ead4  CALL  call dword ptr [eax + 0xc4]   <-- indirect
+0x03eae2       cmp dword ptr [0x1024e45c], 1
+0x03eafd  CALL  call dword ptr [eax + 0xc4]   <-- indirect
+0x03eb0c  RET
+0x03eb19  CALL  call dword ptr [eax + 0xc4]   <-- indirect
+0x03eb31  CALL  0x1c450
+0x03eb48  RET
+0x03eb4b       cmp dword ptr [0x1024a3bc], 0
+0x03eb66  CALL  call dword ptr [eax + 0xf0]   <-- indirect
+0x03eb83  CALL  call dword ptr [eax + 0xf0]   <-- indirect
+0x03eba0  CALL  call dword ptr [eax + 0xf0]   <-- indirect
+0x03ebc0  CALL  call dword ptr [eax + 0xf0]   <-- indirect
+0x03ebe0  CALL  call dword ptr [eax + 0xf0]   <-- indirect
+0x03ec00  CALL  call dword ptr [eax + 0xf0]   <-- indirect
+0x03ec18  CALL  0x1c4c0
+
+### PROGRAM dispatcher 0x3e2a0
+0x03e2b9  RET
+0x03e2ca  RET
+0x03e2d5  CALL  call dword ptr [eax + 0x14]   <-- indirect
+0x03e2e8  CALL  0x3ee40
+0x03e2f2  RET
+0x03e2fe       cmp dword ptr [0x1024a360], 0
+0x03e307       cmp dword ptr [0x1024a3bc], 0
+0x03e310  STR   'Write tts/scpu flash not support retry sector isp, ignore retry!'
+0x03e31a  CALL  0x48350
+0x03e327  CALL  0x16860
+0x03e331       cmp dword ptr [0x1024a360], 0
+0x03e345  CALL  0x3db10
+0x03e34f  RET
+0x03e352       cmp dword ptr [0x1024a3bc], 0
+0x03e366  CALL  0x3df00
+0x03e370  RET
+0x03e382  CALL  0x3d150
+0x03e38c  RET
+0x03e38f  CALL  0x3d760
+0x03e399  RET
+0x03e3a5  STR   '咋ࠤ䊍謌끊젳飨ﯘ诿ﱊ젳軨ﯘ룿煘ဢ\ufde9ﵨ쳿쳌䶍\ue950ꆈ￦䶍\ue914嶀￤䶍\ue9bc捈￨咋ࠤ䊍謌ꁊ젳壨ﯘ诿ﱊ젳仨ﯘ룿熄ဢ뷩ﵨ쳿쳌䶍\ue9bc挘￨탨ﵒ쏿咋ࠤ䊍謌葊젳⋨ﯘ诿ﱊ젳ᣨﯘ룿燀ဢ蟩ﵨ쳿쳌쳌쳌쳌쳌쳌䶍\ue9bc拘￨薋ｐ\uffff\ue083༁ኄ'
+
+### PROGRAM body 0x3db10 pokes
+  0x1003db4c  ff5014     call dword ptr [eax + 0x14]
+  0x1003dbdd  684f080000 push 0x84f
+  0x1003dbe4  ff90c4000000 call dword ptr [eax + 0xc4]
+  0x1003dc82  6853080000 push 0x853
+  0x1003dc89  ff92c4000000 call dword ptr [edx + 0xc4]
+  0x1003dc98  6a10       push 0x10
+  0x1003dcc9  6845080000 push 0x845
+  0x1003dcce  ff92c4000000 call dword ptr [edx + 0xc4]
+  0x1003dced  6846080000 push 0x846
+  0x1003dcf2  ff92c4000000 call dword ptr [edx + 0xc4]
+  0x1003dd0c  6847080000 push 0x847
+  0x1003dd13  ff92c4000000 call dword ptr [edx + 0xc4]
+  0x1003dd28  6848080000 push 0x848
+  0x1003dd2f  ff90c4000000 call dword ptr [eax + 0xc4]
+  0x1003dd43  6a20       push 0x20
+  0x1003dd45  68f3000000 push 0xf3
+  0x1003dd4c  ff90f0000000 call dword ptr [eax + 0xf0]
+  0x1003dd62  6879080000 push 0x879
+  0x1003dd69  ff90c4000000 call dword ptr [eax + 0xc4]
+  0x1003dd7f  687a080000 push 0x87a
+  0x1003dd86  ff90c4000000 call dword ptr [eax + 0xc4]
+  0x1003dda0  68f4000000 push 0xf4
+  0x1003ddaa  ff5054     call dword ptr [eax + 0x54]
+  0x1003ddbe  6800010000 push 0x100
+  0x1003ddc5  68f5000000 push 0xf5
+  0x1003ddcd  ff5074     call dword ptr [eax + 0x74]
+  0x1003ddde  6a20       push 0x20
+  0x1003dde0  68ff000000 push 0xff
+  0x1003dde5  6851080000 push 0x851
+  0x1003ddec  ff90d0000000 call dword ptr [eax + 0xd0]
+
+### busy-wait 0x3ee40
+0x03ee76  CALL  0x1981d0
+0x03ee8f       cmp eax, 0xffffff
+0x03ee9a       cmp dword ptr [ebp - 0x120], esi
+0x03eeb4  CALL  0x17f651
+0x03eebc  RET
+0x03ef3d  CALL  call dword ptr [eax + 0xf0]   <-- indirect
+0x03efa0       cmp byte ptr [eax + esi], 0xff

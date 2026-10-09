@@ -152,3 +152,31 @@ ISP_PIPELINE = [
     ("write_flag_region",  0x21040),
     ("enable_soft_wp",     0x1E7C0),
 ]
+
+# ---- ISP register-window primitive (decoded 2026-10-09, session 14i) ----
+# The erase/program/verify pipeline steps drive the flash through one
+# common primitive, via Comm vtable slots on the interface object:
+#   slot +0x14 = 32-byte page I2C transfer   (payload movement)
+#   slot +0xc4 = write register32(reg, val)  (32-bit window: regs 0x841-0x84f)
+#   slot +0xf0 = write byte(reg, val)        (8-bit legacy: regs 0x83-0x89,
+#                                            plus a 0xf3-0xf5/0xff set for
+#                                            the program data path)
+#   slot +0xf8 = read byte(reg) / +0xd0 = read reg32
+# The two register maps carry the same roles:
+#   CTRL  (0x841 / 0x83), OPCODE (0x842 / 0x84), ADDR (0x845..0x848 / 0x85..0x88)
+# Every flash op is the same five moves (evidence re/g_ispopseq.txt):
+#   1. address -> ADDR regs
+#   2. CTRL = 0xB8                     (latch)
+#   3. OPCODE = JEDEC command          (0x20 sector erase; 0xD8 appears in
+#                                       the verify-path window writes;
+#                                       program path arms length 0x100 = a
+#                                       full 256 B flash page via 0xf5/0x74)
+#   4. CTRL = 0xB9                     (GO)
+#   5. poll busy (fn 0x3ee40) with a 0x4E20 = 20000 ms budget
+# The B8/B9 latch-GO reading is inferred from invariant placement around
+# every opcode write + the JEDEC-recognizable opcode values; no public RTD
+# documentation exists — as of this decoding, nowhere else on the internet
+# is the RTD2711 flash window written up. Flash.dat's older "06,60/61,..."
+# index-data grammar (0x22-slave byte protocol) is a DIFFERENT, earlier
+# register surface; which one RTD2711 traffic actually uses will be settled
+# by the first live 0x22 transaction (Intel/AMD box).
