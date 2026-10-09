@@ -94,3 +94,52 @@ def bin_content_checksum(data: bytes) -> int:
     0x4137cc). Padded-to-4MiB regions agree in low16 whenever the 0xFF pad
     count is a multiple of 0x100 (0xFF * n == 0 mod 2^16)."""
     return sum(data) & 0xFFFF
+
+
+# ---- The ISP flash pipeline, decoded 2026-10-09 (session 14f) -----------
+# WinIspPlugIn.dll export IspFlash@0x8520 is a thin dispatcher (full dump:
+# re/f_ispflash_full.txt): validates comm enum {4,5,6,7,0x11,0x1a,0x1b},
+# runs InitCommunication+entry @0x7b80, then retries ("---Retry Isp retry
+# count: %d---" + KERNEL32!Sleep backoff, fn 0x34000) around a single
+# attempt fn 0x34120 ("DoIsp"). The attempt's own debug logs (extracted:
+# re/f_ispsteps.txt) state the complete flash sequence, step fn -> label:
+#   0x1aa50  "Get Flash Mode"
+#   0x17300  "TypeC Usb Isp Check"
+#   0x1a050  "Set Mcu Reg Default Value"      (scaler SPI/pin defaults)
+#   0x1d560  "Get Flash Type"                 (chip detect -> "Flash Name: %ls"
+#                                             matched against Flash.dat entries)
+#   0x1db90  "Detect And Config Flash Address Mode"
+#   0x1db20  bank-space check                 ("Flash bank not enough!")
+#   0x1ad20  "Set WP Pin"
+#   0x1e8f0  "Disable Software WP"
+#   0x203d0  "JudgeSMBUSType"                 (+ 0x1dfa0 "Clear Flag")
+# per bank (params: "Bank: 0x%x, ProLen: 0x%x, SectorErase: 0x%x,
+# SectorEraseCount: 0x%x"):
+#   0x3e610  bank erase (or per-sector loop; "Sector %d Erase In Bank %d Fail")
+#   0x3e2a0  program bank ("Bank %d ISP Success" / "...Write Data To Flash Fail")
+#   0x3e9c0  read-back verify ("Bank %d Get Final Code Fail!")
+#   0x21040  write version/flag region ("Write Flag Fail!")
+# teardown:
+#   0x1e7c0  "EnableSoftWareWP"               (restore write protect)
+#   0x1b8f0/0x18fa0/0x2d7c0 restore/reset; logs total "Isp time : %d ms"
+# Notable for our tool: the updater itself does chip-detect (so the
+# JEDEC-identity gate is VENDOR-sanctioned, not only our invention), erases
+# per bank with per-sector fallback, verifies after program, and restores WP
+# even on failure paths. Error codes 0xd39/0xd56 = message ids of this plugin.
+ISP_PIPELINE = [
+    ("get_flash_mode",     0x1AA50),
+    ("typec_usb_check",    0x17300),
+    ("set_mcu_defaults",   0x1A050),
+    ("get_flash_type",     0x1D560),
+    ("config_addr_mode",   0x1DB90),
+    ("bank_space_check",   0x1DB20),
+    ("set_wp_pin",         0x1AD20),
+    ("disable_soft_wp",    0x1E8F0),
+    ("judge_smbus_type",   0x203D0),
+    ("clear_flag",         0x1DFA0),
+    ("erase_bank",         0x3E610),
+    ("program_bank",       0x3E2A0),
+    ("verify_bank",        0x3E9C0),
+    ("write_flag_region",  0x21040),
+    ("enable_soft_wp",     0x1E7C0),
+]

@@ -1,0 +1,103 @@
+0x10034125  STR  '咋ࠤ䊍謌ᲊ\ufffe㏿\ue8c8옐\ufffb䪋㏼\ue8c8옆\ufffbᢸ⊁\ue910噵�쳌쳌쳌쳌쳌跌벍\ufffe\ue9ff貅￦趍＄\uffff뫩\ue850跿ꁍ닩\ue850跿㢍\uffff\ue9ff傧￨趍ｬ\uffff鳩\ue850跿킍\ufffe\ue9ff傑￨咋ࠤ䊍謌뒊\ufffe㏿\ue8c8얞\ufffb䪋㏼\ue8c8얔\ufffb袸⊁\ue910嘃�쳌쳌쳌쳌跌ⲍ\uffff\ue9ff偕￨䶍\ue994偍￨趍｠\uffff䋩\ue850跿\uf88d\ufffe\ue9ff'
+0x1003419d  CALL 0x1000d890
+0x100341df  CALL 0x1000c2b0
+0x10034202  CALL 0x1000d7a0
+0x10034225  CALL 0x100119b0
+0x10034230  STR  'ޡ'
+0x1003423f  CALL 0x1002bdf0
+0x10034253  STR  '......Do ISP Begin......'
+0x10034283  STR  ' enumActionType : %d, enumSignType:%d, enumIspMode:%d, enumOneBankMode:%d '
+0x100342a5  CALL 0x10023760
+0x100342bd  CALL 0x1002b9a0
+0x100342cd  STR  'Flash Data Map Empty!'
+0x10034315  CALL 0x10018f10
+0x1003432a  CALL 0x1000b550
+0x1003433b  STR  'ۮ'
+0x10034340  CALL 0x1000c880
+0x10034345  CALL 0x1001bbd0
+0x1003435a  CALL 0x10016b00
+0x10034377  CALL 0x1001aa50
+0x10034386  STR  ' Get Flash Mode Fail!, ErrorCode: 0x%x'
+0x100343ae  CALL 0x10017300
+0x100343bd  STR  ' TypeC Usb Isp Check Fail!, ErrorCode: 0x%x'
+0x100343df  CALL 0x1001a050
+0x100343ee  STR  ' Set Mcu Reg Default Value!, ErrorCode: 0x%x'
+0x10034431  CALL 0x1001d560
+0x10034443  STR  ' Get Flash Type Fail!, ErrorCode: 0x%x'
+0x10034470  CALL 0x1000da90
+0x10034488  STR  'Flash Name: %ls'
+0x100344c2  CALL 0x1001db90
+0x100344d1  STR  ' Detect And Config Flash Address Mode Fail!, ErrorCode: 0x%x'
+0x100344fd  CALL 0x1001db20
+0x1003450c  STR  'Flash bank not enough!, ErrorCode: 0x%x'
+0x10034534  CALL 0x1001ad20
+0x10034543  STR  ' Set WP Pin Fail!, ErrorCode: 0x%x'
+0x1003456b  CALL 0x1001e8f0
+0x1003457a  STR  ' Disable Software WP Fail!, ErrorCode: 0x%x'
+0x1003459f  CALL 0x1001dfa0
+0x100345ae  STR  ' JudgeSMBUSType Fail!, ErrorCode: 0x%x'
+0x100345d7  CALL 0x100203d0
+0x100345e7  CALL 0x1001dfa0
+0x100345f0  STR  ' Clear Flag Fail!, ErrorCode: 0x%x'
+0x1003460a  CALL 0x10007610
+0x10034615  CALL 0x1002b8b0
+0x10034620  CALL 0x1001dfa0
+0x10034628  STR  ' Isp Progress Set Range Fail! '
+0x10034678  CALL 0x100491e5
+0x100346b5  CALL 0x101981d0
+0x100346c9  CALL 0x1003be80
+0x100346de  CALL 0x1000ccd0
+0x100346f2  CALL 0x1000cac0
+0x10034703  CALL 0x1000ccd0
+0x10034729  CALL 0x1001e4c0
+0x10034747  CALL 0x1000ccd0
+0x1003476c  STR  'Bank: 0x%x, ProLen: 0x%x, SectorErase: 0x%x, SectorEraseCount: 0x%x'
+0x1003479c  CALL 0x1000ccd0
+0x100347b2  CALL 0x1003e610
+0x100347dc  CALL 0x1000ccd0
+0x100347ed  STR  'Bank %d Erase Success'
+0x10034827  CALL 0x1000ccd0
+0x1003484e  CALL 0x1003e2a0
+0x10034869  CALL 0x1000ccd0
+0x1003487a  STR  'Bank %d ISP Success'
+0x100348ae  CALL 0x1000ccd0
+0x100348d8  CALL 0x1000ccd0
+0x10034916  CALL 0x1000ccd0
+0x1003492b  CALL 0x1003e9c0
+0x10034940  CALL 0x100491ee
+0x1003494a  CALL 0x1001dfa0
+0x1003495b  CALL 0x1000ccd0
+0x1003496d  STR  ' Bank %d Bank Erase Fail!, ErrorCode: 0x%x'
+0x10034986  CALL 0x100491ee
+0x10034990  CALL 0x1001dfa0
+0x100349a1  CALL 0x1000ccd0
+0x100349b4  STR  ' Sector %d Erase In Bank %d Fail!, ErrorCode: 0x%x'
+0x100349cd  CALL 0x100491ee
+0x100349d7  CALL 0x1001dfa0
+0x100349e8  CALL 0x1000ccd0
+0x100349fa  STR  ' Bank %d Write Data To Flash Fail!, ErrorCode: 0x%x'
+0x10034a13  CALL 0x100491ee
+0x10034a1d  CALL 0x1001dfa0
+0x10034a2e  CALL 0x1000ccd0
+0x10034a40  STR  ' Bank %d Get Final Code Fail!, ErrorCode: 0x%x'
+0x10034a54  CALL 0x100491ee
+0x10034a74  CALL 0x10021040
+0x10034a84  CALL 0x1001dfa0
+0x10034a8d  STR  ' Write Flag Fail!, ErrorCode: 0x%x'
+0x10034aa6  CALL 0x1001e7c0
+0x10034ab3  STR  ' EnableSoftWareWP Fail!, Error Code:0x%x'
+0x10034acb  CALL 0x1001dfa0
+0x10034ada  STR  ' JudgeSMBUSType Fail!, Error Code:0x%x'
+0x10034b0f  CALL 0x1001b8f0
+0x10034b1a  CALL 0x10018fa0
+0x10034b23  CALL 0x1002d7c0
+0x10034b35  STR  '\n'
+0x10034b6a  STR  'Isp time : %d ms'
+0x10034b83  STR  '......Do ISP End......'
+0x10034baf  CALL 0x100107a0
+0x10034bba  CALL 0x100491ee
+0x10034bd8  CALL 0x1000d260
+0x10034be3  CALL 0x100491ee
+0x10034bff  CALL 0x1000b550
+0x10034c0b  CALL 0x100491ee
+0x10034c38  CALL 0x1002c430

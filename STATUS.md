@@ -762,3 +762,29 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
   `--nvrm` header renders as root (FW.009 via RM); non-TTY fallback clean;
   ruff + compileall green repo-wide after.
 - README quickstart/layout + HANDOFF commands/repo-map updated for the TUI.
+- RE (target 2): **the vendor flash pipeline is decoded.** IspFlash@0x8520
+  = dispatcher (mode gate {4,5,6,7,11,1a,1b}; `InitCommunication+entry`
+  0x7b80; error ids 0xd39/0xd56) → retry loop 0x34000 (logs "---Retry Isp
+  retry count: %d---" + Sleep backoff) → single attempt 0x34120, whose own
+  debug strings spell out the whole sequence: Get Flash Mode (0x1aa50) →
+  TypeC check (0x17300) → Set MCU Reg Defaults (0x1a050) → **Get Flash
+  Type = chip detect vs Flash.dat table (0x1d560, "Flash Name: %ls")** →
+  Detect/Config Address Mode (0x1db90) → bank-space check (0x1db20) →
+  Set WP Pin (0x1ad20) → **Disable Software WP (0x1e8f0)** → JudgeSMBUS
+  (0x203d0)/Clear Flag (0x1dfa0) → per bank: params "Bank, ProLen,
+  SectorErase, SectorEraseCount" (0x1e4c0) → **erase (0x3e610)** with
+  per-sector fallback → **"Bank %d ISP Success" program (0x3e2a0)** →
+  **verify "Get Final Code" (0x3e9c0)** → write flag/version region
+  (0x21040) → **re-enable SW WP (0x1e7c0)** + SMBUS re-judge + MCU reset
+  trio (0x1b8f0/0x18fa0/0x2d7c0) → "Isp time : %d ms". Findings in
+  Facts.ISP_PIPELINE; raw dumps re/f_ispflash_full.txt, re/f_ispcore.txt,
+  re/f_douispraw.txt, re/f_ispsteps.txt.
+  Implications: (a) chip-detect before erase is VENDOR practice — our
+  JEDEC 0x1F gate mirrors the updater, it is not an invented oracle (HANDOFF
+  §5 note refined); (b) verify-after-program + WP restore even on error
+  paths = the failure semantics our `write` must reproduce; (c) the retry
+  wrapper = evidence the ISP entry/transaction path IS flaky by design —
+  session-13's handshake flakiness has vendor-side retry precedent with
+  logging. Method note: pdump's 3rd arg is BYTES (linear capstone stops at
+  data gaps); string-pipeline extraction = grep `push 0x10XXXXXX` + UTF-16
+  resolve per site.
