@@ -99,7 +99,7 @@ hex digits of the filename (cracked from the v1.0.6 exe: `0x4119a0` byte-sum
 loops + `0x4137cc` `movzx ax` mask; `sum(FW.012) = 0x0C964023` → `0x4023` ✓).
 `Facts.bin_content_checksum()` reimplements it.
 
-## What doesn't (yet) — the NVIDIA allow-list
+## What doesn't work (yet) — the NVIDIA allow-list
 
 The NVIDIA open kernel module's i2c-dev shim answers **only** for the
 allow-listed addresses `0x30`/`0x37`/`0x50`; the scaler's ISP slaves

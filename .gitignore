@@ -19,3 +19,5 @@ nvidia-syms
 
 # editor/session backups
 *.bak
+# ruff cache
+.ruff_cache/

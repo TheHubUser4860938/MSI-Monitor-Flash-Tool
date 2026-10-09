@@ -27,7 +27,7 @@ paperweight, not a stack trace.** Binding safety policy:
   no runtime dependency, no build step — keep it that way.
 - **Lint**: `ruff check .` must pass. The policy is pinned in `ruff.toml`:
   strict on shipping surfaces (`msi_isp/`, `kernel/`, `re/`), real-bug-family
-  rules only on the research archives (`t_*.py`, `scratch/`, `tools/` —
+  rules only on the research archives (`scratch/` incl. `scratch/legacy/`,
   those are frozen experiment records; don't restyle them).
 - **RE kit** (`re/`): needs capstone + pefile in a venv —
   `python3 -m venv .venv && .venv/bin/pip install capstone pefile ruff`,

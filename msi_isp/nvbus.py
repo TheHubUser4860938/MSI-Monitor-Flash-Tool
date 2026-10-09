@@ -6,7 +6,7 @@ support, by speaking the same logical I2C messages through RM control
 NV0073_CTRL_CMD_DP_AUXCH_CTRL (0x731341), I2C mode.
 
 Transaction form VERIFIED on live RTX 4090 + MAG 341CQP QD-OLED, root,
-2026-10-05 (t_kern5.py / t_kern6.py in repo root):
+2026-10-05 (t_kern5.py / t_kern6.py, now in scratch/legacy/):
   * addr field = plain 7-bit slave address.  RM composes the DP-spec wire
     address field itself; R/W direction comes from the cmd REQ_TYPE bits.
     (Same conclusion as NVIDIA's own dp_deviceimpl.cpp:  address >>= 1;

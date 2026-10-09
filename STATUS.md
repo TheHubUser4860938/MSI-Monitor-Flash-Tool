@@ -817,3 +817,24 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
   all authored `msi-isp-dev <dev@msi-isp.local>` with NO GitHub account
   linkage (linked-account: null). Public:
   https://github.com/TheHubUser4860938/MSI-Monitor-Flash-Tool
+
+## Session 14g (2026-10-09) — repo tidy: root slimmed 90 → 10 entries (public)
+
+- All pre-package experiment archives moved with history via `git mv`:
+  root `t_*.py` + `probe*.py` + `ddcci/dp_aux/rt_*.py` → `scratch/legacy/`;
+  `tools/` → `scratch/legacy/tools/`; `.smoke/` → `scratch/legacy/smoke/`.
+  Deleted: empty 0-byte `probe` (redirect accident) and on-disk
+  STATUS.md.bak (git history is the backup). Nothing else removed — `re/`
+  and `scratch/*.log` stay (they are the evidence; vendor binaries are
+  gitignored so the dumps are irreplaceable).
+- Kept honest: every `sys.path.insert` in the moved scripts recomputed for
+  the new depth (41 × `parents[2]`, 7 × `parents[3]`; `smoke/` uses
+  getcwd(), `root_aux_test.py`'s single `.parent` never targeted root —
+  both left). `ruff.toml` archive coverage collapsed to `scratch/**` with
+  a layout note; HANDOFF repo-map + CONTRIBUTING lint paragraph + nvbus.py
+  "repo root" provenance comment updated to say `scratch/legacy/`.
+- README heading fix (user flag): "What doesn't (yet)" → "What doesn't
+  work (yet) — the NVIDIA allow-list". `.gitignore` += `.ruff_cache/`.
+- Gate re-run after the moves: `ruff check .` all passed, `py_compile`
+  whole tree OK, `./msi-isp info` green, `spec_0x22.py` i2cdev verdict
+  byte-identical NO CONTACT (exit 1 as designed).
