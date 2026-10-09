@@ -616,4 +616,8 @@ unless stated; monitor untouched):
   stdlib, usable for future post-flash verify once a dump exists).
 - GitHub MCP: `opencode mcp list` → "⚠ github needs authentication" — config
   confirmed live; OAuth sign-in is the user-side step (Phase 3 gated).
+- Phase 7 done early (doesn't depend on GitHub): README.md written (0x45
+  answer, _4023 answer, working matrix, NVIDIA status, safety model) + MIT
+  LICENSE added. Phase 8 (kernel-module kill-switch check) is the remaining
+  executable item; Phase 3 (repo push) awaits user sign-in + STATUS skim.
 - Monitor: FW.009, DP-only, healthy, never flashed.
