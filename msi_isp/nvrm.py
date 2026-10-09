@@ -5,7 +5,10 @@ NVAPI ctlAUXAccess: raw DisplayPort AUX-channel transactions through the
 Resource Manager (control NV0073_CTRL_CMD_DP_AUXCH_CTRL = 0x731341).
 
 ABI verified against NVIDIA open-gpu-kernel-modules 615.71.09 (the exact
-version loaded on this machine):
+version loaded when written). 615.78.08 carries the same escapes/structs —
+only the NV_ESC_CHECK_VERSION gate got stricter: any version-string mismatch
+now returns EINVAL even in relaxed mode (session 14), hence the runtime
+detection in NvRM._driver_version() below.
   kernel-open/nvidia/nv.c              dispatcher: default -> rm_ioctl()
   kernel-open/common/inc/nv-ioctl-numbers.h  NV_IOCTL_BASE 200, escapes
   src/nvidia/arch/nvalloc/unix/include/nv_escape.h  RM_ALLOC 0x2B etc.
@@ -20,6 +23,7 @@ from __future__ import annotations
 import ctypes
 import fcntl
 import os
+import re
 import time
 
 # ---- ioctl numbers: _IOWR('!', escape, struct) --------------------------
@@ -170,10 +174,24 @@ class NvRM:
     """Minimal Resource Manager client: version check, client/device/NV0073
     alloc, and AUX-channel transactions."""
 
-    VERSION = b"615.71.09"
+    VERSION = None        # set per-instance at init; see _driver_version()
+
+    @staticmethod
+    def _driver_version():
+        """Version string of the loaded NVRM. 615.78+ rejects a mismatching
+        string with EINVAL (even relaxed), so detect at runtime (session 14)."""
+        try:
+            with open("/proc/driver/nvidia/version") as f:
+                m = re.search(r"\b(\d+\.\d+\.\d+)\b", f.read())
+            if m:
+                return m.group(1).encode()
+        except OSError:
+            pass
+        return b"615.71.09"        # last-resort fallback = documented ABI above
 
     def __init__(self, verbose=False):
         self.fd = os.open("/dev/nvidiactl", os.O_RDWR)
+        self.VERSION = self._driver_version()
         self.verbose = verbose
         self.hClient = 0
         self.hDevice = 0

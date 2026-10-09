@@ -546,4 +546,9 @@ unless stated; monitor untouched):
 - Env: sudoers drop-in 99-msi-isp re-installed by user (active); remove after root
   testing ends. capstone 5.0.7 currently MISSING from system python (pefile 2024.8.26
   present) — re/ toolchain blocked until restored (repo-local .venv planned).
+- FIX APPLIED same day: nvrm.py now derives the version string at runtime from
+  /proc/driver/nvidia/version (NvRM._driver_version; pinned-string fallback kept).
+  Re-ran BOTH bare: `sudo ./msi-isp --nvrm probe` exit 0; spec_0x22 STEP 1 verdict
+  unchanged (109 tries / 2.0 s, all TIMEOUT). Future driver updates no longer
+  break the RM path.
 - Monitor: FW.009, DP-only, healthy, never flashed.
