@@ -442,6 +442,42 @@ FLASH_CHIP = {
                 "semantics at clip implementation time",
 }
 
+# ---- Flash.dat record->script bind (session 15i Phase A) ----------------
+# Full inventory in re/g_flashdat_map.txt (generator: scratch/
+# flashdat_bind.py; tests/test_flashdat_bind.py pins the contract).
+# File = 12B header + 150 chip records; 31 CSV script bodies inline in
+# 15 'template' records; the other 135 inherit the nearest preceding
+# script. A25L032M's nearest carrier = its family lead A25L020 (the
+# only '70'-family template), so family-rule vs previous-rule loaders
+# agree -- bind is rule-agnostic. (The loader itself lives in the
+# missing WinISPTool.exe; rule inferred from layout: flag as inference.)
+# OUR SCRIPT (18 stmts, grammar-perfect): window protocol per 14i --
+# 06,60,<idx>/06,61,<data> byte window; transactions stage opcode in
+# reg 0x61 + addr/len regs 0x64-66, then ARM via 0x60<-0x38 and TRIGGER
+# via 0x60<-0x39 (mirrors the 14i CTRL 0xB8-latch/0xB9-GO ladder
+# discovery -- two independent decodes agreeing), then 0d,60,... poll
+# (8-token reads in this family; GD/IS/PM QPI templates carry +3 tail
+# fields -- parser flags those, none of them ours). Sequence: raw
+# window write idx0x20<-0x06, SPI txn opcode 0x90 (Device-ID class --
+# the record KEY '70 16 15' IS this response), SPI txn opcode 0x3B
+# len-0x40 (64-byte read). W25X2XX template staging 0xAA/0x55 = the
+# Winbond CAKE keys: corroborates the opcode-staging reading.
+# SCOPE HONESTY: Flash.dat answers chip-ID/init only -- bank bases and
+# the boot-flag address are NOT in it (engine stages + the dump decide,
+# CLIP-PLAYBOOK step 5). And this whole script rides the SCALER window
+# lane: the clip route bypasses it entirely; its value to us = the
+# vendor's own ID gate (0x90 -> '70 16 15') vs our independent 0x9F/
+# 1F4010 mirror -- two different commands, never conflate.
+FLASHDAT_MAP = {
+    "record": "A25L032M @0x111, key 37 30 16 15 ('70'+device bytes), "
+              "cap 40 00 = 4096 KiB, params class-pair 02 02",
+    "script": "inherited from A25L020 template @0x37 (18 stmts); both "
+              "plausible loader inheritance rules resolve identically",
+    "id_gate": "vendor gate = 0x90 Device-ID '70 16 15' over scaler "
+               "window; OUR gate = 0x9F JEDEC 1F4010 -- independent "
+               "mirrors, and 0x38/0x39 arm/trigger == 14i B8/B9",
+}
+
 # ---- Bulk I2C-over-AUX control (0x73137C), probed session 14n -----------
 # NV0073_CTRL_CMD_DP_AUXCH_I2C_TRANSFER_CTRL: "bulk ... splitting up the
 # data into pieces and retrying for pieces that aren't ACK'd" (SDK doc).

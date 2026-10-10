@@ -1652,3 +1652,67 @@ use exact -x names or PID files, never -f patterns contained in own cmdline.
   is now).
 - Monitor throughout: FW.009, VCPs as user set, EDID head intact after
   every cell; DP+HDMI dual-linked during probes, clean exits.
+
+## Session 15i (2026-10-10) — BUILD: 15h corrections landed; CLIP-PLAYBOOK.md written; Flash.dat Phase A = record->script bind CLOSED
+
+- Build-mode turn, three stages, all committed (15h audit + dead-end #13 +
+  Facts ISP_LADDER rewrite/PROTON_045 extension/FLASH_CHIP new => 4bbe6fe;
+  CLIP-PLAYBOOK.md + README pointer => next commit; Phase A => this one).
+- **CLIP-PLAYBOOK.md**: whole clip-day + practice-write-day procedure in
+  order-of-evidence form: package check FIRST (SOP-208 clip-on vs WSON
+  stop), 3.3 V level check (not-5V-tolerant + clone-board zener mod),
+  side-on clip + strain relief, detect -> RDID/RDSR record -> DOUBLE-DUMP
+  + sha256 == the backup, offline bank/flag map derivation against Facts
+  anchors, compose inactive-bank-only image, region-guarded write
+  (flashrom -w -i layout: auto-unlock must become explicit record/
+  restore), verify-in-place rule, restore-home escape (worst case =
+  re-flash dump1, zero damage), flag commit as separate user decision
+  with symmetric rollback, failure-mode table. Monitor UNPLUGGED FROM
+  MAINS for every clip step (powered scaler fights the bus).
+- **Flash.dat Phase A (14i's assigned "own future session") -- bound:**
+  * structure read off bytes: 12B header + 150 records (14i's "136" was
+    an undercount); key = 4B raw-JEDEC-style (AT25DF041 1f4401ff) or
+    ASCII '70'+device bytes for the AMIC family (ours: 37 30 16 15);
+    params [0:2]=capacity in 64-KiB LE (40 00 = 4096 KiB -- vendor's own
+    confirmation of Facts.FLASH_SIZE); script bodies inline after params
+    of 15 'template' records; 135 records carry NO script and inherit
+    the nearest preceding one.
+  * BINDING: A25L032M's nearest script carrier = family lead A25L020
+    (the ONLY '70'-family template) => "family default" and "nearest
+    preceding" loader rules resolve to the SAME script: rule-agnostic
+    bind. Loader itself lives in the missing WinISPTool.exe -> rule
+    inferred from layout (labeled inference in Facts.FLASHDAT_MAP).
+  * OUR SCRIPT fully decoded (18 statements, zero parse drift): 14i's
+    06,60,<idx>/06,61,<data> byte-window grammar; transactions stage
+    opcode+addr/len in regs 0x61/0x64-66, ARM 0x60<-0x38, TRIGGER
+    0x60<-0x39, then 0d-poll. The 0x38/0x39 arm/trigger pair INDEPENDENTLY
+    corroborates the 14i CTRL 0xB8-latch/0xB9-GO finding -- two separate
+    decodes of the same window protocol, from DLL disassembly and from
+    a data table, agreeing.
+  * Script content: raw window write idx0x20<-0x06, then SPI txn opcode
+    0x90 (Device-ID class -- the record key '70 16 15' IS that response),
+    then SPI txn opcode 0x3B with length reg 0x66<-0x40 (64-byte read).
+    Corroboration: W25X2XX template stages 0xAA/0x55 = the famous Winbond
+    CAKE keys -> these scripts really are opcode-staging sequences.
+  * Vendor ID gate = 0x90->'70 16 15' over the scaler window; ours =
+    0x9F->1F4010 at the SPI layer: two different commands, honest mirrors
+    of each other, never conflated. SCOPE HONESTY: bank bases + boot-flag
+    address are NOT in Flash.dat (engine stages + the dump decide them --
+    playbook step 5); the script rides the scaler lane the clip bypasses.
+  * Grammar caveat banked: 0d-poll = 8 tokens in our/W25X/AT25 families;
+    GD/IS/PM QPI templates carry +3 tail fields -> parser honestly flags
+    those as MALFORMED drift (24 flagged stmt-groups, none in our family;
+    family-clean asserted by test).
+  * Artifacts: scratch/flashdat_bind.py (pure parser), re/g_flashdat_map
+    .txt (full 150-record inventory + our decode), Facts.FLASHDAT_MAP,
+    tests/test_flashdat_bind.py (fixture + vendor-guarded: bind, capacity,
+    18-stmt cleanliness, key). Two parser bugs fixed en route: 0d arity
+    7->8, and fixed-28B-params assumption (A25L020 params are 27B -> CSV
+    scan now starts at params start, ASCII-vs-binary safe).
+- Gates: ruff clean, compile clean, unittests green (new file included),
+  msi-isp info healthy. Monitor: FW.009, untouched (this was a data-only
+  session -- vendor file read, no bus touched).
+- Next: watch issue #1 / borrowed-Windows 12%-observable; kit arrival ->
+  playbook order of operations. Open backlog (non-blocking): 15f-forensics
+  micro-question (how the Proton run passed version checks with an
+  I2C-less shim).

@@ -1,0 +1,69 @@
+records=150 with-inline-scripts=15 inheriting=135
+  0x000c [37 30 12 11] A25L020            256 KiB  1 inline
+      S0: 18 stmts
+  0x0111 [37 30 16 15] A25L032M          4096 KiB  inherits A25L020
+  0x01b4 [1f 44 01 ff] AT25DF041          512 KiB  1 inline
+      S0: 5 stmts
+  0x03b5 [68 40 13 12] BY25D40_Special    512 KiB  1 inline
+      S0: 25 stmts
+  0x0a8d [c8 41 12 11] GD25M21_B          256 KiB  3 inline
+      S0: 33 stmts MALFORMED 00 04 00
+      S1: 41 stmts MALFORMED 00 04 00 06 77 00 06 6d 02
+      S2: 33 stmts MALFORMED 00 04 00
+  0x0f3f [c8 41 13 12] GD25M41_B          512 KiB  3 inline
+      S0: 33 stmts MALFORMED 00 04 00
+      S1: 41 stmts MALFORMED 00 04 00 06 77 00 06 6d 02
+      S2: 33 stmts MALFORMED 00 04 00
+  0x187c [9d 40 13 12] IS25LQ040          512 KiB  3 inline
+      S0: 33 stmts MALFORMED 00 04 00
+      S1: 498 stmts MALFORMED 00 04 00 06 77 00 06 6d 02
+      S2: 33 stmts MALFORMED 00 04 00
+  0x2f79 [c2 20 12 03] MX25L2026_C        256 KiB  1 inline
+      S0: 25 stmts
+  0x3199 [c2 20 13 04] MX25L4026_D        512 KiB  1 inline
+      S0: 25 stmts
+  0x376a [7f 9d 22 11] PM25LD020          256 KiB  3 inline
+      S0: 33 stmts MALFORMED 00 04 00
+      S1: 312 stmts MALFORMED 00 04 00 06 77 00 06 6d 02
+      S2: 33 stmts MALFORMED 00 04 00
+  0x45a3 [9d 14 45 14] PM25LQ016         2048 KiB  3 inline
+      S0: 33 stmts MALFORMED 00 04 00
+      S1: 994 stmts MALFORMED 00 04 00 06 77 00 06 6d 02
+      S2: 33 stmts MALFORMED 00 04 00
+  0x6bd6 [7f 9d 42 11] PM25LQ020          256 KiB  3 inline
+      S0: 33 stmts MALFORMED 00 04 00
+      S1: 250 stmts MALFORMED 00 04 00 06 77 00 06 6d 02
+      S2: 33 stmts MALFORMED 00 04 00
+  0x77e1 [9d 13 44 13] PM25LQ080         1024 KiB  3 inline
+      S0: 33 stmts MALFORMED 00 04 00
+      S1: 498 stmts MALFORMED 00 04 00 06 77 00 06 6d 02
+      S2: 33 stmts MALFORMED 00 04 00
+  0x8cdc [7f 9d 7e 9d] PM25LX040          512 KiB  3 inline
+      S0: 33 stmts MALFORMED 00 04 00
+      S1: 498 stmts MALFORMED 00 04 00 06 77 00 06 6d 02
+      S2: 33 stmts MALFORMED 00 04 00
+  0xa83b [ef 30 12 11] W25X2XX            256 KiB  1 inline
+      S0: 8 stmts
+  0xa8d7 [ef 30 13 12] W25X4XX            512 KiB  1 inline
+      S0: 8 stmts
+
+-- inherited script set (carrier A25L020, key 37 30 12 11) --
+S0:
+   write reg 0x60 <- 0x20
+   write reg 0x61 <- 0x06
+   write reg 0x60 <- 0x21
+   read/poll reg 0x60 len 0x01 tail ['00', '00', '64', '00', '64']
+   write reg 0x60 <- 0x38
+   write reg 0x61 <- 0x90
+   write reg 0x64 <- 0x00
+   write reg 0x65 <- 0x28
+   write reg 0x66 <- 0x00
+   write reg 0x60 <- 0x39
+   read/poll reg 0x60 len 0x01 tail ['00', '00', '64', '00', '64']
+   write reg 0x60 <- 0x38
+   write reg 0x61 <- 0x3b
+   write reg 0x64 <- 0x00
+   write reg 0x65 <- 0x28
+   write reg 0x66 <- 0x40
+   write reg 0x60 <- 0x39
+   read/poll reg 0x60 len 0x01 tail ['00', '00', '64', '00', '64']
