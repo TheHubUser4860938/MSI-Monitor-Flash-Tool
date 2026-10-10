@@ -115,7 +115,16 @@ sudo rmmod msi_auxch                 # fully reversible; nothing auto-loads it
 
 ## Next actions (ordered)
 
-0. **CODE AUDIT (user-scheduled, immediately after this compaction)**: scope = `msi_isp/` core (transport correctness, error paths, gate enforcement), `kernel/msi_auxch.c` (write-gate band + unlock window), CLI/TUI/console surfaces, `scratch/` hygiene, docs-vs-code drift, test-coverage gaps, CI gates. Two drift items ALREADY known (fix during audit): (i) `Facts.STANDBY_AXES["queued"]` + this file's dead-end #14 phrasing re cell B (partially fixed at refresh time — re-verify), (ii) any doc claim still citing the pre-15h allow-list-polluted HDMI cells (grep `0x41`/`0x49` claims). General rules for the auditor: STATUS is append-only; safety policy binding; NEVER run write-path code against the monitor during audit (static + unit-test scope; probes stay read-only).
+0. **CODE AUDIT DONE (session 15l; five batches + record in STATUS.md —
+   read it first)**: every finding dispositioned; top latent catches were
+   the read_burst 8-15-bit address aliasing, the JEDEC window aimed at
+   0x20 instead of 0x22, control-level phantom-ACKs in both RM transports,
+   and the stale-backup flash gate. New CI suites pin the relay ABI mirror
+   and transport status integrity (tests/test_relay_abi.py,
+   test_transports.py, test_console_gates.py; suite 53->79). Inferences
+   still awaiting live wires (unchanged philosophy): burst header byte
+   order, jedec data-out register, word-vs-byte framing — the dump day
+   settles them.
 1. (User, hardware) Intel/AMD Linux box + DP cable: copy the repo, follow
    **`TEST-INTEL-AMD.md`** (`./msi-isp --bus N info|probe` +
    `scratch/spec_0x22.py --bus N`). As of session 14b `spec_0x22.py` is

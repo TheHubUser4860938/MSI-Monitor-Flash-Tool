@@ -1966,3 +1966,117 @@ use exact -x names or PID files, never -f patterns contained in own cmdline.
 - Stop state: monitor FW.009 HDR/10% untouched; relay loaded; tree clean
   post-commit; no pending processes (watcher done); tmp logs ephemeral,
   conclusions banked.
+
+## Session 15l (2026-10-10) — FULL CODE AUDIT (build mode): ~25 findings, 5 fix batches, every one dispositioned; suite 53 -> 79
+
+Scope per HANDOFF item 0: msi_isp/ core, kernel/msi_auxch.c, CLI/TUI/console,
+scratch/ + re/ hygiene, docs-vs-code drift, test gaps, CI. Binding rule
+respected: static + unit only — NO live bus commands this session, no
+writes, monitor stays untouched FW.009 (HDR/10 %). Method: line-by-line
+reads of every shipping file by me; two parallel audit subagents (docs-vs-
+code drift; scratch/re sprawl); external facts re-grounded live (NVIDIA
+SDK ctrl0073dp.h @615.78.08 via raw-github, flashrom v1.8.0 flashchips/
+amic.c, NVIDIA/nvapi official interface table via Brave).
+
+TOP LATENT BUGS FOUND (all would have bitten on the FIRST successful
+backup — i.e. the issue-#1 box or kit-adjacent code reuse):
+1. read_burst's 2-byte address header [(at>>16)&0xff, at&0xff] DROPPED
+   bits 8-15: aliased every 64 KiB, could not address the 4 MiB chip at
+   all. RE ground truth (Comm fn 0x7e50, re/f_readflash.txt:7ec9-7ed0):
+   the vendor pushes addr>>16 AND the full dword => all 24 bits reach the
+   wire. Fixed to BE [hi,mid,lo] (byte ORDER flagged inference); silent
+   slave now raises instead of trusting zeros; aliasing regression test.
+2. JEDEC window poked slave 0x20 at both call sites while Facts + the
+   docstring + the safety policy all say the register file IS 0x22. Fixed
+   (0x20 remains only the ReadFlashData burst slave). The binding user
+   policy (JEDEC 0x1Fxxxx from 0x22) is now ENFORCED at both backup paths,
+   not merely "sane vendor prefix".
+3. jedec_id's fallback grammar was the stale pre-15i reading (opcode->0x60,
+   "strobe 0x20/0x21"). Aligned to the 15i vendor-script ladder: arm pair
+   0x60/0x61/0x60, ARM 0x38, opcode -> 0x61, addr/mode/len -> 0x64/65/66
+   (0x65=0x28, 0x66=0x00 copied verbatim from the 0x90 ID transaction),
+   TRIGGER 0x39, one 0x60 poll. Data-out register (0x64) remains the
+   flagged 14i guess; word-vs-byte framing stays open — first live wire
+   settles BOTH (Facts says so since 14i).
+4. flash_path_enter probed only 0x20 while the plugin engine's DumpFlash
+   rides the 0x22 lane (ISP_PIPELINE/slot +0x14 evidence) — a box where
+   only 0x22 wakes would have been refused at the door. Now probes both.
+5. TRANSPORT PHANTOM-ACK at control level: auxdev._txn and nvrm aux()/
+   aux_i2c() ignored rmStatus — a failed RM control leaves replyType
+   residue 0 == "ACK" (the insmod-time oracles pair st+replyType; the
+   ioctl clients now do the same). auxdev.read could spin forever on an
+   empty-ACK. Fixed both transports + SDK INVALID_ARG reply parity.
+6. console do_flash "trusted backup this session" gate checked only
+   backup_path — a LATER failed backup (backup_ok False) with the older
+   file still on disk passed. Now backup_ok AND path (test added).
+7. Dump loops: short bursts silently misaligned the file (writes are
+   sequential; next burst starts at the intended offset) — now exact-
+   length checked + aborts.
+8. UX/safety: backup refused-overwrite on non-empty --out; do_backup
+   '--write' substring bug (path 'my--write-dump.bin' triggered writes);
+   Ctrl-C in REPL = traceback -> clean exit 130; TUI no-TTY fallback
+   inherits the guard; i2c-dev privilege texts no longer conflate node
+   perms with --nvrm root.
+
+CONFIRMED-SOUND (audit cross-checks that PASSED): kernel ABI mirrors are
+field-exact (C struct parsed in the new test vs both ctypes mirrors; 48 B;
+IOWR/IO numbers match _IOC math; SDK header fetched = identical order;
+gates evaluated under rm_lock; ktime_after direction correct; addr_only
+probes exempt == phantom-safe design). DDC codec vs three real replies +
+seed-0x50 quirk pinned. buslock: flock-on-inode + ESPIPE means _holder_pid
+never disturbs the bus (worst case "pid ?"). Progress non-TTY ladder.
+bin_header layered identity. Flash.dat parser contract. enter_isp
+idempotence + candidate table verbatim. TIMING INI grounding. The 14i
+B8/B9 ladder + 0x20-sector-erase claim INDEPENDENTLY CONFIRMED vs
+flashrom v1.8.0 chip table (also: 0x52/0xD8 64K, 0x60/0xC7 chip,
+BP2/SRWD unlock, OTP, PREW, 2.7-3.6 V) — Facts.FLASH_CHIP updated with
+the re-verified reading. nvapi_surface lead strengthened: official
+NVIDIA/nvapi table HAS NvAPI_I2CRead, LACKS DpAuxChannelControl.
+
+FEATURE gap closed while auditing (README claimed it, code didn't do it):
+verify now cross-checks the _XXXX filename checksum (byte-sum low-16, the
+14c crack) — cli verify exits 1 on mismatch, console keeps the flash gate
+CLOSED on a corrupt bin; validated live against BOTH vendor bins (_DC2F
+and _4023 agree). Facts.MONITOR.fw_live annotated (raw reply ends 'N' =
+checksum bleed per 15e; version is FW.009 — expectations stay honest).
+
+HYGIENE (from the sprawl sweep): nvapi_surface.py provenance comment +
+missing-file guard; re/steps.py CWD bug fixed (root-anchored); 
+scratch/flashdat_bind.py DO-NOT-MOVE (CI exec-imports it — now also
+compile-checked in CI); t_tun3.py fossil annotation; re/disp_ctrl_meta.json
+removed; scratch/poll_isp.tmp untracked + *.tmp ignored; PII policy: the
+three rerun_umu_logged*.sh + the one STATUS leak at the 15f block now use
+$HOME/$USER (public repo, binding no-PII rule — the historical STATUS line
+was redacted to /home/<user>, recorded here); legacy t_scan.py /tmp/ogkm
+fossil left as-is (annotated acceptable).
+
+DOCS-vs-CODE: all 17 drift findings closed (README diagram arm-A relay
+claim, five-gates text, Layer-2 strobe-reg wording, verify-table row,
+pkexec/rebuild notes, tui + --bus default; CONTRIBUTING 3.11 floor, re/*.py
+carve-out, --bin flag ORDER (verify --bin is rejected, flag is top-level),
+dmesg oracle quotes now the real pr_info formats; TEST-INTEL-AMD auto-
+detect scoped to scratch probes; HANDOFF vendor inventory (exe name,
+Comm.dll root, NO PDF), OGKM path, gate roster, .smoke->scratch/legacy/
+smoke, ISP_WINDOW->ISP_PIPELINE, housekeeping done, hash-anchor softened).
+The two pre-known drift items (STANDBY_AXES queued key, dead-end #14)
+verified ALREADY consistent — no change.
+
+AUDIT RESIDUE (accepted, flagged where they live in code):
+- wire-shape inferences stay inference until live: burst header byte order,
+  jedec data-out reg 0x64, word-vs-byte framing. No amount of more desk
+  work settles them; the dump day does.
+- console/TUI coverage beyond the gates remains live-regression (project
+  convention); CI got the new ABI/status/gate suites instead.
+- scratch basename collisions (t_mailbox x4 etc.): no renames (Facts/STATUS
+  cite filenames); an index README is an unclaimed nice-to-have.
+- kernel has no CI job (NVIDIA headers make that impractical); Makefile +
+  CONTRIBUTING carry the manual procedure.
+- nvrm.aux()'s retry loop is single-attempt by design (commented);
+  _holder_pid shows "pid ?" on device-node locks (cosmetic).
+
+Gates: ruff clean; 79 unit tests OK; CI-equivalent compileall clean
+(msi_isp tests kernel re + scratch/flashdat_bind.py); argparse --help
+smoke OK (no bus touched). Commits: 5 batches A-E + this record; pushed.
+Relay .ko untouched (kernel edit was comment-only). Resume state =
+HANDOFF as always; queue unchanged: kit day (CLIP-PLAYBOOK) primary,
+WinPE/12 % with the prediction, issue #1.
