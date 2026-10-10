@@ -1,0 +1,29 @@
+name: CI
+# No NVIDIA/monitor hardware needed: unit tests run against scripted busses
+# (tests/). The hardware-bound suite (kernel/test_relay.py) stays manual —
+# see TEST-INTEL-AMD.md for the community path.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Lint (policy pinned in ruff.toml)
+        run: |
+          pip install "ruff==0.17.0"
+          ruff check .
+      - name: Syntax-check every Python file
+        run: python -m compileall -q msi_isp tests kernel re scratch
+      - name: Unit tests (stdlib, fake busses)
+        run: python -m unittest discover -s tests -t . -v

@@ -980,3 +980,34 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
   live (auxdev 0.1 s / i2c-dev 2.9 s, same ACK set; classifier treats
   i2c-dev NACK and AUXCH TIMEOUT as equally dead). Gates: ruff +
   compileall + sweep behavior + exit semantics all green.
+
+## Session 14l (2026-10-09) — B5 test suite + B6 CI: the harness-era debt paid
+
+- **B5: `tests/` — first real automated suite** (31 tests, stdlib unittest,
+  zero hardware): DDC codec pinned against the THREE recorded real wire
+  replies (checksum convention 0x50-vs-0x6E included); ISP enter/exit
+  state machine on a scripted FakeBus (idempotent zero-write probe path,
+  candidate-order magic/companion writes verbatim from
+  AUTOENTER_CANDIDATES, exhaustion raise, exit verify + error swallow);
+  ScalerBus framing (reg16-LE packets, 8-bit w/r forms, retarget-warmup
+  rule, burst paging + progress callback sequence); buslock cross-open
+  semantics (exclusion, pid publication+clearing, timeout waits, timer
+  handoff); progress non-TTY 5%-line degradation; checksum synthetic vectors
+  (+ the _4023 real-file check auto-skipped in CI since vendor/ is
+  gitignored). Runs in 1.0 s. `tests/fakebus.py` documents the duck-typed
+  transport surface implicitly relied on by all three transports.
+- **One real bug caught by test authoring**: `enter_isp(only_candidate=N)`
+  modulo-wrapped its index — `(loop0+i) % n` with n=1 → candidate 0's
+  magic bytes were silently sent AND index 0 was reported back. Dormant
+  knob (no caller), so zero blast radius — but exactly the class of lie
+  the harness-era "write it, eyeball it, move on" produced. Fixed +
+  regression test. Also extracted `buslock.lock_path()` for testability.
+- **B6: `.github/workflows/ci.yml`** — push/PR on main: ruff 0.17.0 (same
+  pinned policy) + `compileall` every Python file + the unit suite, across
+  Python 3.11–3.14 (honest support claim = what CI actually runs). All
+  four steps rehearsed green locally pre-push; YAML validated with pyyaml.
+- Docs: CONTRIBUTING gained the test definition-of-done + strict-on-tests
+  lint policy; HANDOFF working-commands and README layout now list
+  `python3 -m unittest discover -s tests -t .`, the CI guarantee, and
+  `scratch/sweep_slaves.py`. Post-edit live regression: info green,
+  relay rebuild + test_relay PASS, rmmod clean.

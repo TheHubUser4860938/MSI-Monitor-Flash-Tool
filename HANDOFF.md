@@ -38,6 +38,7 @@ cd ~/Projects/monitor-fw
 ./msi-isp --bin vendor/MSI_MAG_341CQP_QD-OLED_X28_FW.012_4023.bin verify   # the 0x45 check, natively: OK
 ./msi-isp probe
 ./msi-isp shell          # curses menu (arrow keys); --plain for the gated text REPL
+python3 -m unittest discover -s tests -t .   # unit tests — no hardware needed
 sudo ./msi-isp --nvrm probe          # NVIDIA RM-backend bus (nvbus.py) — root
 sudo python3 scratch/spec_0x22.py    # the spec protocol experiment (see below)
 make -C kernel LLVM=1 CC=clang       # build prototype relay module (sudoless RM path)

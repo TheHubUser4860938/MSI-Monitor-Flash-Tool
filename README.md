@@ -155,7 +155,11 @@ DDC/CI workstream (announced mid-2026) may eventually provide
 - `kernel/` — `msi_auxch.c`: kernel-context AUXCH relay (sudoless `--auxdev`
   transport), `test_relay.py` acceptance test incl. the write-gate matrix,
   `99-msi-auxch.rules` udev policy; build notes in the Makefile header.
-- `scratch/spec_0x22.py` — portable decisive probe (RM + i2c-dev transports).
+- `tests/` — stdlib unit tests (fake busses, no hardware): `python3 -m
+  unittest discover -s tests -t .`; enforced by CI (`.github/workflows/`)
+  on Python 3.11–3.14.
+- `scratch/spec_0x22.py` — portable decisive probe (RM + i2c-dev transports);
+  `scratch/sweep_slaves.py` — exhaustive 7-bit ACK scan, any transport.
 - `re/` — RE kit for the vendor PE32 binaries (`env.sh` → repo `.venv`);
   `STATUS.md` — the full session-by-session research log (**read it first
   if you want the why**).

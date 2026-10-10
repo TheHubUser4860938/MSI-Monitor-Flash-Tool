@@ -26,9 +26,15 @@ paperweight, not a stack trace.** Binding safety policy:
 - **The tool** (`msi_isp/`): Python ≥ 3.10, standard library only. There is
   no runtime dependency, no build step — keep it that way.
 - **Lint**: `ruff check .` must pass. The policy is pinned in `ruff.toml`:
-  strict on shipping surfaces (`msi_isp/`, `kernel/`, `re/`), real-bug-family
+  strict on shipping surfaces (`msi_isp/`, `kernel/`, `re/`, `tests/`),
+  real-bug-family
   rules only on the research archives (`scratch/` incl. `scratch/legacy/`,
   those are frozen experiment records; don't restyle them).
+- **Tests**: `python3 -m unittest discover -s tests -t .` must pass — stdlib
+  only, no monitor or GPU required (scripted fake busses). `tests/` is the
+  place for regression vectors; hardware-bound checks stay in
+  `kernel/test_relay.py` / `TEST-INTEL-AMD.md`. CI runs lint + tests on
+  Python 3.11–3.14 (`.github/workflows/ci.yml`).
 - **RE kit** (`re/`): needs capstone + pefile in a venv —
   `python3 -m venv .venv && .venv/bin/pip install capstone pefile ruff`,
   then `. re/env.sh` sets `$PY`, `$P` (plugin DLL), `$C`/`$A` (Comm DLLs).
