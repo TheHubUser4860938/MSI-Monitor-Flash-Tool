@@ -940,3 +940,43 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
   cross-uid); after release → baseline ISP refusal restored ✓. ruff +
   compileall + CLI green. Honest limit unchanged: ddcutil/GNOME never
   take the lock — close them during ISP work per safety policy.
+
+## Session 14k (2026-10-09) — re-audit round: two harness-era lies fixed + probes that had never been run
+
+- **B4, transport-aware gates/messages** (the user's "did we miss
+  something?" instinct paid instantly): the flash gate table hard-required
+  root even though --auxdev made root unnecessary, and backup/refusal
+  texts still narrated the pre-relay world ("sudo (root) is required on
+  NVIDIA"). Root gate now appears ONLY for --nvrm (live matrix: --auxdev +
+  i2c-dev show no root gate, --nvrm-as-user fails it with "sudo ... or
+  load the kernel relay and use --auxdev"); ISP-visibility hints cite
+  dead-end #11 across all three transports. Bonus validation: with the
+  module deliberately unloaded, --auxdev failed with the actionable "load
+  the relay first" string — graceful-path error design proved in anger.
+- **A1, first unconstrained full-space scan ever**: 0x03–0x77 (120 addrs)
+  over raw AUXCH via the relay as uid 1000 — ACK ONLY 0x30/0x37/0x4a/0x4b/
+  0x50, 112 TIMEOUT, zero NACKs/odd replies. Proves the old i2c-dev
+  allow-list hid nothing (identical ACK set), and 0x3B (the 0x77 slave the
+  vendor's G/A/P-path GetFlashType uses) is silent — consistent with
+  RTD2711 being the 0x85A-register family. Dead-end #11 closed
+  exhaustively.
+- **A2, first sudoless ISP handshake**: enter_isp end-to-end over the
+  relay — candidate 5 wins again, status walk 0x00→0x6e→0x8a (bit 0x80 =
+  ISP alive), 0x24 exit clears the bit, EDID head byte-identical before/
+  after, zero NEW dmesg unlock events (0x37 sits outside the 0x18–0x22
+  gate band exactly as designed). Relay write semantics proven on real ISP
+  traffic, not just EDID reads.
+- **A3, vendor pacing grounded twice**: retry loop 0x34000 consumes a
+  global pair (movq [0x1024a3a4]) ← static initializer at 0x32b7b sets
+  retries=10, Sleep=0xC8 (200 ms); our Facts.TIMING (from IspSetting.ini)
+  already had 10/200 — the INI mirrors vendor built-in defaults, not a
+  tuned deployment. Second pair (0x3d376 path): 10 × 100 ms. enter_isp
+  constants unchanged (already the vendor truth); Facts.TIMING comment now
+  cites the RVA evidence.
+- Tooling: `scratch/sweep_slaves.py` — the A1 sweep promoted to a reusable,
+  transport-selectable script (exit 1 when no ISP slave is alive) so the
+  Intel/AMD testers run the identical exhaustive scan over i2c-dev, where
+  it IS ground truth; wired into TEST-INTEL-AMD.md. Both legs re-verified
+  live (auxdev 0.1 s / i2c-dev 2.9 s, same ACK set; classifier treats
+  i2c-dev NACK and AUXCH TIMEOUT as equally dead). Gates: ruff +
+  compileall + sweep behavior + exit semantics all green.

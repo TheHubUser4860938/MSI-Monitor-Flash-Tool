@@ -57,7 +57,11 @@ AUTOENTER_CANDIDATES = [
     (0x9C, 0x9E, 0x6C),
     (0x90, 0x92, 0x60),
 ]
-# INI timing contract (IspSetting.ini from the real v1.0.6 run):
+# INI timing contract (IspSetting.ini from the real v1.0.6 run). Grounded
+# twice, session 14k: the plugin's static initializer (WinIspPlugIn RVA
+# 0x32b7b) sets the SAME built-in defaults the loop at 0x34000 consumes
+# (movq [0x1024a3a4] = retries 10, Sleep delay 0xC8 = 200 ms) — the INI
+# mirrors vendor defaults, not a tuned deployment.
 TIMING = {
     "after_ddcci_write_ms": 3000,
     "after_command_ms":      200,

@@ -27,6 +27,9 @@ ddcutil detect
 
 ./msi-isp --bus N info          # expect: live 'FW.009' + model 'MAG 341CQ X28'
 ./msi-isp --bus N probe         # full ACK table
+python3 scratch/sweep_slaves.py --bus N   # exhaustive 0x03-0x77 scan; on this
+                                # hardware i2c-dev IS ground truth — a live
+                                # 0x18-0x1b/0x20/0x22 there = the flash path
 python3 scratch/spec_0x22.py --bus N
 ```
 
