@@ -16,6 +16,11 @@ MONITOR = {
 }
 
 # Offsets inside the .bin, read from IspSetting.ini + confirmed against bytes.
+# Absolute offsets as measured in the FW.012 image ONLY. Session 14o
+# established layout is version-relative (the same blocks sit +0x20000 in
+# .009), so cli.bin_header() pattern-searches and uses these only as a
+# labeled fallback. Vendor's own CheckModelName reads live-EDID vs the
+# embedded EDID -- which is why content-based parsing is the right model.
 BIN_LAYOUT = {
     "version":        (0xF800, 3),   # b"012"
     "model_name":     (0xF806, 24),  # b"MAG 341CQ X28"
@@ -23,7 +28,23 @@ BIN_LAYOUT = {
 }
 
 FW_BIN_SHA256 = "c357bfe97be4eaa5d22ec0adf12f43fe5e55cb89a4e32d0e7b6feec3969d1064"
-FW_BIN_SIZE = 0x1C0000   # 1835008 bytes
+# The monitor currently runs FW.009, so its downloaded official image is
+# the ground truth for the first backup comparison (measured 2026-10-10):
+PREVIOUS_BINS = {
+    "009": {"size": 0x1E0000, "sha256": "eff3a05e6443f196d61a1a8292b09082"
+            "49b793ddf09af8bef57678411e153ce6",
+            "filename_checksum": 0xDC2F,      # _DC2F suffix; crack re-proven
+            "live_edid_at": 0x1D0200,         # exact copy of THIS monitor's
+                                              # EDID block0 (byte-search)
+            "edid_table": (0x1D0200, 0x1D7000),  # ~54 variants + 'RTK FHD'
+                                                  # template @0x0B08C
+            },
+}
+FW_BIN_SIZE = 0x1C0000   # 1835008 B: the .012 image size. NOT a general bound
+                         # -- .009 measured 0x1E0000 (session 14o): image size
+                         # is per-version. Use FLASH_SIZE for fit checks.
+FLASH_SIZE = 0x400000    # 4 MiB: A25L032M capacity, cross-confirmed by the
+                         # Flash.dat record for our chip ("40 00" = 64 x 64 KiB)
 
 # 8-bit I2C slave addresses as the Windows tool uses them (divide by 2).
 SLAVES = {

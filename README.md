@@ -92,7 +92,11 @@ is fail"*: it compares the monitor's self-reported model string against the
 `.bin`'s model field at offset `0xF806` — and the failure is the comm layer
 never reliably reaching the scaler, **not** a wrong/corrupt firmware file.
 Our `verify` reproduces the exact check natively: file `FW.012` matches this
-monitor (`MAG 341CQ X28`, version bytes at `0xF800`).
+monitor (`MAG 341CQ X28`, version bytes at `0xF800`). *(The `0xF800/0xF806`
+offsets are FW.012-specific — the same blocks sit `+0x20000` higher in
+FW.009, and both bins carry an EDID table; `verify` therefore pattern-
+searches and confirms your monitor's byte-exact EDID is present in the
+file, which is version-proof.)*
 
 **The `_4023` in the filename** = a content checksum: the updater sums every
 byte of the `.bin` and compares only the **low 16 bits** against the last 4

@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import re
 import sys
 import time
 
@@ -123,21 +124,68 @@ def read_edid(bus: RTBus) -> bytes:
     return bytes(edid)
 
 
-def bin_header(path: str) -> dict:
+def _edid_strong(blk: bytes) -> bool:
+    """Valid EDID block0: checksum + printable monitor-name descriptor.
+    Plain magic+sum is weak inside FF-padded firmware images (14o: naive
+    scans hit 100+ accidental windows); the name-descriptor requirement
+    kills those."""
+    if len(blk) != 128 or sum(blk) & 0xFF:
+        return False
+    name = _edid_model_name(blk)
+    return bool(name) and all(0x20 <= ord(c) <= 0x7E for c in name)
+
+
+def _edid_candidates(data: bytes) -> list[tuple[int, bytes]]:
+    out = []
+    for m in re.finditer(rb"\x00\xff\xff\xff\xff\xff\xff\x00", data):
+        off = m.start()
+        blk = data[off:off + 128]
+        if _edid_strong(blk):
+            out.append((off, blk))
+    return out
+
+
+def bin_header(path: str, live_edid: bytes = b"") -> dict:
+    """Extract model/version/size/sha from an updater .bin.
+
+    Version-relative by construction (14o): 'FW.NNN' is pattern-searched
+    (it moved +0x7A00 between .009/.012), and model identity is content-
+    based, never fixed offsets. If live_edid (the monitor's own block0) is
+    given, a byte-exact copy inside the image is the strongest possible
+    identity statement -- that IS the vendor's CheckModelName semantics,
+    and bins carry whole EDID tables (dozens of variants), so names alone
+    are weak. Fixed .012 offsets (Facts.BIN_LAYOUT) remain only as a
+    last-ditch fallback."""
     with open(path, "rb") as f:
-        f.seek(Facts.BIN_LAYOUT["version"][0])
-        ver = f.read(16)
-        model_off = Facts.BIN_LAYOUT["model_name"][0]
-        f.seek(model_off)
-        model = f.read(64)
-        f.seek(0, os.SEEK_END)
-        size = f.tell()
-        f.seek(0)
-        sha = hashlib.sha256(f.read()).hexdigest()
+        data = f.read()
+    size, sha = len(data), hashlib.sha256(data).hexdigest()
+
+    m = re.search(rb"FW\.([0-9]{2,3})", data)
+    version = m.group(1).decode() if m else ""
+
+    model, edid_off, exact = "", None, False
+    if live_edid:
+        i = data.find(bytes(live_edid[:128]))
+        if i != -1 and _edid_strong(data[i:i + 128]):
+            model, edid_off, exact = _edid_model_name(data[i:i + 128]), i, True
+    if not model:
+        cands = _edid_candidates(data)
+        if cands:
+            edid_off, model = cands[0][0], _edid_model_name(cands[0][1])
+
     def _cstr(b):
         return b.split(b"\xff")[0].split(b"\x00")[0].decode(errors="replace")
-    return {"version": _cstr(ver), "model": _cstr(model), "size": size,
-            "sha256": sha}
+    if not version:
+        o, n = Facts.BIN_LAYOUT["version"]
+        version = _cstr(data[o:o + n])
+    if not model:
+        o, n = Facts.BIN_LAYOUT["model_name"]
+        model = _cstr(data[o:o + n])
+
+    names = sorted({_edid_model_name(blk) for _, blk in _edid_candidates(data)})
+    return {"version": version, "model": model, "size": size, "sha256": sha,
+            "edid_offset": edid_off, "edid_exact": exact,
+            "edid_models": names}
 
 
 def cmd_info(args):
@@ -174,7 +222,6 @@ def cmd_info(args):
 def cmd_verify(args):
     if not args.bin:
         sys.exit("verify needs --bin /path/to/firmware.bin")
-    h = bin_header(args.bin)
     with _bus(args) as bus:
         e = read_edid(bus)
         mon_name = _edid_model_name(e)
@@ -182,12 +229,29 @@ def cmd_verify(args):
             live = vendor_fw_version(bus)
         except Exception as exc:
             live = f"unreadable ({exc})"
+    h = bin_header(args.bin, live_edid=e)
     print(f"bin says model  : {h['model']!r}  version {h['version']!r}")
+    if len(h["edid_models"]) > 1:
+        print("  (bin carries several EDID variants: "
+              + ", ".join(repr(n) for n in h["edid_models"]) + ")")
     print(f"monitor reports : {mon_name!r}")
     print(f"live firmware   : {live!r}")
-    ok = h["model"].strip().lower() in mon_name.lower() or mon_name.lower() in h["model"].lower()
-    print(f"\nmodel match     : {'OK' if ok else 'MISMATCH (this is what error 0x45 means)'}")
-    if not ok:
+    if not h["model"].strip() or not mon_name.strip():
+        print("\nmodel match     : UNKNOWN — model unreadable from bin or "
+              "monitor;\n  never flash on an unknown match.")
+        sys.exit(1)
+    if h["edid_exact"]:
+        print(f"\nmodel match     : OK — the monitor's EXACT EDID (block0) "
+              f"is in the bin @ {h['edid_offset']:#x}")
+        return
+    b, m = h["model"].strip().lower(), mon_name.strip().lower()
+    ok = b in m or m in b
+    if ok:
+        print("\nmodel match     : OK by NAME only (bin has no byte-exact "
+              "copy of this monitor's EDID — likely a hardware revision "
+              "the image does not cover)")
+    else:
+        print("\nmodel match     : MISMATCH (this is what error 0x45 means)")
         sys.exit(1)
 
 

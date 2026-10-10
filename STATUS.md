@@ -1082,3 +1082,48 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
   verdict text + "re-run costs seconds, do it after every major driver
   update" (a standing experiment, not a one-shot). ruff + gates green;
   module rmmod-clean pending final cycle.
+
+## Session 14o (2026-10-10) — FW.009 downloaded: checksum crack re-proven, layout is version-relative, verify rebuilt on byte-exact identity
+
+- User supplied `vendor/..._FW.009_DC2F.bin` (the monitor's CURRENT
+  firmware, official). Instant dividends:
+  * `Facts.bin_content_checksum(data) == 0xDC2F` == its filename suffix —
+    the 14c crack validated on a second, independently-built file. No
+    longer a fitted theory: a proven algorithm.
+  * **Sizes differ**: .009 = 0x1E0000, .012 = 0x1C0000. `Facts.FW_BIN_SIZE`
+    was treated as a general bound — the console's pre-flash fit gate
+    (`size > FW_BIN_SIZE`) would have refused to write .009 as "larger
+    than flash" (it isn't: the chip is 4 MiB). New `Facts.FLASH_SIZE =
+    0x400000` (A25L032M, Flash.dat capacity field agrees) now backs the
+    gate; FW_BIN_SIZE demoted to "the .012 image size".
+  * **Layout moved**: version string +0x7A00, model/EDID block +0x20000
+    between builds; boot-head 16 bytes identical at offset 0 (stable
+    anchor). Absolute-offset claims are now footnote-scoped to .012
+    (README, BIN_LAYOUT comment, HANDOFF next-actions rewritten).
+  * Both bins carry an **EDID TABLE** (.009: 54 strong candidates
+    0x1D0200-0x1D7000 + 'RTK FHD' template @0x0B08C; .012: table at
+    0x1A0200-0x1B6E00), so "the model string" is many strings — names
+    alone are a weak identity.
+- Three real bugs in one pass (the user's `.009` made invisible assumptions
+  visible): (1) `bin_header` read .012-fixed offsets → .009 parsed as empty
+  model/version; (2) BOTH verify paths then said "model match OK" because
+  the empty string is a substring of everything — a silent pass on an
+  UNKNOWN identity, the worst possible gate failure; (3) the fit gate
+  above. Fixed with layered truth: version = `FW.NNN` pattern-search;
+  model = (a) byte-exact live-EDID containment (the strongest possible
+  identity claim, `edid_offset` reported and surfaced in CLI/console/TUI
+  output), (b) first strong candidate (valid checksum + printable name —
+  magic+sum alone hits 100+ false windows in FF-seas), (c) labeled
+  .012-offset fallback; unreadable model now prints UNKNOWN + exit 1
+  everywhere instead of shrug-OK.
+- New facts recorded: `Facts.PREVIOUS_BINS["009"]` (sha256, size, _DC2F,
+  exact live EDID @0x1D0200, table span); .012 contains THIS monitor's
+  exact EDID too (@0x1B0000 — measured, live verify) ⇒ the .012 update
+  preserves the EDID, an assumption the write path needed, now held.
+- Tests: `tests/test_bin_header.py` +10 (synthetic EDID-table fixtures
+  including first-strong vs byte-exact precedence, strong-filter garbage
+  rejection, real .009/.009 self-referential live-EDID runs) → suite at
+  **41 green**. Live verify on both real bins via CLI AND console paths:
+  both report "OK — the monitor's EXACT EDID (block0) is in the bin @
+  0x1d0200 / 0x1b0000" with the .009 variant table disclosed. ruff,
+  compileall, gates green.

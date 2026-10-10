@@ -71,12 +71,19 @@ class Console(cmd.Cmd):
         print(f"bin loaded: {path}")
         print(f"  model {self.bin_hdr['model']!r}  version "
               f"{self.bin_hdr['version']!r}  size {self.bin_hdr['size']}")
+        if len(self.bin_hdr["edid_models"]) > 1:
+            print("  EDID variants in bin: "
+                  + ", ".join(repr(n) for n in self.bin_hdr["edid_models"])
+                  + "  (verify matches against YOUR monitor's exact EDID)")
         print(f"  sha256 {self.bin_hdr['sha256']}")
         return True
 
-    def _monitor_name(self) -> str:
+    def _monitor_edid(self) -> bytes:
         with self._bus() as bus:
-            return edid_model_name(read_edid(bus))
+            return read_edid(bus)
+
+    def _monitor_name(self) -> str:
+        return edid_model_name(self._monitor_edid())
 
     def _isp_visible(self):
         """True/False = ISP slave ACKs / doesn't; None = bus unopenable."""
@@ -148,18 +155,39 @@ class Console(cmd.Cmd):
             print(BAD("no bin loaded — `set bin /path/to.bin`"))
             return
         try:
-            mon = self._monitor_name()
+            edid = self._monitor_edid()
         except Exception as e:
             print(BAD(f"monitor read failed: {e}"))
             return
-        b = self.bin_hdr["model"].strip().lower()
-        m = mon.strip().lower()
-        match = bool(m) and (b in m or m in b)
-        print(f"bin model      : {self.bin_hdr['model']!r}")
-        print(f"monitor model  : {mon!r}")
+        mon = edid_model_name(edid)
+        # Re-parse the bin with the live EDID so a byte-exact copy, if
+        # present, wins over fuzzy name-substring matching (session 14o).
+        hdr = bin_header(self.bin_path, live_edid=edid)
+        self.bin_hdr = hdr
+        b, m = hdr["model"].strip().lower(), mon.strip().lower()
+        if not b or not m:
+            self.verified = False
+            print(f"bin model      : {hdr['model']!r}")
+            print(f"monitor model  : {mon!r}")
+            print(BAD("match          : UNKNOWN — model unreadable from "
+                      "one side;\n  never flash on an unknown match"))
+            return
+        if hdr["edid_exact"]:
+            self.verified = True
+            print(f"bin model      : {hdr['model']!r}")
+            print(f"monitor model  : {mon!r}")
+            print(OK(f"match          : OK — monitor's EXACT EDID in bin @ "
+                     f"{hdr['edid_offset']:#x}"))
+            return
+        match = b in m or m in b
         self.verified = match
-        res = OK("OK") if match else BAD("MISMATCH — would be error 0x45")
-        print(f"match          : {res}")
+        print(f"bin model      : {hdr['model']!r}")
+        print(f"monitor model  : {mon!r}")
+        if match:
+            print(WARN("match          : OK by NAME only (bin has no byte-"
+                       "exact copy of this EDID)"))
+        else:
+            print(BAD("match          : MISMATCH — would be error 0x45"))
 
     def do_backup(self, arg):
         """dump scaler SPI flash -> file. --write actually writes it out"""
@@ -260,9 +288,9 @@ class Console(cmd.Cmd):
         if not all_ok:
             print(BAD("\nflash aborted: fix the gates above first."))
             return
-        if self.bin_hdr["size"] > Facts.FW_BIN_SIZE:
-            print(BAD(f"bin larger than flash ({self.bin_hdr['size']} > "
-                      f"{Facts.FW_BIN_SIZE}) — aborting"))
+        if self.bin_hdr["size"] > Facts.FLASH_SIZE:
+            print(BAD(f"bin larger than the flash chip ({self.bin_hdr['size']} "
+                      f"> {Facts.FLASH_SIZE:#x}) — aborting"))
             return
         print(f"\nabout to write: {self.bin_path}")
         print(f"  monitor {self.bin_hdr['model']!r}  live fw {cur!r} -> "
