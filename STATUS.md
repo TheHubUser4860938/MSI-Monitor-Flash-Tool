@@ -1390,3 +1390,78 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
 - Gates: ruff/compile/48-tests green after Facts.VENDOR_CONFIG block +
   HANDOFF (#1 refined, #5 wire-half closed, #7 dual-bank rewrite, #12
   measured, #13 new) updates.
+
+## Session 15e (2026-10-10) — #13 grammar bind CLOSED (mailbox = info-only, evidence-complete); 0x45 under Wine now LOG-REPRODUCED; prefix forensics done
+
+- **Wine/Proton prefix forensics (user asked "what else can we glean"):**
+  * The GUI exe embeds its FULL default IspSetting.ini as a template --
+    the two Wine-prefix temp copies are byte-faithful regenerations (no
+    hidden config). Copyright 2024; PDB `E:\Git\2_CpIspTool\Windows\
+    UserDefinedUI\01_MSI_MAG27_32\ISPToolForMsi\Release` -- engine lineage
+    = MSI's CpIspTool family. `WinISPTool.exe` (the CLI the GUI launches
+    via --ispdiff/--userdefinedinfo) does NOT ship in this package.
+  * **strInitialDdcciCmd=[0x85,0xA0] provenance fixed: the key exists in
+    NO binary/INI of this package** -- it belongs to other-generation
+    CpIspTool inis. Our 14f->HANDOFF note imported it wrongly; 0xA0 is
+    nevertheless what this firmware answers (below).
+  * Recorded run environment recovered from prefix `user.reg [Volatile
+    Environment]`: DW-Proton 11.0-14, exactly DXVK_ENABLE_NVAPI=1 +
+    DXVK_NVAPI_ALLOW_OTHER_DRIVERS=1, NO WINEDLLOVERRIDES, no DllOverrides
+    registry entries.
+- **0x45 LOG-REPRODUCED on this box (Facts.PROTON_045):** reran the GUI
+  under that prefix with DXVK_NVAPI_LOG_LEVEL=info: shim
+  `dwproton-11.0-14`; `NvAPI_Initialize` fails ("Creating DXGI Factory
+  failed... dxgi.dll present" -- the prefix never loads DXVK's dxgi as
+  native) -> Comm_Aux retries at exactly INI-plausible cadence
+  (AUX_RetryLimit=10) -> ZERO I2C-interface activity. The monitor wire
+  was NEVER contacted under Wine/Proton; 0x45 = backend dead before
+  wire. (Forced-native dxgi/d3d9 runs take a different init branch with
+  no NVAPI calls at all -- no configuration of this prefix reaches the
+  wire.) Attribution upgraded from inference to direct log evidence in
+  HANDOFF wall-line/open#2, README, Facts.NVAPI_SURFACE, TEST-INTEL-AMD.
+- **#13 GRAMMAR BIND (engine side):** comm vtable slot pair `+0x13c` =
+  MCCS write (7-bit slave arg + pre-parsed payload from config object),
+  `+0x140` = reply read `(0x6E, 0x51, len, buf)` -- i.e. plain DDC/CI on
+  0x37, identical transport to our vendor_fw_version (15a's NVAPI
+  write->read pair decode covers it). Shipped generation's ONLY DDCCI
+  record = version (INI strVersionDdcciCmd == our packet byte-for-byte).
+  `RecordFWVersion` primary worker = local linked-list store (`[eax+0x14]
+  = 0`, zero comm calls) -- no mailbox flash-write path.
+- **#13 LIVE MAPPING (firmware side), the long tail:**
+  * First-run lesson: reads at 150 ms return zeros because the kernel's
+    0x37 reply cache holds nothing until the monitor's late window --
+    the INI's ulDelayTimeAfterDdcciWrite=3000 EXISTS for this reason.
+  * 256-subcode paced sweep (`scratch/mailbox_a0_sweep.py`, ~15 min):
+    exactly ONE unusual reply (0x28 -> '2e 30 30 39 4e' = ".009N"),
+    two silent args (0xE6, 0xFE -- bytes of the FE/E1/E6 opcode family,
+    handler mis-consumes arg frames carrying them; recovery verified,
+    monitor healthy throughout, fw-witnesses every 32 subs).
+  * Repro hunt (`mailbox_a0_records.py` byte-orders/n-lengths,
+    `mailbox_a0_state.py` early+late reads, `mailbox_a0_capture.py`
+    frame windows, `mailbox_a0_trace.py` BYTE-STREAM trace): 0x28 and
+    control 0x00 traces are IDENTICAL -- one frame per write (the
+    `6e 80 be` empty-reply), re-served cyclically by the kernel cache
+    (shifting window every ~0.75 s). Phase-locked interloper test: a
+    version query right before an A0 write leaves its frame `6e 8a 02
+    00 fe 00 46 57 2e 30 30 39`+chk in the cache -- and that frame's
+    checksum computes to 0x4E='N'. **".009N" = tail of a STALE FW.009
+    version read-back + its checksum byte -- cache artifact, proven,
+    not a mailbox record.** ISP-mode precondition also ruled out
+    (phase-4 in-ISP A0/0x28 -> empty ack).
+- **#13 CLOSED: the DDCCI mailbox routes ISP opcode 0xA0 but answers
+  every argument with a VALID EMPTY reply (n=0, checksum 0xBE=0x50^6E^
+  0x80); no flash window sits behind it on this unit.** The working lane
+  carries exactly one monitor datum (the FW version), and we already
+  read it. On-box options are now FORMALLY EXHAUSTED: next moves are
+  issue #1 reply, borrowed real-Windows+NVIDIA run, or CH341A.
+- New operational trivia banked (Facts.DDCCI_MAILBOX): the 0x37 reply
+  cache RE-SERVES the last frame on shifting offsets ~0.75 s apart on
+  this driver -- multi-read frame extraction must dedupe by content,
+  and "delayed frame" intuitions must be checked against stale-cache
+  read-back before being believed (this session's own favorite
+  single-anomaly almost fooled us in the other direction).
+- Tooling added: scratch/mailbox_probe_a0.py, mailbox_a0_sweep.py,
+  mailbox_a0_records.py, mailbox_a0_state.py, mailbox_a0_capture.py,
+  mailbox_a0_trace.py. Gates: ruff/compile/48-tests green; monitor
+  FW.009, EDID anchors unchanged (sha 28ca86b6dfde329e still implied by
+  head bytes), brightness untouched.

@@ -188,9 +188,11 @@ def bin_content_checksum(data: bytes) -> int:
 #     almost certainly re-wrapping the same AUXCH controls from user side.
 #   * => No Linux-unreachable NVAPI magic door found. And no evidence ANY
 #     Windows run ever reached 0x22 on THIS sink: the only recorded vendor-
-#     tool run was under Wine/Proton, where nvapi.dll has no driver behind
-#     it -- that 0x45 is "backend absent", NOT "wire silent". Real-Windows
-#     behavior on this sink is UNOBSERVED (15b correction of this claim).
+#     tool run was under Wine/Proton, and 15e log-reproduced it here -- the
+#     prefix's nvapi.dll is a DXVK-NVAPI shim whose NvAPI_Initialize fails
+#     at the DXGI adapter gate, so the engine dies BEFORE any I2C call.
+#     That 0x45 is "backend dead, wire untouched", NOT "wire silent" (see
+#     PROTON_045). Real-Windows behavior on this sink stays UNOBSERVED.
 #     Dead-end #11 stands; Intel/AMD measurement (issue #1) is the decider.
 NVAPI_SURFACE = {
     "live_interfaces": ["NvAPI_Initialize", "NvAPI_EnumPhysicalGPUs",
@@ -281,13 +283,30 @@ WRITE_ACCEPTANCE = {
 #     AUX_(Extar)SlaveAddress knobs (slave address is configurable!),
 #     AUX_I2CPageLen=32 (matches Facts), AUX_CheckBranchOUIOnly=0,
 #     AUX_CheckDpcdTable=0.
-#   * Live probe 15d: vendor ISP-DDC/CI opcode 0xA0 (strInitialDdcciCmd
-#     = 0x85,0xA0 = length-flag n5 + opcode A0) sent as [51 85 a0 00 00
-#     00 00 chk] gets FRAMED REPLY 6e 80 be ... from this sink -- the
-#     mailbox answers ISP opcodes. Full SendUserDefinedInfo grammar bind
-#     (workers 0x1002b2d0/0x1002b7e0 + IspUserDefined.txt format) = open
-#     question #13, the only lead with 'flash over the working lane'
-#     upside.
+#   * Live probe 15d/15e: ISP-DDC/CI opcode 0xA0 (provenance fixed 15e:
+#     strInitialDdcciCmd=[0x85,0xA0] appears in NO binary/INI of THIS
+#     package -- it belongs to the CpIspTool lineage the exe pdb reveals,
+#     E:\Git\2_CpIspTool\Windows\UserDefinedUI\01_MSI_MAG27_32\...; the
+#     shipped tool's only DDCCI record is strVersionDdcciCmd) sent as
+#     [51 85 a0 ...]: the sink's answer 6e 80 be parses RIGHT (15e) as a
+#     len-flag-0x80 reply with 0xBE = VALID empty-message checksum
+#     (0x50^0x6E^0x80) -- 'reply, zero payload', deterministic at the
+#     vendor's own 3 s pacing across a 6-variant ladder; only the
+#     A0+FE,E1,E6 combo hangs DDC/CI silent (10 s dwell too; reproducible
+#     since 15d). 256-subcode paced sweep + byte-stream traces (15e)
+#     settle #13: 0x28's one-shot '.009N' = TAIL OF A STALE FW.009
+#     VERSION FRAME (frame chk 0x4E='N', interloper-proven) -- cache
+#     artifact, not a record. NO flash window behind the mailbox on this
+#     unit. CLOSED info-only.
+DDCCI_MAILBOX = {
+    "frames_per_write": "1 (the empty reply); kernel re-serves it on "
+                        "shifting cache windows ~0.75 s apart -- dedupe "
+                        "multi-reads by CONTENT before believing 'late'",
+    "args": "all 256 sub-args empty-ack; 0xE6/0xFE (FE,E1,E6-family "
+            "bytes) hang the lane briefly (self-recovers; witnesses clean)",
+    "verdict": "info lane only (version via FE,E1,E6 = our packet); "
+               "flash bulk stays 0x22-lane -- on-box options exhausted",
+}
 VENDOR_CONFIG = {
     "ini_md5": "d1be1f3a9a43fd44e510eb94272f5a1c",
     "comm_ids": {1: "Comm/Comm_Aux.dll (NVIDIA NVAPI/AMD ADL/Intel SDK)",
@@ -295,7 +314,38 @@ VENDOR_CONFIG = {
     "isp_mode": "dual-bank: program inactive bank + boot-flag switch",
     "version_path": "DDC/CI mailbox (proven == our vendor_fw_version)",
     "flash_path": "I2C page primitives on 0x22 lane (vtable +0x14)",
-    "ddcci_isp_opcode": "0xA0 answered 6e 80 be (15d) -- grammar bind = open #13",
+    "ddcci_isp_opcode": "0xA0 routed, ALL args answer valid EMPTY reply "
+                        "(6e 80 be); .009N hit was a stale-cache read-back "
+                        "artifact (proven 15e) -- mailbox CLOSED info-only",
+}
+
+# ---- The 0x45 under Wine, now LOG-REPRODUCED (session 15e) ---------------
+# Re-ran the vendor GUI under the user's own Heroic prefix, capturing the
+# NVAPI shim's own log. Recorded-run environment recovered from the prefix
+# (user.reg [Volatile Environment]): DW-Proton 11.0-14 with exactly
+# DXVK_ENABLE_NVAPI=1 + DXVK_NVAPI_ALLOW_OTHER_DRIVERS=1, NO
+# WINEDLLOVERRIDES, and no DllOverrides registry entries -- our repro is
+# environment-faithful. nvapi.log (2026-10-09 23:05, verbatim pattern):
+#   "DXVK-NVAPI dwproton-11.0-14 ... (MSI Firmware Update Utility...)"
+#   "Creating DXGI Factory (IDXGIFactory1) failed, please ensure that
+#    DXVK's dxgi.dll is present"
+#   "<-NvAPI_Initialize: NVIDIA or other suitable device not found" x~10
+#     (retry cadence matches INI AUX_RetryLimit=10 / ucRetryCount=10)
+# ZERO further lines: no I2C interface ever touched. The engine died at
+# the NVAPI gate -- THE MONITOR WIRE WAS NEVER CONTACTED under Wine/
+# Proton on this box; 0x45 = backend-dead-before-wire, not a wire datum
+# (upgraded from inference to direct log evidence). Notes: the prefix's
+# nvapi(.64).dll is the DW fork of DXVK-NVAPI and its binary DOES carry
+# NvAPI_I2CRead/Write interface names (fork extension) -- but the engine
+# never got that far. Forcing dxgi/d3d9 native (runs 2/3) removed NVAPI
+# calls entirely (different init branch) -- no configuration of this
+# prefix reaches the wire. Real Windows remains UNOBSERVED (unchanged).
+PROTON_045 = {
+    "shim": "dwproton-11.0-14 DXVK-NVAPI (prefix sys32/syswow64 nvapi)",
+    "gate": "NvAPI_Initialize fails: DXVK needs its own dxgi; prefix "
+            "keeps dxgi builtin (no overrides recorded in the run env)",
+    "wire": "zero I2C calls logged -> 0x45 is NOT wire evidence; dead- "
+            "end #11 stands with a logged cross-check of the Wine route",
 }
 
 # ---- Bulk I2C-over-AUX control (0x73137C), probed session 14n -----------
