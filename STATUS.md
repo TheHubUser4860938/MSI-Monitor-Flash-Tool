@@ -1011,3 +1011,31 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
   `python3 -m unittest discover -s tests -t .`, the CI guarantee, and
   `scratch/sweep_slaves.py`. Post-edit live regression: info green,
   relay rebuild + test_relay PASS, rmmod clean.
+
+## Session 14m (2026-10-09/10) — CI hardened on first real run + community launch (issue #1, tag v0.1.0)
+
+- CI's first run caught a real portability lie: the compileall step included
+  the frozen scratch archives, and four of them use f-string backslashes —
+  legal on the 3.14 dev box, SyntaxError pre-3.12 (PEP 701). Fix was policy
+  alignment, not restyle: CI now compiles exactly the shipping surfaces
+  (`msi_isp/ tests/ kernel/ re/`), same split as ruff.toml, with the reason
+  commented in the workflow. Second run: **green on Python 3.11/3.12/3.13/
+  3.14** (commit `48b757a`). Log-fetch detours documented for future me:
+  Actions job logs need auth even for public repos, fish quoting bit twice
+  (`\$` inside single-quoted bash → literal `$GITHUB_PAT` → 401), and
+  `ast.parse(feature_version=…)` misses pre-701 f-string rules entirely —
+  trust the runner, not the simulator.
+- **Issue #1 filed** (help wanted): "Intel/AMD Linux + DisplayPort owners
+  wanted" — 2-minute read-only tester call pointing at TEST-INTEL-AMD.md +
+  the sweep tool, with the verdict→consequence table. Pinning = web-UI
+  click for the maintainer (this toolset has no pin mutation).
+- **Tag v0.1.0** (annotated; message summarizes scope: read/probe/verify
+  complete, backup/write gated on the decisive experiment) pushed onto
+  `48b757a` = CI-green HEAD; tag + issue verified visible anonymously.
+- Session arc this run, in one line: user flagged a README heading typo and
+  asked "do we still need sudo / what might we have missed?" → 9 commits:
+  B4 transport-aware UX (2 real lies fixed), 14k probe round (exhaustive
+  0x03–0x77 sweep closes dead-end #11, first sudoless ISP handshake, vendor
+  pacing grounded twice), B5 test suite (+1 latent bug caught by authoring),
+  B6 CI (first green on four Pythons), 14m launch. Monitor: still FW.009,
+  never written, DP-only.
