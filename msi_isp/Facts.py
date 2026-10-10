@@ -236,6 +236,30 @@ NVAPI_SURFACE = {
 #      gate; the sink-side only-refuser is 0x22 itself, at the ADDRESS
 #      phase (NACK) -- payload acceptability structurally cannot be the
 #      failure variable there.
+# ---- Vendor ISP-control ladder = slave 0x35 mailbox (session 15g) -------
+# The five 0xd21 sites in WinIspPlugIn (HandShakeBeforeEnterIspModeBy-
+# BootType, EnableIspProgramChannelOneBankMode, SetBackgroundFlashWrite-
+# Time, ask-start-bank, ask-user-flag/key-address) all ride comm vtable
+# slots +0x74 (write) / +0x78 (read) with args (slave8=0x6A -> 7-bit
+# 0x35, reg=0xCA, count, &buf): the flashrom-documented MSTAR-style
+# scaler mailbox (mstarddc_spi family: enter 0x85 0xA0 [A0 3D 05 02 A0],
+# exit ...0x24 -- the same grammar our 0x37 ISP-magic turns out to
+# mirror one address over). Failure path stamps status=0x6A =
+# 'MSTARDDCCIACK' (no ACK) before logging enumError -> 0xd21.
+# LIVE 15g: 0x35 on THIS box = i2c-dev NACK/EIO (probe+read+write),
+# relay bare-addr False + TIMEOUT on CA-writes; monitor healthy after
+# every cell. => vendor tool's 0xd21 under proton-cachyos is the
+# vendor engine itself confirming dead-end #11 through the NVAPI-shim
+# path: first non-ACKing slave, first failure. 0x35 joins the dead
+# roster (0x18/0x20/0x22/0x35); 0x37/0x50 stay the only alive lanes.
+ISP_LADDER = {
+    "slave7": "0x35 (8-bit 0x6A), reg 0xCA page via comm slots +0x74/78",
+    "status_here": "DEAD: i2c-dev EIO + relay TIMEOUT (15g first i2c-dev "
+                   "cells; 14k relay sweep agreed)",
+    "engine_verdict": "vendor tool 0xd21 = MSTARDDCCIACK on this ladder "
+                      "(12% = first command) -- third-party Linux witness",
+}
+
 WRITE_ACCEPTANCE = {
     "vcp_set": "our raw 0x03 packet accepted; state moved 0->50->0, byte-"
                "identical restore (T0b 2026-10-10)",
@@ -332,14 +356,22 @@ VENDOR_CONFIG = {
 #   "<-NvAPI_Initialize: NVIDIA or other suitable device not found" x~10
 #     (retry cadence matches INI AUX_RetryLimit=10 / ucRetryCount=10)
 # ZERO further lines: no I2C interface ever touched. The engine died at
-# the NVAPI gate -- THE MONITOR WIRE WAS NEVER CONTACTED under Wine/
-# Proton on this box; 0x45 = backend-dead-before-wire, not a wire datum
-# (upgraded from inference to direct log evidence). Notes: the prefix's
+# the NVAPI gate -- THE MONITOR WIRE WAS NEVER CONTACTED under THAT
+# DW-Proton configuration; 0x45 = backend-dead-before-wire, not a wire
+# datum (upgraded from inference to direct log evidence). NOTE 15f: a
+# DIFFERENT stack (umu-run + proton-cachyos-slr, PROTON_ENABLE_NVAPI=1,
+# full DXVK -> shim init SUCCEEDS) took the same tool to 12% progress
+# and error 0xd21 = ISP-control-stage failure -- the wire WAS reached
+# there; see STATUS 15f + open #14 for the discrimination state.
 # nvapi(.64).dll is the DW fork of DXVK-NVAPI and its binary DOES carry
 # NvAPI_I2CRead/Write interface names (fork extension) -- but the engine
-# never got that far. Forcing dxgi/d3d9 native (runs 2/3) removed NVAPI
-# calls entirely (different init branch) -- no configuration of this
-# prefix reaches the wire. Real Windows remains UNOBSERVED (unchanged).
+# never got that far. Forcing dxgi/d3d9 native in a DW-Proton *direct*
+# launch (runs 2/3) removed NVAPI calls entirely (different init branch)
+# -- no DW-Proton launch config reached the wire. The 15f umu +
+# proton-cachyos-slr launch (proton setup injects DXVK natively +
+# PROTON_ENABLE_NVAPI=1) DID reach it on the SAME prefix: the decisive
+# variable is the RUNTIME STACK, not the prefix. Real Windows remains
+# UNOBSERVED (unchanged).
 PROTON_045 = {
     "shim": "dwproton-11.0-14 DXVK-NVAPI (prefix sys32/syswow64 nvapi)",
     "gate": "NvAPI_Initialize fails: DXVK needs its own dxgi; prefix "

@@ -1465,3 +1465,95 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
   mailbox_a0_trace.py. Gates: ruff/compile/48-tests green; monitor
   FW.009, EDID anchors unchanged (sha 28ca86b6dfde329e still implied by
   head bytes), brightness untouched.
+
+## Session 15f (2026-10-10) — USER RUN BREAKS THE FLOOR: vendor tool reached 12% + ISP-control-stage failure (0xd21) under umu/proton-cachyos
+
+- User screenshot: 'Update fw fail, error code: 0xd21', progress 12%, red
+  FAIL, file path X:\Projects\monitor-fw\vendor\... Deep run forensics:
+  * Runner recovered from the live process tree: **umu-run +
+    proton-cachyos-slr** (Steam compatibilitytools.d), Heroic prefix
+    (x: -> /home/eugene), PROTON_ENABLE_NVAPI=1 +
+    DXVK_NVAPI_ALLOW_OTHER_DRIVERS=1. Different stack from the recorded
+    DW-Proton runs -- full DXVK => NvAPI_Initialize SUCCEEDS where
+    DW-Proton failed (15e). The tool is single-instance; it was still
+    open during analysis.
+  * Engine wrote a NEW IspSetting.ini (1580 B, 23:35, md5 350e93b2...) --
+    diff vs the 15d default adds exactly:
+    AUX_IncompleteWriteNeedRetry=1, AUX_NvidiaMSTSupport=0,
+    **AUX_NvidiaIICAuxAccess=0** -- deeper comm init than any recorded
+    run; and the knob's name confirms slave-address/access mode is a
+    vendor-tunable (AUX_IICAuxAccess=0 = public NVAPI_I2C path, matching
+    15a's decode; =1 presumably the private DpAuxChannelControl path).
+  * MONITOR UNHARMED after the failed update: live FW.009, EDID anchors
+    intact, VCPs exactly as user left them (brightness 0/contrast 70).
+    Dual-bank design is the working hypothesis why: failure came BEFORE
+    any bank switch (boot bank never targeted).
+- **0xd21 bound (offline):** five sites in WinIspPlugIn, each `call
+  0x10019df0 (set-IspModeError) ; mov eax,0xd21 ; log`. Enclosing-stage
+  strings: HandShakeBeforeEnterIspModeByBootType /
+  EnableIspProgramChannelOneBankMode ('Enable Isp Channel Success!' as
+  its happy path) / Set Background Flash Write Time / 'Ask for Start
+  bank ... Fw code size' / 'Ask for User Flag address' / 'Get Current
+  Key address' -- i.e. 0xd21 = **scaler rejected an ISP-control command
+  (IspModeError class), not a comm-class error** -- the engine passed
+  file checksum + version + model checks and ENTERED ISP, then died in
+  the dual-bank pre-write handshake (enable-program-channel /
+  ask-start-bank / flag+key-address queries). The vendor's pre-write
+  command sequence -- the exact ladder our write driver must replicate
+  -- now has a runtime anchor (big Flash.dat-binding win).
+- Discriminating question under live test (scratch/rerun_umu_logged.sh,
+  background): did the DXVK-NVAPI shim's NvAPI_I2CRead/Write actually
+  reach the kernel (-> ISP-control bytes went to the flash lane and the
+  SCALER rejected/timed out = vendor-engine third-party witness of the
+  dead lanes, monitor-side rejection now the live hypothesis for #5's
+  remaining half), or did QI hand back unimplemented stubs (wire never
+  saw the ISP stage)? Startup version-read discriminates WITHOUT any
+  clicks (NvAPI_I2C log lines + visible version = shim I2C live).
+  nvapi.dll is the SAME binary size as DW's fork; no /dev or drm strings
+  (mechanism unknown); interface NAMES present prove nothing about
+  implementation.
+
+## Session 15g (2026-10-10) — 0xd21 TRANSPORT DECODED: the ISP-control ladder rides slave 0x35 via the I2C-page slots -- fresh i2c-dev probe finds it dead-silent here (relay sweep had it at TIMEOUT since 14k)
+
+- Static bind of the five 0xd21 sites (EnableIspProgramChannelOneBankMode
+  and siblings): each call = comm vtable slots +0x74 (write) / +0x78
+  (read) with args (slave8=0x6A -> **7-bit 0x35**, reg=**0xCA**, count,
+  &buf) -- the flashrom-documented MSTAR-DP-CI scaler mailbox (same
+  family as our proven 0x22 ISP-register slave; our exhaustive sweep
+  covered 0x18/0x20/0x22 -- **0x35 was never probed here**).
+- Failure path even overwrites the returned status byte with 0x6A =
+  'MSTARDDCCIACK' (no ACK from the scaler) before logging enumError --
+  i.e. 0xd21 = the scaler did not ACK the 0xCA command ladder.
+- Flashrom mstarddc_spi anchor (offline docs): enter-ISP 0x85 0xA0
+  [0xA0 0x3D 0x05 0x02 0xA0], exit 0x85 0xA0 0x24 on the SAME slave --
+  and our live mailbox data shows A0-family traffic hangs exactly on
+  (0x37, A0, FE) and (0x37, A0, E6) -- the ISP-enter payload bytes
+  0xA0,0x3D,0x05,0x02,0xA0 include FE/E1/E6-family values; the FW.009
+  scaler partially parses them and stalls DDC/CI (banked for whoever
+  replays enter sequences).
+- Retry history for the logged rerun (3 launches): (1) env -i lost X auth
+  -> GUI dead; (2) direct proton script -> protonfixes IndexError on the
+  non-numeric STEAM_COMPAT_DATA_PATH (artifact of bypassing umu); (3)
+  umu-run + inherited session env -> GUI alive (xalia/DXVK 3.1.1-47,
+  RTX 4090 @ 615.78.8 in the dxgi log), engine started but wrote only
+  the 1498B DEFAULT ini (shallower than the user's 1580B 3-key run) ->
+  100 s window too short; window-4 (240 s) launched background.
+  Interesting for attribution: in retry-3 no nvapi.log appeared at all
+  despite the shim being active at the dxgi layer -- interface load
+  timing unconfirmed.
+- Also decoded today: WinISPTool CLI is 'newboot'-only in this build
+  (the two template invocations both carry --newboot).
+- **LIVE PROBE DONE (`scratch/probe_0x35.py`): `0x35` is DEAD SILENT on
+  this box, both transports** -- i2c-dev: NACK/EIO on probe, reads AND
+  writes (Errno 5 on every cell); relay: bare-address False,
+  TIMEOUT on write cells. Witnessed FW.009 + EDID intact after every
+  run. Verdict: the vendor's `0x35/0xCA` ISP-control ladder fails on
+  this GPU/DP-link EXACTLY where our measurements say everything flash-
+  side fails -- the 0xd21 event is WITNESS CONSISTENT WITH (and after
+  window-4's log, confirmatory of) dead-end #11 via the NVAPI shim path:
+  first unACKed slave, first engine failure. W3 (alive-0x35-rejected-
+  content) is DEAD: the address itself never answers natively.
+  Honest nuance: 14k's relay sweep already listed 0x35 among TIMEOUTs;
+  this session adds the FIRST i2c-dev cells for 0x35 (NACK/EIO) + the
+  reg-shaped write/read cells both transports -- and now a *purpose*:
+  it's the vendor's command channel.
