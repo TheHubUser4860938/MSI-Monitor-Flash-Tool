@@ -187,6 +187,9 @@ DDC/CI workstream (announced mid-2026) may eventually provide
   (gitignored; grab them from MSI's support page).
 - `HANDOFF.md` — condensed project brief; `CONTRIBUTING.md` — how to hack
   on this safely.
+- `CLIP-PLAYBOOK.md` — the CH341A/SOP-8 clip procedure: dump day and the
+  (user-gated) inactive-bank practice-write, built around double-read +
+  hash verification and region-guarded writes.
 
 MIT — see `LICENSE`. Not affiliated with MSI; poking scaler registers can,
 in principle, brick a monitor. The maintainers' monitor is still unflashed.
