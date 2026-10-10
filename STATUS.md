@@ -1797,3 +1797,57 @@ use exact -x names or PID files, never -f patterns contained in own cmdline.
 - Monitor: FW.009 + EDID byte-identical after every cell; inputs restored;
   nothing flash-adjacent touched. Relay half blocked on one user command:
   `sudo insmod kernel/msi_auxch.ko`.
+
+## Session 15j (cont.) — relay LIVE via pkexec; button patrol armed (no press, exited clean); GI payload dissected -> USB-HID world, X28 absent — but IspLog gives a successful-run witness and a Windows prediction
+
+- pkexec (polkit GUI prompt) approved twice: kernel relay now loaded
+  (first pkexec use on this box — the sudo-password workaround, banked
+  for future root ops), and `innoextract` installed via pacman.
+- scratch/standby_button.py (part 3): armed on the RELAY (unfiltered),
+  patient 5-min poll; user was away — no button press, exited harmlessly
+  (exit 3). The TRUE-standby cell remains queued; one press away.
+- HDR datum closed: user switched the monitor to HDR mode (brightness
+  set 10% on-OSD); VCP 0x10 now reports 100/max — HDR remaps/pins the
+  DDC luminance view, NOT a stray write from our session. Baseline note
+  amended: 15c-era "brightness 0" was the SDR-era value.
+- **GI payload forensics** (download.msi.com direct = no 403;
+  Gaming-Intelligence-x64.zip 477 MB = Inno Setup 6.1(u) 'zlb' zstd
+  container; extracted tree kept untracked at /tmp/opencode/gi_re/app):
+  * GI ships its OWN CpIspTool deployment: WinISPTool.exe +
+    PlugIn/{WinIspPlugIn.dll, Flash.dat} + fresh 322-line IspSetting.ini
+    + runtime artifacts (IspLog.txt, IspProg.txt, IspMonitorDevice.txt)
+    + Comm backends = {RealtekUSB, NewRealtekUSB, FTDIUsb, NuvotonI2C}
+    — NO Comm_Aux.dll, NO Comm_GFXI2C.dll. Contrast: OUR standalone X28
+    package has Comm_Aux + rtd38/Comm_GFXI2C and no USB comm dlls. The
+    two families are transport-disjoint.
+  * Model DB (GamingIntelligence.exe/MonitorControlLibrary.dll):
+    MAG341CQP_QD_OLED (2023 non-X28) + MPG341CQPX present; **no X28
+    model anywhere** -> MSI's update path for every X28 = the tool we
+    already own. The GI-RE lead CLOSES with bytes, not vibes.
+  * IspLog.txt = a SUCCESSFUL CpIspTool run on a GD25Q32C model
+    (Flash.dat-style ID c8 40 16 15 — the SAME '16 15' device bytes our
+    A25L032M record carries; second source of the same 4 MiB geometry):
+    `HandshakeInitalBeforeISPGetAckSlave Try 0x6A` ->
+    `SwitchToDebugModeOneBankMode enumError:0x0` -> HID path selected
+    (\\?\hid#vid_1462&pid_3fa4, HWID 0xA4160702) -> `Try 0x6E`/`Get
+    0x6E` -> `Enter ISP mode Success!` -> `Bank 57 Erase/ISP Success`
+    -> `Bank 56 Erase/ISP Success`. Full dual-bank flow witnessed
+    (inactive bank first == our practice design); 0x6A and 0x6E(=0x37
+    8-bit) are the two-stage handshake our own ladder knows (cand5's
+    status walk 0x00->0x6e->0x8a is literally the 0x6E lane answering).
+  * Fresh INI keys banked: bSmbusBlockReadWrite=1,
+    bEnableTypecUsbEnterISPMode=1, bISPCheckTypecUsb=1,
+    usBackgroundFlashWriteTime=5, enumExtFlashFwType=5,
+    enumVersionLocationType=1 (+ full 322 lines in /tmp for diff).
+- INFERENCE (flagged): on GI/CpIspTool models the ISP mailbox is driven
+  by the monitor's OWN USB MCU as internal I2C master (msigd's
+  1462:3fa4 = that MCU). Our X28 exposes no internal-bus carrier
+  (display-only Type-C), and every external bus NACKs 0x6A where the
+  MCU answers it internally. Prediction, medium confidence: the
+  borrowed real-Windows run will ALSO stop at 12 % on the 0x6A
+  handshake (Comm_Aux lane), and the clip / service-UART / UFD-style
+  routes remain the dependable paths. The 12 % observable now carries a
+  falsifiable expectation either way.
+- Files: scratch/standby_button.py; Facts.GI_BUNDLE new; HANDOFF #14
+  updated (GI branch CLOSED evidence-based; Windows prediction added);
+  monitor healthy throughout (fw/edid byte-identical; relay resident).

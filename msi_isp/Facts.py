@@ -509,6 +509,37 @@ STANDBY_AXES = {
               "half (blocked on: sudo insmod kernel/msi_auxch.ko)",
 }
 
+# ---- Gaming Intelligence payload dissection (session 15j) --------------
+# download.msi.com/uti_exe/monitor/Gaming-Intelligence-x64.zip (477 MB,
+# Inno Setup 6.1 'zlb'/zstd -- innoextract works). GI bundles its OWN
+# CpIspTool deployment (WinISPTool.exe + PlugIn/{WinIspPlugIn.dll,
+# Flash.dat} + 322-line IspSetting.ini + runtime logs) with comm
+# backends {RealtekUSB, NewRealtekUSB, FTDIUsb, NuvotonI2C} -- i.e.
+# the monitor's built-in USB MCU (msigd's 1462:3fa4) as I2C master.
+# GI has NO Comm_Aux / Comm_GFXI2C; our X28 package has NO USB comms:
+# the two transport families are disjoint. GI's model DB lists
+# MAG341CQP_QD_OLED + MPG341CQPX -- NO X28 => the standalone tool we
+# own IS MSI's X28 path; the GI-RE lead closes.
+# IspLog.txt (successful run, GD25Q32C model, ID c8 40 16 15 = same
+# device-bytes family as our record key 37 30 16 15): two-stage
+# handshake Try 0x6A -> HID path -> Try 0x6E / Get 0x6E (= 0x37
+# 8-bit; same lane as our cand5 status walk 0x00->0x6e->0x8a) ->
+# Enter ISP -> Bank 57 then Bank 56 erase+program (inactive-first,
+# == our practice design). Fresh INI: bSmbusBlockReadWrite=1,
+# bEnableTypecUsbEnterISPMode=1, bISPCheckTypecUsb=1,
+# usBackgroundFlashWriteTime=5.
+# INFERENCE (flagged): 0x6A mailbox is MCU-internal on GI-era models;
+# X28 exposes no internal carrier -> borrowed real Windows likely ALSO
+# dies at 12 % (Comm_Aux lane). Falsifiable via the 12 % observable.
+GI_BUNDLE = {
+    "verdict": "GI = USB-MCU/bridge world; X28 absent from its model DB",
+    "witness": "successful CpIspTool log: 0x6A + 0x6E handshake, "
+               "bank57-then-56 program, enumError 0x0 at every stage "
+               "we fail on (0x6A)",
+    "prediction": "borrowed Windows on X28 stops at 12 % (medium "
+                  "confidence) -- clip/UART/service routes stay primary",
+}
+
 # ---- Bulk I2C-over-AUX control (0x73137C), probed session 14n -----------
 # NV0073_CTRL_CMD_DP_AUXCH_I2C_TRANSFER_CTRL: "bulk ... splitting up the
 # data into pieces and retrying for pieces that aren't ACK'd" (SDK doc).
