@@ -75,3 +75,29 @@ If the box is a hybrid GPU (laptop), make sure the DP port belongs to the
 GPU you think it does (`xrandr --listproviders` / BIOS mux settings) — the
 runbook target is any Intel/AMD DP output; wrong provider just means the bus
 auto-detect will not see the monitor and `--bus N` fixes it.
+
+## Borrowed-real-Windows day (15j addition — the zero-install variant)
+
+No Windows install needed: community practice (r/linuxmint thread on the
+MPG 321URX) is a **WinPE / Hiren's-BootCD USB** — boot it, run the vendor
+utility, done. Two observables, both free:
+
+1. **Progress past 12 %.** That is the first measurable Windows-vs-Linux
+   delta: our Linux box dies exactly at the vendor `0x35/0xCA` mailbox
+   (15g/15h), and under Proton the ISP bytes most likely never reach the
+   wire at all (15h retraction). Stopping at 12 % = full cross-platform
+   corroboration; passing it = `0x35` ACKs only where the Windows RM aux
+   driver can reach, and the borrow could literally flash the inactive
+   bank (dual-bank design = safe until the flag flip).
+2. **Device Manager with USB-C plugged** (MSI's documented combo): does
+   ANY device appear from the monitor (COM / HID / usbccgp)? On Linux the
+   answer is provably no (VIA billboard is host-side; 15j) — Windows may
+   enumerate what Alt Mode hides elsewhere. A "yes" would mean the
+   docs' USB-C channel is real *somewhere* and changes what GI/the tool
+   bind to.
+
+Caveat that decides whether the test teaches anything: **NVAPI needs the
+NVIDIA driver loaded inside the PE** (stock WinPE runs basic display =
+the tool would die at `0x45`/initialize-fail — which is NOT a wire datum,
+cf. the DW-Proton log, Facts.PROTON_045). Hiren's normally carries GPU
+drivers; verify `nvapi64` actually loads before trusting a failure.

@@ -1716,3 +1716,84 @@ use exact -x names or PID files, never -f patterns contained in own cmdline.
   playbook order of operations. Open backlog (non-blocking): 15f-forensics
   micro-question (how the Proton run passed version checks with an
   I2C-less shim).
+
+## Session 15j (2026-10-10) — standby axis probed to its automated ceiling (all negative); [0x85,0xA0] DDC-ISP pair ROUTES (mailbox ack) but opens no lane; write-opcode gen-2 roster closed; 15h HDMI allow-list confession
+
+- User re-asked "is there really nothing else to try?" (HDMI now unplugged
+  for good, USB-C stays; monitor has NO other USB ports — Type-C is
+  DP-alt/PD only). Full-project re-look + web sweep (Brave count=20/request
+  per user preference — and note: the tool's `count` param caps at 20,
+  default 10; every call this session used 20).
+- USB-C re-witnessed from the HOST side: `2109:0103 VIA Labs USB 2.0
+  BILLBOARD` alone on the Type-C xhci bus = the motherboard alt-mode
+  mux's status device (entry-notification), monitor contributes ZERO
+  USB devices. Dead-end #12 (display-only) independently reconfirmed;
+  billboard was never monitor-side data. No iGPU either (lspci: 4090
+  only) — the community "flash via the Intel port" axis is structurally
+  unavailable on this box.
+- Web harvest (primary-source reads): blurbusters t=779 = the boeglin
+  2014 origin of flashrom mstarddc_spi — working recipe = Intel i915 +
+  ANALOG DDC + monitor in STANDBY, BenQ shows 37/49/50/59 there. That
+  'standby' condition was NEVER in our matrices (every historical probe
+  ran against a video-serving scaler) -> became this session's experiment.
+  KitGuru/TFTCentral on the MAG-series tool launch: flashing guidance is
+  "DisplayPort-to-DisplayPort, no adapters" — NO USB requirement for this
+  tool lineage; MSI blog's "USB Type-B" line = boilerplate for USB-B
+  models; the non-X28 sibling 341CQP updates via Gaming Intelligence =
+  NEW RE LEAD (does GI re-bundle WinIspPlugIn or carry its own DDC/CI
+  flash grammar? binary-inspectable on Linux). r/linux_gaming +
+  r/linuxmint MSI-QD-OLED threads: Wine/GI users hit the same
+  no-monitor-detect wall; community answer = WinPE/Hiren's boot (free
+  borrowed-Windows — runbook note: NVAPI needs the NVIDIA driver present
+  in the PE or it dies at 0x45, teaching nothing).
+- STANDBY AXIS, automated to ceiling — three sub-axes, one harness each
+  (scratch/standby_matrix.py, scratch/standby_input.py; logs untracked in
+  /tmp/opencode/standby_15j/):
+  * DPMS/xrandr: xset absent (CachyOS minimal); xrandr --off on Xwayland
+    died on BadMatch and the scaler never blinked off the bus.
+  * INPUT BLIND (the clean one): SET_VCP 60 -> 0x10 (DP-2, empty) VERIFIED
+    by read-back, 151 s of true no-signal on the selected input: 0x37 and
+    0x50 KEEP answering, ISP magic still cand5 -> status 0x8A, 0x35 still
+    silent, slave table frozen identical, then 60 -> 0x0f restored, EDID +
+    version byte-identical. ddcutil unit lesson banked: values are
+    DECIMAL unless 0x-prefixed (my first write '10'=0x0A was ignored —
+    invalid input values are, proven by read-back).
+  * D6 power control: undeclared (getvcp rejects it); setvcp framing-ACKs
+    but verify fails (DDCRC_VERIFY) and NOTHING happens — monitor never
+    sleeps. => TRUE standby on this unit = physical button only; the
+    button-standby sweep (i2c-dev allows 0x35 = honest cell; relay would
+    add 0x49/0x22) is queued for a user-at-desk minute + relay insmod.
+- GEN-2 WRITE-OPCODE PROBE (scratch/wopcode_15j.py, roster the 8/13
+  session missed: 07/0C declared-by-caps, 85/A0 = the INI
+  strInitialDdcciCmd pair, C2/C4/C6/C8 = ddcutil-notes Realtek family):
+  window-grammar = zero replies across the board (07/0C are standard MCCS
+  read/save semantics — expected non-fit). NEW DATUM: the PAIR forms
+  (85+A0, A0+85) get the REAL mailbox ack `6e 80 be` (the #13 valid-
+  EMPTY frame) where everything else got 00 00 00 — those two bytes route
+  into the DDCCI-ISP handler on this FW.
+- FOLLOW-UP STATE PROBE (scratch/ddcisp_85a0.py): [85,A0] x2 idempotent ->
+  NO state transition: 0x35 silent before/after, isp_alive None, version
+  window unaffected, mailbox A0+A0 also valid-empty, health OK. So the
+  DDCCI-ISP initial command EXISTS on our unit but opens NO flash lane
+  from FW.009 — consistent with #13's read-empty world; the CpIspTool
+  grammar beyond the initial pair is a MAG27/32-family artifact we do
+  not own (GI RE is now the cheapest way to obtain more of that grammar).
+- CONFESSION/CORRECTION (15h): its HDMI cells for 0x21/0x41/0x49 were
+  allow-list-polluted — those addresses are OUTSIDE NVIDIA's i2c-dev
+  ranges, so 'NACK' there really means 'never reached the wire via the
+  NVIDIA path'. DP verdicts unaffected (the 14k relay A1 scan was
+  unfiltered and 0x03-0x77-exhaustive: 0x49/0x6A are DEAD on the AUX
+  path for real). Honest closure for the analog bus = CH341A I2C-mode
+  sweep on kit day.
+- Kit capability expansion banked (CH341A = SPI + I2C + UART; mitxela
+  DDC-OLED + RTDTool/ROVA precedents): day-1 extra = unfiltered HDMI-DDC
+  sweep (kills the confound above); open-case extra = hunt the RTD ISP-
+  UART header (Realtek 1-to-1 ISP serial-flash mode = possible
+  clip-alternate path, same dongle covers it).
+- VCP note for the user: brightness now reads 100 (max) where the 15c-era
+  baseline recorded 0; this session wrote ONLY 0x60 (twice, restored) and
+  0xD6 (ignored/verify-fail). Flagged, NOT silently 'restored' — user
+  decides whether that's their own change.
+- Monitor: FW.009 + EDID byte-identical after every cell; inputs restored;
+  nothing flash-adjacent touched. Relay half blocked on one user command:
+  `sudo insmod kernel/msi_auxch.ko`.

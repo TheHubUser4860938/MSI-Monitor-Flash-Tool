@@ -478,6 +478,37 @@ FLASHDAT_MAP = {
                "mirrors, and 0x38/0x39 arm/trigger == 14i B8/B9",
 }
 
+# ---- Standby/no-signal axes (session 15j; scratch/standby_*.py) -----
+# The MStar-community flash recipe (boeglin 2014, upstream of flashrom
+# mstarddc_spi) needs the monitor ASLEEP + analog DDC. We can never
+# automate sleep on this box: DPMS-off is invisible to the scaler (link
+# stays trained, Xwayland xrandr --off BadMatch'd), blinding the input
+# (VCP 60 -> 0x10 verified) keeps DDC/CI + ISP magic fully alive for
+# 150 s, and VCP D6 is silently ignored (undeclared, verify fails).
+# => true standby = physical button only, still untested there.
+# Across every reachable axis the bus is FROZEN-IDENTICAL: ACK set
+# {0x30,0x37,0x4a,0x4b,0x50}, magic cand5 -> 0x8A, 0x35 silent.
+# DDCCI-ISP datum: the INI strInitialDdcciCmd PAIR [0x85,0xA0] (and
+# [0xA0,0x85]) are the only non-zero-reply writes ever observed on
+# 0x37: mailbox ack 6e 80 be (#13 valid-EMPTY) x2 idempotent, but NO
+# lane opens (0x35 stays silent, isp_alive None). Gen-2 opcode roster
+# {07,0C,85,A0,C2,C4,C6,C8} in window grammar: all dead zeros.
+# 15h HDMI CONFESION: 0x21/0x41/0x49 are outside NVIDIA's i2c-dev
+# allow-list -> those HDMI 'NACKs' were driver-side never-on-wire. The
+# unfiltered DP relay A1 (0x03-0x77) remains the hard verdict; honest
+# analog-bus closure = CH341A I2C mode on kit day (CH341A = SPI+I2C+
+# UART: RTD ISP-UART header is a clip-alternate to hunt when open).
+STANDBY_AXES = {
+    "dpms_xrandr": "scaler never sleeps (host link stays trained)",
+    "input_blind": "DP-2 empty-input verified; 151 s: 0x37/0x50 ACK, "
+                   "magic cand5->0x8A, 0x35 silent, table frozen",
+    "d6_power": "ignored: undeclared, setvcp verify-fail, no sleep",
+    "ddcisp_85a0": "routes to mailbox (6e 80 be x2) but opens nothing; "
+                   "the only writes EVER with non-zero reply on 0x37",
+    "queued": "button-standby sweep (user minute) + relay unfiltered "
+              "half (blocked on: sudo insmod kernel/msi_auxch.ko)",
+}
+
 # ---- Bulk I2C-over-AUX control (0x73137C), probed session 14n -----------
 # NV0073_CTRL_CMD_DP_AUXCH_I2C_TRANSFER_CTRL: "bulk ... splitting up the
 # data into pieces and retrying for pieces that aren't ACK'd" (SDK doc).
