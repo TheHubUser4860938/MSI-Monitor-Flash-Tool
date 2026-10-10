@@ -1039,3 +1039,46 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
   pacing grounded twice), B5 test suite (+1 latent bug caught by authoring),
   B6 CI (first green on four Pythons), 14m launch. Monitor: still FW.009,
   never written, DP-only.
+
+## Session 14n (2026-10-10) — the 0x73137C kernel-privilege experiment: hypothesis falsified cleanly, bulk relay born, dead-end #11 at four origins
+
+- The plan item "the one untried NVIDIA-side lead": NVAPI's prime suspect
+  control — NV0073_CTRL_CMD_DP_AUXCH_I2C_TRANSFER_CTRL (0x73137C), "bulk
+  I2C over aux, 256 B/txn, driver splits + ACK-retries" — had only ever
+  been measured from userland (0x23 NV_ERR_INVALID_CLIENT: the fd-table
+  gate the kill-switch analysis says kernel context skips). Built the test:
+  new MSI_AUXCH_BULK ioctl (0x43) in the relay, full struct conversion
+  in-kernel, module fills subDeviceInstance/displayId itself, same
+  rm_lock serialization, and the ISP-slave write gate EXTENDED to the new
+  path (gates both 7-bit 0x18..0x22 and 8-bit 0x30..0x45 spellings since
+  addr passes through verbatim — deliberate). W=1 clean.
+- Experiment (scratch/bulk_kernel_test.py, uid 1000, one driver round-trip
+  per line): **the control is ALIVE from kernel context** — EDID pointer
+  write + 256-byte double-block read land in ONE call, byte-perfect (blk1
+  CEA tag 0x02 @0x80), no first-byte quirk (confirmed shim-only), branch
+  slaves 0x30/0x4a/0x4b ACK. Address convention settled: PLAIN 7-bit (the
+  SDK's "20 bits valid" phrasing does NOT mean 8-bit DDC forms: 0xa1 ->
+  NV_ERR_GENERIC). Status table decoded against nvstatuscodes.h: 0xffff =
+  NV_ERR_GENERIC — my old "0x26=TIMEOUT-ish" label was wrong (it's
+  NV_ERR_INVALID_DEVICE); Facts gains the verified BULK_I2C_STATUS map.
+- **The verdict: 0x22 answers NV_ERR_GENERIC — identical to unoccupied
+  slaves (0x36/0x39) — in both addr forms, read and unlocked-write, while
+  occupied slaves on the same control ACK. No address policy inside the
+  control; the refusal is at the wire.** Dead-end #11 confirmed from a
+  FOURTH origin; "kernel privilege unlocks 0x22" is honestly falsified.
+  The Windows-vs-Linux delta now provably lives above control-reachability:
+  NVAPI sequencing/mode, or the closed driver's pre-GSP path (open
+  question #2 sharpened, not closed).
+- Also learned: NV_ERR_GENERIC doubles as "slave silent" — a cleaner
+  discriminator than the XFER path's conflated TIMEOUT. And the bulk
+  primitive is the right transport for whatever future driver DOES route
+  0x22: 256 B/txn = ~7k transactions for a full dump vs ~115k at 16 B.
+  Kept out of auxdev.py read()/write() for now (nvbus parity is
+  live-proven; wiring bulk into production transport without a consumer
+  would be the dead-code sin B5 just caught).
+- test_relay.py extended (8-case matrix): bulk EDID oracle + plain-7-bit
+  proof + read-passes-while-write-refuses gate interaction — all green;
+  every case PASSes unprivileged. scratch/bulk_kernel_test.py embeds the
+  verdict text + "re-run costs seconds, do it after every major driver
+  update" (a standing experiment, not a one-shot). ruff + gates green;
+  module rmmod-clean pending final cycle.

@@ -103,6 +103,24 @@ struct auxch_xfer {
  * deliberately cheap: the gate is intention, not inconvenience. */
 #define MSI_AUXCH_UNLOCK _IO('M', 0x42)
 
+/* Bulk I2C-over-AUX relay (0x73137C): 256 B/transaction, GSP-RM splits and
+ * ACK-retries internally. From userland this control answers 0x23
+ * (INVALID_CLIENT: the fd-table gate); from kernel context that gate is
+ * skipped -- that is the whole kill-switch thesis being tested. addr is
+ * passed through VERBATIM (SDK: DP spec 2.4, "first 20 bits valid"),
+ * unlike XFER's plain-7-bit field: whether that means 8-bit DDC form or
+ * something else is what the live experiment decides.
+ * No replyType field exists here: NV_OK means the message completed. */
+#define BULK_MAX_DATA 256
+struct auxch_bulk {
+    __u32 addr;
+    __u32 bWrite;
+    __u32 size;                                /* IN: requested, OUT: done */
+    __u8  data[BULK_MAX_DATA];
+    __u32 rmStatus;                            /* [OUT] */
+};
+#define MSI_AUXCH_BULK _IOWR('M', 0x43, struct auxch_bulk)
+
 static bool isp_write_gated(u32 cmd, u32 addr7, bool addr_only)
 {
     if (addr_only)                          /* bare address phase: zero data
@@ -178,6 +196,30 @@ static NvU32 auxch(NV0073_CTRL_DP_AUXCH_CTRL_PARAMS *a)
     return rm_control(hDisp, NV0073_CTRL_CMD_DP_AUXCH_CTRL, a, sizeof(*a));
 }
 
+/* one BULK I2C transfer (0x73137C) — kernel-privilege path under test */
+static NvU32 bulk_i2c(NV0073_CTRL_DP_AUXCH_I2C_TRANSFER_CTRL_PARAMS *p)
+{
+    p->subDeviceInstance = sub_inst;
+    p->displayId = disp_id;
+    return rm_control(hDisp, NV0073_CTRL_CMD_DP_AUXCH_I2C_TRANSFER_CTRL,
+                      p, sizeof(*p));
+}
+
+/* addr arrives verbatim, so its encoding (7-bit vs 8-bit DDC) is undecided
+ * until the experiment speaks; gate BOTH readings of the ISP set:
+ * 7-bit 0x18..0x22 and 8-bit 0x30..0x45.  EDID/branch/DDC-CI (8-bit) forms
+ * stay free; a 7-bit 0x37 DDC-CI bulk write pays one unlock — deliberate. */
+static bool bulk_write_gated(u32 addr, u32 bwrite, u32 size)
+{
+    if (!bwrite || size == 0)               /* read / address-only: free */
+        return false;
+    if (addr >= ISP_SLAVE_MIN && addr <= ISP_SLAVE_MAX)
+        return ktime_after(ktime_get(), unlock_deadline);
+    if (addr >= (ISP_SLAVE_MIN << 1) && addr <= ((ISP_SLAVE_MAX << 1) | 1))
+        return ktime_after(ktime_get(), unlock_deadline);
+    return false;
+}
+
 /* ---- relay chardev (unprivileged acceptance surface) ------------------ */
 static long msi_ioctl(struct file *f, unsigned int ioc, unsigned long arg)
 {
@@ -192,6 +234,38 @@ static long msi_ioctl(struct file *f, unsigned int ioc, unsigned long arg)
         pr_info(DRV ": ISP slave writes unlocked for %u ms (pid %d)\n",
                 UNLOCK_MS, current->pid);
         mutex_unlock(&rm_lock);
+        return 0;
+    }
+    if (ioc == MSI_AUXCH_BULK) {
+        NV0073_CTRL_DP_AUXCH_I2C_TRANSFER_CTRL_PARAMS p;
+        struct auxch_bulk bu;
+
+        if (copy_from_user(&bu, (void __user *)arg, sizeof(bu)))
+            return -EFAULT;
+        if (bu.size > BULK_MAX_DATA)
+            return -EINVAL;
+        memset(&p, 0, sizeof(p));
+        p.addr = bu.addr;
+        p.bWrite = bu.bWrite ? NV_TRUE : NV_FALSE;
+        p.size = bu.size;
+        memcpy(p.data, bu.data, BULK_MAX_DATA);
+
+        mutex_lock(&rm_lock);
+        if (!tree_ok) {
+            mutex_unlock(&rm_lock);
+            return -ENODEV;
+        }
+        if (bulk_write_gated(bu.addr, bu.bWrite, bu.size)) {
+            mutex_unlock(&rm_lock);
+            return -EPERM;                   /* MSI_AUXCH_UNLOCK arms this */
+        }
+        bu.rmStatus = bulk_i2c(&p);
+        mutex_unlock(&rm_lock);
+
+        bu.size = p.size;                    /* OUT: bytes completed */
+        memcpy(bu.data, p.data, BULK_MAX_DATA);
+        if (copy_to_user((void __user *)arg, &bu, sizeof(bu)))
+            return -EFAULT;
         return 0;
     }
     if (ioc != MSI_AUXCH_XFER)

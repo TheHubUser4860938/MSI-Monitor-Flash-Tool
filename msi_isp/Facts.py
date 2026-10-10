@@ -139,6 +139,31 @@ def bin_content_checksum(data: bytes) -> int:
 # on failure paths are all VENDOR practice; the JEDEC 0x1F gate is not (the
 # vendor keys on the capacity code above) — it stays our own safety
 # addition. Error codes 0xd39/0xd56 = message ids of this plugin.
+# ---- Bulk I2C-over-AUX control (0x73137C), probed session 14n -----------
+# NV0073_CTRL_CMD_DP_AUXCH_I2C_TRANSFER_CTRL: "bulk ... splitting up the
+# data into pieces and retrying for pieces that aren't ACK'd" (SDK doc).
+# From userland (even root): NV_ERR_INVALID_CLIENT (0x23) -- the fd-table
+# gate. From kernel context (our relay's MSI_AUXCH_BULK ioctl): ALIVE.
+# Measured facts (scratch/bulk_kernel_test.py, 615.78.08 + GSP):
+#   * addr field = PLAIN 7-bit, same convention as 0x731341 -- the SDK's
+#     "20 bits valid" phrasing does NOT mean pass 8-bit DDC forms (0xa1 ->
+#     NV_ERR_GENERIC).
+#   * size = byte count IN/OUT (NOT 0-based, unlike the auxch ctrl struct).
+#   * 256 B transactions land whole (EDID blocks 0+1 in ONE call, byte-
+#     perfect, no first-byte quirk -- that quirk is i2c-dev-shim-only).
+#   * branch slaves 0x30/0x4a/0x4b ACK here: NO address policy in the
+#     control. NV_ERR_GENERIC (0xffff) == unoccupied-slave outcome ==
+#     genuine wire silence at the sink.
+#   * Slave 0x22 -> GENERIC in both addr forms, read and (unlocked) write:
+#     dead-end #11 CONFIRMED FROM A FOURTH ORIGIN -- the most likely
+#     control behind NVAPI's working I2C fails identically from Linux
+#     kernel context. Windows-vs-Linux delta narrows to NVAPI's path/
+#     sequencing (open question #2), not privilege, not this control.
+BULK_I2C_STATUS = {0x0000: "OK", 0xFFFF: "NV_ERR_GENERIC (wire failure)",
+                   0x0023: "NV_ERR_INVALID_CLIENT (userland origin only)",
+                   0x0026: "NV_ERR_INVALID_DEVICE", 0x0040: "NV_ERR_INVALID_STATE",
+                   0x0056: "NV_ERR_NOT_SUPPORTED"}
+
 ISP_PIPELINE = [
     ("get_flash_mode",     0x1AA50),
     ("typec_usb_check",    0x17300),
