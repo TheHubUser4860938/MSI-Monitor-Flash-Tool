@@ -21,10 +21,19 @@ import sys
 
 sys.path.insert(0, ".")
 
+# Provenance (audit 15l): NVIDIA's OFFICIAL public header table. The tmpfs
+# copy is gone (intended); re-fetch for the standing repro (HANDOFF open Q2):
+#   mkdir -p /tmp/opencode/nvapi && curl -fsSLo /tmp/opencode/nvapi/nvapi_interface.h \
+#     https://raw.githubusercontent.com/NVIDIA/nvapi/main/nvapi_interface.h
+# (verified live in 15l: ships NvAPI_I2CRead; does NOT list
+# NvAPI_Disp_DpAuxChannelControl -- corroborates the "private path" finding.)
 HDR = "/tmp/opencode/nvapi/nvapi_interface.h"
 
 
 def load_ids(path):
+    import os
+    if not os.path.exists(path):
+        raise SystemExit(f"header missing: {path} -- see provenance comment")
     ids = {}
     for m in re.finditer(r'\{\s*"([^"]+)"\s*,\s*(0x[0-9A-Fa-f]+)\s*\}',
                          open(path).read()):

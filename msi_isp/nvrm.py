@@ -74,12 +74,13 @@ class NvHandleArr(ctypes.Structure):
     _fields_ = []
 
 
-# kernel table: _NV_IOCTL_ENTRY(NV_ESC_CARD_INFO, nv_ioctl_card_info_t, TRUE)
-# -> arg_size must be a multiple of the per-entry size. Verified layout for
-# 615.71.09 (kernel-open/common/inc/nv-ioctl.h + nv_pci_info_t):
-#   { NvBool valid(+3 pad); NvU32 domain,NvU8 bus,slot,func(+1);
-#     NvU32 gpu_id; NvU16 irq(+2 pad); u64 x4; NvU32 minor; u8[10]; 4 pad }
-CARD_INFO_ENTRY_SZ = 48
+# Kernel table: _NV_IOCTL_ENTRY(NV_ESC_CARD_INFO, nv_ioctl_card_info_t,
+# TRUE) -> arg size must be a multiple of the per-entry size, so
+# card_info_raw() PROBES strides instead of trusting a constant (audit 15l
+# removed the stale, unused "CARD_INFO_ENTRY_SZ = 48": the struct carries
+# four u64s on 615.x and matched stride LIVE is 72 -- see nvbus.py).
+# Entry fields our live parse keys off (72-B layout): domain@4, bus@12,
+# gpu_id@16..19, minor@40..43.
 
 
 class NVVersion(ctypes.Structure):
@@ -139,7 +140,9 @@ class AUXCHParams(ctypes.Structure):
 
 
 class I2CXferParams(ctypes.Structure):
-    """NV0073_CTRL_DP_AUXCH_I2C_TRANSFER_CTRL_PARAMS (272 bytes):
+    """NV0073_CTRL_DP_AUXCH_I2C_TRANSFER_CTRL_PARAMS (276 bytes; SDK
+    NV0073_CTRL_DP_AUXCH_I2C_TRANSFER_MAX_DATA_SIZE=256 -- field order
+    re-verified against 615.78.08 ctrl0073dp.h in audit 15l):
     RM performs the whole DP I2C-over-AUX sequence (MOT chunking, status,
     NAK-defer retries) for up to 256 data bytes per call.
     addr follows DP spec 2.4 section I2C-over-AUX: 20-bit field placed at

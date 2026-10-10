@@ -1472,7 +1472,7 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
   FAIL, file path X:\Projects\monitor-fw\vendor\... Deep run forensics:
   * Runner recovered from the live process tree: **umu-run +
     proton-cachyos-slr** (Steam compatibilitytools.d), Heroic prefix
-    (x: -> /home/eugene), PROTON_ENABLE_NVAPI=1 +
+    (x: -> /home/<user>), PROTON_ENABLE_NVAPI=1 +
     DXVK_NVAPI_ALLOW_OTHER_DRIVERS=1. Different stack from the recorded
     DW-Proton runs -- full DXVK => NvAPI_Initialize SUCCEEDS where
     DW-Proton failed (15e). The tool is single-instance; it was still

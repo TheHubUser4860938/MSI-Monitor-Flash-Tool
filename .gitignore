@@ -21,3 +21,5 @@ nvidia-syms
 *.bak
 # ruff cache
 .ruff_cache/
+# transient scratchpads (audit 15l: poll_isp.tmp had slipped in tracked)
+*.tmp

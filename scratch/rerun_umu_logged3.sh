@@ -9,11 +9,11 @@ set -u
 LOG=/tmp/opencode/nvapilog_umu
 rm -rf "$LOG" && mkdir -p "$LOG"
 P=/usr/share/steam/compatibilitytools.d/proton-cachyos-slr
-H="/home/eugene/Games/Heroic/Prefixes/MSI firmware updater tool"
+H="$HOME/Games/Heroic/Prefixes/MSI firmware updater tool"
 
 WINEPREFIX="$H" \
 STEAM_COMPAT_DATA_PATH="$H" \
-STEAM_COMPAT_CLIENT_INSTALL_PATH=/home/eugene/.steam \
+STEAM_COMPAT_CLIENT_INSTALL_PATH=$HOME/.steam \
 STEAM_COMPAT_APP_ID=0 \
 PROTONPATH="$P" \
 PROTON_ENABLE_NVAPI=1 \
@@ -24,13 +24,13 @@ DXVK_NVAPI_LOG_LEVEL=info \
 DXVK_LOG_LEVEL=info \
 DXVK_NVAPI_LOG_PATH="$LOG" \
 DXVK_LOG_PATH="$LOG" \
-/usr/bin/umu-run "/home/eugene/Projects/monitor-fw/vendor/MSI Firmware Update Utility V1.0.6.exe" \
+/usr/bin/umu-run "$HOME/Projects/monitor-fw/vendor/MSI Firmware Update Utility V1.0.6.exe" \
   >"$LOG/umu_stdout.log" 2>&1 &
 UMU=$!
 sleep 100
 
 echo "=== protonlog/steam-0.log app-side lines ==="
-S=/home/eugene/steam-0.log
+S=$HOME/steam-0.log
 [ -f "$S" ] && { grep -aiE "nvapi|i2c" "$S" | sort -u | head -12
                  grep -aiE "err:" "$S" | sort -u | head -8; } || echo "no steam-0.log"
 echo "=== nvapi/dxvk logs in \$LOG ==="
@@ -46,5 +46,5 @@ tail -6 "$LOG/umu_stdout.log"
 kill "$UMU" 2>/dev/null
 pkill -f "proton-cachyos-slr" 2>/dev/null
 sleep 3
-pkill -u eugene -x wineserver 2>/dev/null
+pkill -u "$USER" -x wineserver 2>/dev/null
 echo DONE

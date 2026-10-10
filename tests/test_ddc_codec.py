@@ -62,7 +62,16 @@ class TestParseReply(unittest.TestCase):
         self.assertFalse(ddc_parse_reply(bytes(raw))["ok"])
 
     def test_wrong_leading_byte_rejected(self):
-        self.assertIsNone(ddc_parse_reply(b"\x50\x88\x02\x00\x03"))
+        self.assertIsNone(ddc_parse_reply(b"\x51\x88\x02\x00\x03"))
+
+    def test_spec_conformant_lead_accepted(self):
+        # audit 15l: X28 leads replies with 0x6E (own address where the
+        # spec puts the destination code 0x50) but checksums with 0x50.
+        # A spec-conformant sink leads 0x50; same seed formula covers both.
+        # Synthetic: REAL_REPLIES[0] lead-swapped, chk = 0xc5 ^ 0x6e ^ 0x50.
+        r = ddc_parse_reply(bytes.fromhex("50880200100000640005fb"))
+        self.assertIsNotNone(r)
+        self.assertTrue(r["ok"])
 
     def test_zero_length_nack_shape(self):
         r = ddc_parse_reply(b"\x6e\x80\x03")

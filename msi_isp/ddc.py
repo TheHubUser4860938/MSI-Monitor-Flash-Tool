@@ -23,10 +23,11 @@ import os
 import time
 
 I2C_SLAVE = 0x0703
-I2C_RDWR = 0x0707
+I2C_RDWR = 0x0707          # (unused by this module: NVIDIA answers ENOTTY, 15h)
 
 SLAVE_DDC = 0x37            # 7-bit DDC/CI slave
-SLAVE_ISP = 0x6F            # 7-bit Realtek ISP/tunnel slave (8-bit 0xDE/0xDF)
+# (the old SLAVE_ISP=0x6F constant was mislabeled dead weight, removed 15l:
+#  0x6F is the 8-bit form of 0x37 itself -- Facts.SLAVES is the authority)
 DDC_SLAVE_W = 0x6E          # 8-bit form, first byte on the wire
 SRC_HOST = 0x51             # source address byte in write packets (8-bit-ish)
 MSG_LEN_FLAG = 0x80
@@ -82,7 +83,12 @@ class RTBus:
         return os.read(self.fd, n)
 
     def probe(self, addr7):
-        """ACK probe: 1-byte write, separate transaction. True if ACK."""
+        """ACK probe: 1-byte write, separate transaction. True if ACK.
+
+        Honesty note (audit 15l): on this transport a probe is NOT
+        write-free -- it clocks one 0x00 pointer byte (ddcutil's own
+        discovery parity). Harmless for EEPROM/DDC/CI slaves; aux-path
+        transports (nvbus/auxdev) probe with a pure address phase."""
         try:
             self.select(addr7)
             os.write(self.fd, b"\x00")
@@ -122,7 +128,10 @@ def ddc_parse_reply(buf):
     We return the raw payload plus a checksum verdict using the ddcutil
     convention (XOR over every wire byte including the leading 0x6E).
     """
-    if len(buf) < 3 or buf[0] != DDC_SLAVE_W:
+    if len(buf) < 3 or buf[0] not in (DDC_SLAVE_W, 0x50):
+        # 0x6E lead = this monitor (vendor quirk: own addr in the
+        # destination slot); 0x50 lead = spec-conformant devices, accepted
+        # for community hardware (audit 15l). Both checksum with seed 0x50.
         return None
     ln = buf[1]
     n = ln & 0x0F

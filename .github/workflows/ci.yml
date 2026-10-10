@@ -26,6 +26,10 @@ jobs:
       - name: Syntax-check every shipping Python file
         # scratch/ (incl. scratch/legacy/) is frozen session records —
         # same exemption ruff.toml applies; they may use dev-box syntax.
-        run: python -m compileall -q msi_isp tests kernel re
+        run: |
+          python -m compileall -q msi_isp tests kernel re
+          # the one archive file with a CI-pinned contract (its test
+          # exec-imports this path): syntax-checked here, drift-checked there
+          python -m compileall -q scratch/flashdat_bind.py
       - name: Unit tests (stdlib, fake busses)
         run: python -m unittest discover -s tests -t . -v

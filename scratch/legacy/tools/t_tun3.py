@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """Decide whether slave 0x50 via I2CXfer goes through a real tunnel, and
 whether enabling the I2C tunnel speed reg changes anything. All native-mode
-reads/writes on DPCD are proven-safe; the 0x00D1 write is restored at the end."""
+reads/writes on DPCD are proven-safe; the 0x00D1 write is restored at the end.
+
+FROZEN FOSSIL (audit 15l): imports AUX_MODE_NATIVE/AUX_MODE_I2C and calls
+aux(mode=...) -- the pre-session-12 nvrm API. The current API removed both;
+do not expect this to import.
+"""
 import sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3]))
 from msi_isp.nvrm import NvRM, AUX_REQ_READ, AUX_REQ_WRITE, AUX_MODE_NATIVE, AUX_MODE_I2C

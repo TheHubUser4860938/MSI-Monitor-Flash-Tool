@@ -23,23 +23,23 @@ if [ -n "${SRC_PID:-}" ]; then
   pkill -f "proton-cachyos-slr/proton" 2>/dev/null
   kill "$SRC_PID" 2>/dev/null
   sleep 3
-  pkill -u eugene -x wineserver 2>/dev/null
+  pkill -u "$USER" -x wineserver 2>/dev/null
   sleep 2
 fi
 
-WPREFIX="${ENV[WINEPREFIX]:-/home/eugene/Games/Heroic/Prefixes/MSI firmware updater tool}"
+WPREFIX="${ENV[WINEPREFIX]:-$HOME/Games/Heroic/Prefixes/MSI firmware updater tool}"
 env -i \
-  HOME=/home/eugene \
+  HOME=$HOME \
   PATH=/usr/bin:/bin \
-  USER=eugene \
+  USER="$USER" \
   DISPLAY="${ENV[DISPLAY]:-:0}" \
-  XAUTHORITY="${ENV[XAUTHORITY]:-/home/eugene/.Xauthority}" \
+  XAUTHORITY="${ENV[XAUTHORITY]:-$HOME/.Xauthority}" \
   WAYLAND_DISPLAY="${ENV[WAYLAND_DISPLAY]:-}" \
   XDG_RUNTIME_DIR="${ENV[XDG_RUNTIME_DIR]:-/run/user/1000}" \
   XDG_SESSION_TYPE="${ENV[XDG_SESSION_TYPE]:-wayland}" \
   WINEPREFIX="$WPREFIX" \
   STEAM_COMPAT_DATA_PATH="${ENV[STEAM_COMPAT_DATA_PATH]:-$WPREFIX}" \
-  STEAM_COMPAT_CLIENT_INSTALL_PATH="${ENV[STEAM_COMPAT_CLIENT_INSTALL_PATH]:-/home/eugene/.steam}" \
+  STEAM_COMPAT_CLIENT_INSTALL_PATH="${ENV[STEAM_COMPAT_CLIENT_INSTALL_PATH]:-$HOME/.steam}" \
   STEAM_COMPAT_APP_ID=0 \
   PROTONPATH="${ENV[PROTONPATH]:-/usr/share/steam/compatibilitytools.d/proton-cachyos-slr}" \
   PROTON_ENABLE_NVAPI=1 \
@@ -49,7 +49,7 @@ env -i \
   DXVK_LOG_LEVEL=info \
   DXVK_NVAPI_LOG_PATH="$LOG" \
   DXVK_LOG_PATH="$LOG" \
-  /usr/bin/umu-run "Z:\\home\\eugene\\Projects\\monitor-fw\\vendor\\MSI Firmware Update Utility V1.0.6.exe" \
+  /usr/bin/umu-run "Z:\\${HOME//\//\\}\\Projects\\monitor-fw\\vendor\\MSI Firmware Update Utility V1.0.6.exe" \
   >"$LOG/umu_stdout.log" 2>&1 &
 UMU=$!
 sleep 90
@@ -61,10 +61,10 @@ for f in "$LOG"/*nvapi*.log "$LOG"/*.nvlog "$LOG"/*.log; do
   grep -aiE "i2c|interface|not impl|initialize|fail" "$f" | sort -u | head -14
 done
 echo "=== any dxvk-nvapi logs elsewhere (default path?) ==="
-find /home/eugene -maxdepth 2 -iname "*nvapi*" -newermt "-3 minutes" 2>/dev/null | head -3
+find $HOME -maxdepth 2 -iname "*nvapi*" -newermt "-3 minutes" 2>/dev/null | head -3
 echo "=== shut down ==="
 pkill -f "proton-cachyos-slr/proton" 2>/dev/null
 kill "$UMU" 2>/dev/null
 sleep 3
-pkill -u eugene -x wineserver 2>/dev/null
+pkill -u "$USER" -x wineserver 2>/dev/null
 echo done

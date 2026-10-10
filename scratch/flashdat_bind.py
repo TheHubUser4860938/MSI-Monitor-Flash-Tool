@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Flash.dat record->script binding (session 15i, Phase A).
 
+DO NOT MOVE/RENAME (audit 15l): tests/test_flashdat_bind.py exec-imports
+this EXACT path, and CI compile-checks it. It is the only scratch/ file
+with a CI-pinned contract (generator for Facts.FLASHDAT_MAP /
+re/g_flashdat_map.txt).
+
 Parses vendor/PlugIn/Flash.dat (gitignored vendor file -- this module is
 pure so tests feed fixture bytes). Structure, read off the bytes:
 

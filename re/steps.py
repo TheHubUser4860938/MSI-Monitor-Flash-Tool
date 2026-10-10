@@ -5,14 +5,18 @@ uses, and interesting immediates. This is how the ISP pipeline was decoded
 
 usage:  $PY re/steps.py <dll> <rva-hex> [n-bytes]     (n default 0x1000)
 """
+import os
 import re
 import sys
 
 import dis32
 
-DLLS = {"P": "vendor/PlugIn/WinIspPlugIn.dll",
-        "C": "vendor/Comm.dll",
-        "A": "vendor/Comm/Comm_Aux.dll"}
+# anchored to the repo root (audit 15l): env.sh says "source from
+# wherever" -- pre-audit relative paths broke every non-root CWD
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DLLS = {"P": os.path.join(_ROOT, "vendor/PlugIn/WinIspPlugIn.dll"),
+        "C": os.path.join(_ROOT, "vendor/Comm.dll"),
+        "A": os.path.join(_ROOT, "vendor/Comm/Comm_Aux.dll")}
 
 INTERESTING = re.compile(
     r"\b(0x[0-9a-f]{2,8}|call|j\w+|ret|loop|rep|Sleep)\b")
