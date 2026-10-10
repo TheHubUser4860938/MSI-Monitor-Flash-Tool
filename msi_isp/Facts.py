@@ -257,7 +257,10 @@ ISP_LADDER = {
     "status_here": "DEAD: i2c-dev EIO + relay TIMEOUT (15g first i2c-dev "
                    "cells; 14k relay sweep agreed)",
     "engine_verdict": "vendor tool 0xd21 = MSTARDDCCIACK on this ladder "
-                      "(12% = first command) -- third-party Linux witness",
+                      "(12% = first command) -- third-party Linux witness "
+                      "(comm init is click-deferred in unattended reruns, "
+                      "15g-addendum: no-log != no-attempt; W1-vs-W2 "
+                      "bookkeeping shelved -- same conclusion either way)",
 }
 
 WRITE_ACCEPTANCE = {

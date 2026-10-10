@@ -42,7 +42,7 @@ auto-select the RM transport instead — irrelevant here, no `/dev/nvidiactl`.
 | Result at `0x22` | Meaning | Next |
 |---|---|---|
 | `ACK` + data (`STEP 1 RESULT: CONTACT`) | I2C-over-AUX to the flash register file works | ACK path: `backup`/`write` implementation proceeds. Step-2 reg values (`0x60/0x61/0x00/0xFF`) decide address-sensitivity — capture them all. |
-| `STABLE-NACK/EIO` (or `STABLE-TIMEOUT`) for the full 2 s | The slave does not answer here either | Silence path: ship the v0.1 conclusion — with the session-15a/15b caveat that "Windows NVAPI works" was never an observed fact for this unit (the only recorded updater run was Wine/Proton, whose NVAPI — 15e log-repro — is a DXVK shim that dies at `NvAPI_Initialize` before any wire call; 0x45 there = backend dead, not wire silent); the decoded `Comm_Aux.dll` shows the Windows path uses the same class of primitives. If every Linux vendor goes silent too, the realistic remaining routes are a borrowed real-Windows+NVIDIA run, the vendor's Realtek-USB ISP backend (board-level adapter — this unit's USB-C is display-only), or a CH341A clip. |
+| `STABLE-NACK/EIO` (or `STABLE-TIMEOUT`) for the full 2 s | The slave does not answer here either | Silence path: ship the v0.1 conclusion — with the 15a/15e/15f caveat that "Windows NVAPI works" was never an observed fact for this unit: the recorded DW-Proton updater run dies at the DXVK-shim's `NvAPI_Initialize` (0x45, no wire), and the proton-cachyos run reaches the wire but fails at 12 % with `0xd21` = no-ACK on the vendor's `0x35/0xCA` ISP-control mailbox (slave `0x35` is dead-silent on this box's Linux paths; a borrowed real-Windows run now has a sharp observable: progress past 12 %). The decoded `Comm_Aux.dll` shows the Windows path uses the same class of primitives. If every Linux vendor goes silent too, the realistic remaining routes are a borrowed real-Windows+NVIDIA run, the vendor's Realtek-USB ISP backend (board-level adapter — this unit's USB-C is display-only), or a CH341A clip. |
 
 Note (session 15a, for AMD reporters): the vendor's own AMD comm backend rides
 `ADL_Display_DDCBlockAccess_Get` — plain DDC I2C semantics — so the i2c-dev
@@ -61,6 +61,15 @@ verdict logic is identical: **contact requires ACK + data.**
 3. `ddcutil --version`.
 4. Monitor state before/after (`./msi-isp --bus N info` — should be identical;
    it's a read-only session).
+5. Optional but valuable (proven method on the origin box): run the vendor
+   `MSI Firmware Update Utility V1.0.6.exe` under Proton-with-NVAPI
+   (proton-cachyos + `PROTON_ENABLE_NVAPI=1`, Heroic-style), Load File the
+   `.012` bin, press ISP — where does it stop? Stopping at 12 % with
+   `0xd21` mirrors this box (vendor `0x35/0xCA` mailbox dead on your GPU
+   too); passing 12 % means `0x35` ACKs on your GPU's aux path = the first
+   cross-vendor proof the ISP channel is GPU-reachable, and the tool
+   itself may be your flasher. (It fails safely before any bank switch;
+   this origin box survived repeated runs untouched.)
 
 If the box is a hybrid GPU (laptop), make sure the DP port belongs to the
 GPU you think it does (`xrandr --listproviders` / BIOS mux settings) — the

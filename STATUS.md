@@ -1557,3 +1557,24 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
   this session adds the FIRST i2c-dev cells for 0x35 (NACK/EIO) + the
   reg-shaped write/read cells both transports -- and now a *purpose*:
   it's the vendor's command channel.
+
+### 15g addendum (same day) — window-4 result: NO nvapi.log, engine shallow (1498 B
+default ini): the umu/proton engine defers comm init until USER INTERACTION
+(Load File + ISP click) -- all four automated no-click runs therefore never
+call NVAPI at all, which also re-explains retry-2/3's missing logs. The
+user's 1580 B 3-key ini = written during THEIR clicked flow (deeper comm
+init), and 0xd21 came from their ISP click. Discriminating W1 (shim carried
+bytes -> kernel NACK at 0x35) vs W2 (shim stub) would need GUI automation
+(xdotool clicks) for a distinction with ZERO decision value: native 0x35 is
+dead on every Linux path here, and both worlds conclude identically.
+Shelved as bookkeeping; #14 stays open only for the real-Windows datum:
+NEW TESTABLE PREDICTION for a borrowed-Windows run -- does progress pass
+12 % (= NVAPI I2C reaches 0x35 where every Linux path NACKs -- the first
+measurable Windows-vs-Linux delta) or die at the same 0xd21 (=> full
+cross-platform corroboration that THIS unit's 0x35 lane is dead even for
+the vendor engine). Either answer is gold for the write-driver plan; the
+observation needs no clicks beyond what the user already did.
+Also this window: leaked wine processes from the self-matching pkill
+teardown were reaped (wine/wineserver/umu all gone); monitor re-witnessed
+FW.009 + bus idle. pkill-self-match hazard now bitten 3x -- future scripts:
+use exact -x names or PID files, never -f patterns contained in own cmdline.
