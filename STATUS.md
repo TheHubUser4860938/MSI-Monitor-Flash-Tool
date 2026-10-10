@@ -1939,3 +1939,30 @@ use exact -x names or PID files, never -f patterns contained in own cmdline.
   benign (that is itself a datum: our enter/exit + probe discipline
   survives power cycles untouched — open #12 flakiness thread: this
   cycle adds a clean data point, no ISP state leaked across OFF).
+
+## Session 15k (wrap) — pre-compaction doc sync; full-state handoff written; STOP, await compact, then code audit
+
+- User game plan: bank everything into the durable files -> user compacts
+  the session -> code audit in a following build-mode turn.
+- HANDOFF.md refreshed in 11 verified replacements: header/date +
+  session range (1-15k, clean at c6f93f3); TL;DR decision queue rewritten
+  (kit day primary / WinPE-with-prediction / issue #1) replacing the
+  pre-15h "decisive experiment" framing; new 15h-15k CLOSED-items bullet;
+  environment updates (cables final state, billboard = host-side artifact,
+  pkexec pattern replacing retired sudoers drop-in, VCP 0x60-works +
+  D6-ignored + HDR-brightness-reads-100-by-design); repo map now cites
+  CLIP-PLAYBOOK.md + TEST-INTEL-AMD.md; dead-end #14 cell-B closed;
+  **Next-actions item 0 = the CODE AUDIT** with scope, the two known
+  drift items, and the standing constraint (audit is static + unit-test
+  only; monitor writes stay user-gated).
+- Facts.STANDBY_AXES queued-key aligned with reality (cell A polish-
+  queued, cell B closed 15k).
+- Resume-anchor one-liner: dead roster 0x18/0x20/0x22/0x35/0x49 measured
+  across every reachable state incl. OFF/boot (phantom-ACK rule!); alive
+  lanes 0x37/0x50; everything hardware-decision-grade now waits on the
+  CH341A kit (CLIP-PLAYBOOK.md = procedure incl. I2C-DDC sweep + UART-
+  header hunt), the WinPE 12 % test (expect STOP), or issue #1. Code
+  audit is the immediate next action per user; then kit day.
+- Stop state: monitor FW.009 HDR/10% untouched; relay loaded; tree clean
+  post-commit; no pending processes (watcher done); tmp logs ephemeral,
+  conclusions banked.

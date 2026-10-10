@@ -526,12 +526,10 @@ STANDBY_AXES = {
         "GATE every sweep behind a passing content oracle (version "
         "reads 'FW.*' = go). Post-cycle settled sweep = frozen "
         "baseline; one 0x03 single-sighting noted.",
-    "queued": "TWO cells: (A) no-signal-standby sweep with visual "
-              "confirmation (I blind via VCP 60, user confirms dark/LED, "
-              "bus sweep in that window); (B) powered-OFF sweep (user "
-              "button press, script detects silence, unfiltered relay "
-              "sweep -- 0x35 appearing in OFF state = the community's "
-              'bootloader-window hope"); relay is LIVE (pkexec loaded)',
+    "queued": "cell A (no-signal-standby sweep WITH visual dark/LED "
+              "confirmation) = polish-grade, queued; cell B CLOSED "
+              "negative 15k (content-verified, see cellB_powered_off); "
+              "relay is LIVE (pkexec loaded), rmmod fully reversible",
 }
 
 # ---- Gaming Intelligence payload dissection (session 15j) --------------
