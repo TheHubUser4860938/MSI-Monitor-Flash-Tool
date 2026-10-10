@@ -86,10 +86,20 @@ class Console(cmd.Cmd):
         return edid_model_name(self._monitor_edid())
 
     def _isp_visible(self):
-        """True/False = ISP slave ACKs / doesn't; None = bus unopenable."""
+        """True/False = flash slave reachable; None = bus unopenable.
+        Direct probe first (zero side effects); if silent, one ISP
+        enter-probe-exit cycle retries it — the vendor flow shows flash
+        slaves come up only after ISP entry (session 14p), and the cycle
+        restores normal mode itself (still never writes flash)."""
+        from .isp import flash_path_enter, flash_path_exit
         try:
             with self._bus() as bus:
-                return any(bus.probe(t) for t in (0x20, 0x22, 0x18))
+                if any(bus.probe(t) for t in (0x20, 0x22, 0x18)):
+                    return True
+                vis = flash_path_enter(bus, 0x20) == ""
+                if vis:
+                    flash_path_exit(bus)
+                return vis
         except Exception:
             return None
 
@@ -207,55 +217,76 @@ class Console(cmd.Cmd):
             print(BAD(f"backup refused: {e}"))
 
     def _backup_locked(self, write_out, out):
-        isp = self._isp_visible()
-        if not isp:
-            print(BAD("ISP flash slave does not ACK — nothing to dump yet.\n"
-                      "  This is the measured NVIDIA routing gap (dead-end #11)"
-                      " on every NVIDIA transport;\n  Intel/AMD boxes reach it"
-                      " over plain i2c-dev. See TEST-INTEL-AMD.md."))
-            return
+        from .isp import flash_path_enter, flash_path_exit, jedec_id
         t = I2CTarget("ISP flash", 0x20)
         try:
             with self._bus() as bus:
-                sb = ScalerBus(bus, delay_ms=1)
-                print("safety check: reading first 4 KB …")
-                head = sb.read_burst(t, 0, 4096, page=Facts.SLAVES["isp_page_len"])
-                if head == bytes(4096) or head == b"\xff" * 4096:
-                    self.backup_ok = False
-                    print(BAD("read looks dead (all 00/FF) — refusing to "
-                              "trust backup; nothing saved"))
+                reason = flash_path_enter(bus, 0x20)
+                if reason:
+                    print(BAD(f"{reason} — nothing to dump yet.\n"
+                              "  This is the measured NVIDIA routing gap "
+                              "(dead-end #11) on every NVIDIA transport;\n"
+                              "  Intel/AMD boxes reach it over plain "
+                              "i2c-dev. See TEST-INTEL-AMD.md."))
                     return
-                total = Facts.FW_BIN_SIZE
-                if write_out:
-                    print(f"dumping {total} bytes -> {out}")
-                    bar = Bar(total, "backup")
-                    with open(out, "wb") as f:
-                        done = 0
-                        while done < total:
-                            n = min(0x10000, total - done)
-                            base = done
-
-                            def prog(got, _n, _b=base):
-                                bar.update(_b + got)
-                            f.write(sb.read_burst(t, done, n,
-                                      page=Facts.SLAVES["isp_page_len"],
-                                      progress=prog))
-                            done += n
-                            bar.update(done)
-                    bar.done()
-                    with open(out, "rb") as fb:
-                        sha = hashlib.sha256(fb.read()).hexdigest()
-                    print(f"\nbackup saved: {out}  (sha256 in status)")
-                    self.last_sha = sha
-                    self.backup_path, self.backup_ok = out, True
-                else:
-                    self.backup_ok = True
-                    print(OK("read path trusted (4 KB sane). Re-run with "
-                             "`backup file.bin --write` to save before "
-                             "flashing."))
+                try:
+                    sb = ScalerBus(bus, delay_ms=1)
+                    jid = jedec_id(sb, t)
+                    if jid is None:
+                        print(BAD("JEDEC gate: 0x9F returned no sane "
+                                  "manufacturer ID — refusing to trust a "
+                                  "dump."))
+                        self.backup_ok = False
+                        return
+                    print(f"JEDEC ID       : {jid.hex(' ')}")
+                    self._do_backup(sb, t, write_out, out)
+                finally:
+                    exited, edid_ok = flash_path_exit(bus)
+                    print(f"exit ISP       : {OK('clean') if exited else BAD('NOT clean — status bit still set')}"
+                          f"   monitor 0x50: "
+                          f"{OK('alive') if edid_ok else BAD('UNREADABLE — check the monitor now')}")
         except Exception as e:
             print(BAD(f"backup failed: {e}"))
             self.backup_ok = False
+
+    def _do_backup(self, sb, t, write_out, out):
+        print("safety check: reading first 4 KB …")
+        head = sb.read_burst(t, 0, 4096, page=Facts.SLAVES["isp_page_len"])
+        if head == bytes(4096) or head == b"\xff" * 4096:
+            self.backup_ok = False
+            print(BAD("read looks dead (all 00/FF) — refusing to "
+                      "trust backup; nothing saved"))
+            return
+        total = Facts.FLASH_SIZE
+        if write_out:
+            print(f"dumping {total} bytes -> {out}")
+            bar = Bar(total, "backup")
+            with open(out, "wb") as f:
+                done = 0
+                while done < total:
+                    n = min(0x10000, total - done)
+                    base = done
+
+                    def prog(got, _n, _b=base):
+                        bar.update(_b + got)
+                    f.write(sb.read_burst(t, done, n,
+                              page=Facts.SLAVES["isp_page_len"],
+                              progress=prog))
+                    done += n
+                    bar.update(done)
+            bar.done()
+            with open(out, "rb") as fb:
+                sha = hashlib.sha256(fb.read()).hexdigest()
+            print(f"\nbackup saved: {out}  (sha256 in status)")
+            print("compare vs Facts.PREVIOUS_BINS when flashed .bin known: "
+                  "identical image region expected; surviving diffs = "
+                  "runtime regions (skip-list).")
+            self.last_sha = sha
+            self.backup_path, self.backup_ok = out, True
+        else:
+            self.backup_ok = True
+            print(OK("read path trusted (4 KB sane + JEDEC OK). Re-run with "
+                     "`backup file.bin --write` to save before flashing."))
 
     def do_flash(self, arg):
         """program the monitor — every gate below must pass, then type 'flash'"""

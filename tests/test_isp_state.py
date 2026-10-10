@@ -119,5 +119,64 @@ class TestScalerFraming(unittest.TestCase):
         self.assertIsNone(isp_alive(FakeBus(reads=[])))
 
 
+class TestFlashPath(unittest.TestCase):
+    def setUp(self):
+        _NOW.start()
+        self.addCleanup(_NOW.stop)
+
+    class SilentSlave(FakeBus):
+        def probe(self, addr7):
+            self.log.append(("p", addr7))
+            return False
+
+    def test_already_isp_zero_write(self):
+        bus = FakeBus(reads=[0x80])
+        self.assertEqual(isp.flash_path_enter(bus), "")
+        self.assertEqual(bus.n_writes(0x37), 0)
+
+    def test_entry_failure_returns_reason_not_raises(self):
+        bus = FakeBus(reads=[])
+        reason = isp.flash_path_enter(bus)
+        self.assertIn("ISP entry failed", reason)
+
+    def test_silent_slave_reason_still_exits_isp(self):
+        # cand0 magic wins immediately, but 0x20 stays silent: the scaler
+        # must be left the way we found it -- exit 0x24 in the log.
+        bus = self.SilentSlave(reads=[0x00, 0x8A])
+        reason = isp.flash_path_enter(bus)
+        self.assertIn("stays silent", reason)
+        self.assertIn(bytes([Facts.EXIT_ISP_CMD]), bus.writes_to(0x37))
+
+    def test_exit_hygiene_reports_edid(self):
+        bus = FakeBus(reads=[0x00])             # post-exit status: clear
+        exited, edid_ok = isp.flash_path_exit(bus)
+        self.assertTrue(exited and edid_ok)
+
+
+class TestJedec(unittest.TestCase):
+    def setUp(self):
+        self.tgt = I2CTarget(name="isp-flash", addr7=0x20)
+
+    def test_window_grammar_first_hit(self):
+        bus = FakeBus(reads=[b"\x1f\x8d\x20"])   # AMIC A25L032M JEDEC
+        sb = ScalerBus(bus=bus)
+        self.assertEqual(isp.jedec_id(sb, self.tgt), bytes.fromhex("1f8d20"))
+        self.assertEqual(bus.writes_to(0x20)[:3],
+                         [bytes.fromhex("42089f"),   # OPCODE <- 0x9F
+                          bytes.fromhex("4108b8"),   # CTRL latch
+                          bytes.fromhex("4108b9")])  # CTRL GO
+
+    def test_index_grammar_fallback(self):
+        bus = FakeBus(reads=[b"\x00\x00\x00",     # window grammar: dead
+                             b"\xc8\x40\x16"])    # index grammar: GD25Q
+        sb = ScalerBus(bus=bus)
+        self.assertEqual(isp.jedec_id(sb, self.tgt), bytes.fromhex("c84016"))
+        self.assertIn(bytes.fromhex("60009f"), bus.writes_to(0x20))
+
+    def test_all_garbage_returns_none(self):
+        sb = ScalerBus(bus=FakeBus(reads=[]))     # all-zero reads
+        self.assertIsNone(isp.jedec_id(sb, self.tgt))
+
+
 if __name__ == "__main__":
     unittest.main()

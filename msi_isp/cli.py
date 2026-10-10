@@ -282,39 +282,51 @@ def cmd_backup(args):
 
 
 def _backup_locked(args):
+    from .isp import flash_path_enter, flash_path_exit, jedec_id
     with _bus(args) as bus:
-        sb = ScalerBus(bus, verbose=args.verbose, delay_ms=1)
-        t = I2CTarget("ISP flash", 0x20)
-        if not bus.probe(t.addr7):
-            sys.exit("backup: ISP slave 0x20 does not ACK on this link/driver yet.\n"
-                     "On NVIDIA NO transport routes transactions for it "
-                     "(measured: i2c-dev allow-list, RM --nvrm, kernel relay "
-                     "--auxdev — dead-end #11); Intel/AMD boxes are the live "
-                     "path (TEST-INTEL-AMD.md).")
-        # JEDEC-like ID read must look sane before we trust any dump
-        print("reading first 256 bytes …")
-        head = sb.read_burst(t, 0, 256, page=Facts.SLAVES["isp_page_len"])
-        print(" head:", head[:32].hex(" "))
-        if head == bytes(256):
-            sys.exit("read returned all zeros -- not trusting this path, nothing saved.")
-        out = args.out
-        total = args.size
-        print(f"dumping {total} bytes -> {out}")
-        bar = Bar(total, "backup")
-        with open(out, "wb") as f:
-            done = 0
-            while done < total:
-                n = min(4096, total - done)
-                base = done
-                def prog(got, _n, _base=base):
-                    bar.update(_base + got)
-                f.write(sb.read_burst(t, done, n,
-                                      page=Facts.SLAVES["isp_page_len"],
-                                      progress=prog))
-                done += n
-                bar.update(done)
-        bar.done()
-        print("verify against the .bin header you expect inside it")
+        reason = flash_path_enter(bus, 0x20, verbose=args.verbose)
+        if reason:
+            sys.exit(f"backup: {reason}.\nIntel/AMD boxes are the live "
+                     "path (TEST-INTEL-AMD.md); NVIDIA measured dead on "
+                     "every transport (dead-end #11).")
+        try:
+            sb = ScalerBus(bus, verbose=args.verbose, delay_ms=1)
+            t = I2CTarget("ISP flash", 0x20)
+            jid = jedec_id(sb, t, verbose=args.verbose)
+            if jid is None:
+                sys.exit("backup: JEDEC gate failed — 0x9F returned no sane "
+                         "manufacturer ID (--verbose shows the raw pokes).")
+            print(f"JEDEC ID        : {jid.hex(' ')}")
+            print("reading first 256 bytes …")
+            head = sb.read_burst(t, 0, 256, page=Facts.SLAVES["isp_page_len"])
+            print(" head:", head[:32].hex(" "))
+            if head == bytes(256):
+                sys.exit("read returned all zeros -- not trusting this "
+                         "path, nothing saved.")
+            out = args.out
+            total = args.size
+            print(f"dumping {total} bytes -> {out}")
+            bar = Bar(total, "backup")
+            with open(out, "wb") as f:
+                done = 0
+                while done < total:
+                    n = min(4096, total - done)
+                    base = done
+
+                    def prog(got, _n, _base=base):
+                        bar.update(_base + got)
+                    f.write(sb.read_burst(t, done, n,
+                                          page=Facts.SLAVES["isp_page_len"],
+                                          progress=prog))
+                    done += n
+                    bar.update(done)
+            bar.done()
+            print("compare against the flashed .bin (expect: identical image "
+                  "region; every surviving diff = a runtime region)")
+        finally:
+            exited, edid_ok = flash_path_exit(bus, verbose=args.verbose)
+            print(f"exit ISP        : {'clean' if exited else 'NOT clean — status bit still set'}")
+            print(f"monitor 0x50    : {'alive (dump was non-invasive)' if edid_ok else 'UNREADABLE — check the monitor now'}")
 
 
 def cmd_write(args):
@@ -369,7 +381,11 @@ def main(argv=None):
     sub.add_parser("probe", help="slave ACK scan incl. ISP addresses (safe)")
     b = sub.add_parser("backup", help="dump scaler SPI flash (read-only)")
     b.add_argument("--out", required=True)
-    b.add_argument("--size", type=lambda s: int(s, 0), default=Facts.FW_BIN_SIZE)
+    b.add_argument("--size", type=lambda s: int(s, 0),
+                   default=Facts.FLASH_SIZE,
+                   help="bytes to dump (default 0x400000 = the whole chip; "
+                        "the regions beyond the image are the interesting "
+                        "skip-list data)")
     s = sub.add_parser("shell", help="interactive console (shurectl-style "
                                      "curses menu on a TTY)")
     s.add_argument("--plain", action="store_true",

@@ -1127,3 +1127,37 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
   both report "OK — the monitor's EXACT EDID (block0) is in the bin @
   0x1d0200 / 0x1b0000" with the .009 variant table disclosed. ruff,
   compileall, gates green.
+
+## Session 14p (2026-10-10) — backup completed end-to-end: vendor ISP sequence + JEDEC gate + safety hygiene, live-proven refusal
+
+- `msi_isp/isp.py` gains the flash-path orchestration both frontends
+  share: `flash_path_enter` (idempotent ISP entry → flash-slave probe →
+  auto-exit on refusal so the scaler is NEVER left mid-ISP), 
+  `flash_path_exit` (0x24 exit + EDID re-verify per safety policy), and
+  `jedec_id` (the OUR-addition 0x9F→vendor-prefix gate, tried as BOTH
+  register grammars — window 0x841/0x842/0x845 per 14i decode, then
+  Flash.dat index/data 0x60/0x64/0x20→0x21 strobe — with the honest note
+  that the MISO register is the least-decoded link; verbose echoes raw
+  pokes so the first live wire settles it in one run).
+- `cli backup` and `console backup` rewritten around it: enter → JEDEC →
+  4 KB/256 B sanity reads → page-loop dump → exit + "monitor 0x50 alive"
+  hygiene report. Dump default size = **Facts.FLASH_SIZE (4 MiB, whole
+  chip)** — the beyond-image regions are the skip-list data (open
+  question #7) the diff against `Facts.PREVIOUS_BINS` will map.
+- `_isp_visible` (status/flash-gate probe) now retries via one
+  enter-probe-exit cycle — flash visibility is only meaningful in ISP
+  mode (vendor sequence), and on NVIDIA the cycle honestly confirms
+  "entered, slave still silent" instead of the old message that refused
+  without ever entering.
+- **New live fact**: on NVIDIA the ISP *entry* works over plain i2c-dev
+  too (magic ACKs via the shim, status bit observed) — refusal now reads
+  "ISP mode entered, but flash slave 0x20 stays silent", auto-exits, and
+  the monitor verifies healthy (FW.009 + EDID) after every cycle on both
+  transports. A good omen for the Intel/AMD boxes: entry has no special
+  transport requirements at all.
+- Tests: +7 (flash_path enter/exit matrices incl. the silent-slave-
+  auto-exit-restore property, jedec window-grammar frame bytes pinned
+  `42089f/4108b8/4108b9`, index-grammar fallback, all-garbage→None) →
+  **48 green**; FakeBus.writes_to unpacking bug fixed (probe 2-tuples).
+  ruff + live verify/backup/status/flash-gate matrix green on both
+  transports; module left loaded (dev state).

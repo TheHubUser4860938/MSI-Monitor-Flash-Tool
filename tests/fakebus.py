@@ -46,7 +46,7 @@ class FakeBus:
 
     # -- test helpers ----------------------------------------------------
     def writes_to(self, addr7):
-        return [d for k, a, d, _ in self.log if k == "w" and a == addr7]
+        return [e[2] for e in self.log if e[0] == "w" and e[1] == addr7]
 
     def n_writes(self, addr7):
         return len(self.writes_to(addr7))

@@ -184,3 +184,81 @@ def exit_isp(bus, verbose: bool = False) -> bool:
         return isp_alive(bus, verbose) is None
     except Exception:
         return False
+
+
+# ---- flash-path orchestration (session 14p) -----------------------------
+# The vendor pipeline ALWAYS enters ISP mode before touching flash slaves
+# (ISP_PIPELINE step order), and the safety policy demands leaving the way
+# we found it: exit_isp + EDID re-verify at 0x50. flash_path_enter/exit
+# wrap that so CLI and console share one honest implementation.
+
+def flash_path_enter(bus, flash_slave7: int = 0x20,
+                     verbose: bool = False) -> str:
+    """Enter ISP mode (idempotent) and report whether the flash slave
+    answers.  Returns "" on success, else a refusal reason.  ALWAYS safe
+    to pair with flash_path_exit: on refusal we exit again ourselves, so
+    callers never leave the scaler mid-ISP."""
+    try:
+        enter_isp(bus, verbose=verbose)
+    except IspError as e:
+        return f"ISP entry failed: {e}"
+    try:
+        alive = bus.probe(flash_slave7)
+    except Exception as e:
+        flash_path_exit(bus, verbose=verbose)
+        return f"probe of {flash_slave7:#04x} errored: {e}"
+    if not alive:
+        flash_path_exit(bus, verbose=verbose)
+        return (f"ISP mode entered, but flash slave {flash_slave7:#04x} "
+                f"stays silent (measured NVIDIA gap, dead-end #11)")
+    return ""
+
+
+def flash_path_exit(bus, verbose: bool = False) -> tuple[bool, bool]:
+    """Leave ISP and re-verify the monitor answers at 0x50 with the bytes
+    we expect.  Returns (exited, edid_alive)."""
+    exited = exit_isp(bus, verbose=verbose)
+    try:
+        edid_alive = bus.warmup(0x50) or bus.probe(0x50)
+    except Exception:
+        edid_alive = False
+    return exited, edid_alive
+
+
+def jedec_id(sb: ScalerBus, tgt: I2CTarget,
+             verbose: bool = False) -> bytes | None:
+    """The 0x9F-reads-manufacturer gate -- OUR addition (the vendor keys on
+    the Flash.dat capacity code instead, session 14f; the gate is sound
+    engineering, not vendor parity, STATUS open-question #3).
+
+    Register-window sequence per Facts.ISP_WINDOW (latch/GO inference of
+    14i) with the older Flash.dat index/data grammar as a second attempt
+    (index 0x60 <- opcode, strobe 0x20->0x21, read data 0x64): both
+    grammars poke the same 0x22 slave, and which one RTD2711 traffic
+    actually honours is settled by the first live wire.  Returns the 3
+    ID bytes when the response smells like JEDEC (0x1F/0xC8/0x20...
+    vendor-prefix sane), else None -- never raises."""
+    opcodes = (0x9F,)
+    for opcode in opcodes:
+        for grammar in ("window", "index"):
+            try:
+                if grammar == "window":
+                    sb.word_write(tgt, 0x842, opcode)        # OPCODE
+                    sb.word_write(tgt, 0x841, 0xB8)          # latch
+                    sb.word_write(tgt, 0x841, 0xB9)          # GO
+                    got = sb.word_read(tgt, 0x845, 3)
+                else:
+                    sb.word_write(tgt, 0x60, opcode)         # index reg
+                    sb.word_write(tgt, 0x20, 0x00)           # strobe pair
+                    sb.word_write(tgt, 0x21, 0x00)
+                    got = sb.word_read(tgt, 0x64, 3)
+            except Exception as e:
+                if verbose:
+                    print(f"  JEDEC {grammar} grammar errored: {e}")
+                continue
+            if verbose:
+                print(f"  JEDEC {grammar}: {got.hex(' ')}")
+            if got and got[0] in (0x01, 0x08, 0x1F, 0x20, 0x4C, 0xC2,
+                                  0xC8, 0xD8, 0xEF):          # known vendor prefixes
+                return got
+    return None
