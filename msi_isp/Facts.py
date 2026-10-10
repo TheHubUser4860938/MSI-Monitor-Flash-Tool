@@ -160,6 +160,54 @@ def bin_content_checksum(data: bytes) -> int:
 # on failure paths are all VENDOR practice; the JEDEC 0x1F gate is not (the
 # vendor keys on the capacity code above) — it stays our own safety
 # addition. Error codes 0xd39/0xd56 = message ids of this plugin.
+# ---- Comm_Aux.dll's actual NVAPI surface (session 15a) ------------------
+# Decoded from the vendor binary itself (evidence re/g_nvapi_surface.txt,
+# repro scratch/nvapi_surface.py). What the Windows tool REALLY executes
+# on NVIDIA, and what it does NOT:
+#   * Flash ops (ReadFlashData/WriteFlashData/SectorErase/BankErase/
+#     IspEnable/SetAuxMode...) are one-alias STUBS in every Comm module --
+#     the flash engine lives in the main tool and drives the wire through
+#     plain transaction exports (I2CWrite/Read/WriteByte/WordRead/WordWrite/
+#     2Sub*/CurrentRead + page length 0x20=32 from INI; rtd38 GFXI2C uses
+#     0x80=128). The window choreography and this vocabulary are two views
+#     of the same 0x22 register file, not competing surfaces.
+#   * NVIDIA backend (dispatcher mode 3) calls exactly 10 NVAPI interfaces:
+#     Initialize + 6 display-discovery fns (outputId -> displayMask) +
+#     NvAPI_I2CWrite x4 / NvAPI_I2CRead x3, struct = NV_I2C_INFO_V3
+#     (0x3002c), bIsDDCPort=1, i2cDevAddress = 8-bit DDC form passthrough
+#     (slave<<1|RW), pbI2cRegAddress = &reg arg (combined-format txn),
+#     i2cSpeed=0xffff DEPRECATED -- then write-then-read pairs, i.e. the
+#     shape ScalerBus already implements byte-exactly via NV0073 0x731341.
+#   * ONE private path: legacy NvAPI_Disp_DpAuxChannelControl (QI id
+#     0x8EB56969, absent from the R615 public table; community tables + a
+#     "NV_DP_AUXCH_CMD_REQ_TYPE_READ" log string name it). Selected by a
+#     flag (ds:0x1021ae90, SetAuxMode-adjacent); struct V2 = 0x20068 (104 B);
+#     len packed (16B-chunks<<4 | tail) <= 255 B; mode 2 = write (pointer+
+#     data), mode 3 = read, 16 B/transaction -- client-side message assembly
+#     over DP-AUX. No 615.x SDK control by that name exists: NVAPI is
+#     almost certainly re-wrapping the same AUXCH controls from user side.
+#   * => No Linux-unreachable NVAPI magic door found. And no evidence ANY
+#     Windows run ever reached 0x22 on THIS sink -- the user's own Windows
+#     attempt failed with 0x45, consistent with our comm-layer verdict.
+#     Dead-end #11 stands; Intel/AMD measurement (issue #1) is the decider.
+NVAPI_SURFACE = {
+    "live_interfaces": ["NvAPI_Initialize", "NvAPI_EnumPhysicalGPUs",
+                        "NvAPI_EnumNvidiaDisplayHandle",
+                        "NvAPI_GetPhysicalGPUsFromDisplay",
+                        "NvAPI_GetAssociatedDisplayOutputId",
+                        "NvAPI_GetConnectedDisplayIds",
+                        "NvAPI_GetAssociatedNvidiaDisplayName",
+                        "NvAPI_GetDisplayPortInfo",
+                        "NvAPI_I2CWrite", "NvAPI_I2CRead"],
+    "private_interfaces": {0x8EB56969: "NvAPI_Disp_DpAuxChannelControl "
+                                       "(legacy, 16 B/txn, req-type enum)"},
+    "i2c_struct": "NV_I2C_INFO_V3 (0x3002c), bIsDDCPort=1, "
+                  "displayMask=display outputId, i2cDevAddress=8-bit DDC",
+    "flash_ops": "stubs in Comm layer -- engine is the main tool",
+    "backends": "mode 3 = NVIDIA/NVAPI; ADL (AMD) + Intel (IntelControlAPI/) "
+                "sibling backends in same dispatch",
+}
+
 # ---- Bulk I2C-over-AUX control (0x73137C), probed session 14n -----------
 # NV0073_CTRL_CMD_DP_AUXCH_I2C_TRANSFER_CTRL: "bulk ... splitting up the
 # data into pieces and retrying for pieces that aren't ACK'd" (SDK doc).

@@ -1,0 +1,102 @@
+Comm_Aux.dll — actual NVAPI surface decoded (session 15a)
+==========================================================
+Subject : vendor/Comm/Comm_Aux.dll  (PE32 i386, MFC; GetCommID()==1 -> THE backend
+          the MSI updater loaded on the user's Windows 4090 machine)
+Siblings: vendor/Comm.dll            = comm manager (LoadLibraryA("Comm\\..."),
+                                      SetI2CoverAUXDebugPort, AuxSniffer plumbing)
+          vendor/rtd38/Comm_GFXI2C.dll = RTD38-family backend, GetCommID()==5,
+                                      GetI2CPageLength()==0x80 (128 B pages!),
+                                      same export vocabulary, same 276-wrapper NVAPI
+                                      facade, ADL imports. Flash ops also stubbed.
+Method  : objdump -d -M intel (+ llvm-readobj --coff-exports, --coff-imports),
+          interface-ID scan against NVIDIA/nvapi@70d337db nvapi_interface.h,
+          prologue-delimited function recovery (push ebp / mov ebp,esp).
+Repro   : python3 scratch/nvapi_surface.py   (regenerates the call map below)
+
+1. FLASH OPS ARE STUBS — Comm_Aux is NOT the flash engine
+----------------------------------------------------------
+Every flash-scope export aliases ONE function at 0x1003b630:
+  ReadFlashData WriteFlashData SectorErase BankErase ConfigProgramFlash
+  ResetFirmware IspEnable SetAuxMode I2CReadSegment I2CWriteSegment
+  SetSMBUSDataType SetWaitingMode TypeCUsb* AuxSniffer* DebugMessage*
+=> the register-window flash choreography lives in the MAIN tool
+   (WinIspPlugIn/RTKIsp core, statically decoded sessions 11/14i/14f),
+   which drives the wire through the plugin's plain transaction exports:
+     I2CWrite I2CRead I2CWriteByte I2CCurrentRead I2CWordWrite I2CWordRead
+     I2C2SubWrite I2C2SubRead NativeWrite NativeRead (+ SetI2CSpeed,
+     GetI2CPageLength=INI-driven, AdjustOption, InitialDev/SelectDisplayByIndex)
+   (re/steps.py 0x7e50 ReadFlashData shape = caller side; now paired with the
+   callee side: pages, not windows, are the plugin's unit of work.)
+
+2. FOUR BACKENDS, ONE DISPATCHER (transport 0x1003a3e0)
+----------------------------------------------------------
+switch (ds:0x1021ae1c):           ; backend selector (UI/init-driven;
+  case 1: sub ds:0x1021aff4==2 -> 0x10041ed0   :  mode 1 is the DEFAULT,
+          else 0x1003d850                       :  0x10038bd0/20/ca0 trio
+  case 2: 0x100363d0                              sets 1/2/3 + SendMessageW
+  case 3: 0x100452c0                              (hwnd, 0xf1, 0xbbb/0xbbc)
+ADL strings (ADL_Display_NativeAUXChannel_Access, ADL_Display_DDCBlockAccess_Get,
+ADL_Adapter_*, ADL_Main_Control_*) + vendor/Comm/IntelControlAPI/ dir imply
+modes 1/2 = AMD(ADL)/Intel families; mode 3 cluster verifiably = NVIDIA/NVAPI.
+
+3. NVIDIA BACKEND (mode 3) — REAL NVAPI USAGE (10 interfaces, all live)
+----------------------------------------------------------
+Wrapper-entry call scan (fixed prologue recovery):
+  NvAPI_Initialize                      (facade init glue)
+  NvAPI_EnumPhysicalGPUs                <- 0x10046c18   } discovery object
+  NvAPI_EnumNvidiaDisplayHandle         <- 0x1004667f   } 0x100465xx-0x100472xx:
+  NvAPI_GetPhysicalGPUsFromDisplay      <- 0x100466fb   } GPU+display enumeration,
+  NvAPI_GetAssociatedDisplayOutputId    <- 0x100467d2   } outputId -> object member
+  NvAPI_GetConnectedDisplayIds          <- 0x10046dba/0x10046f20  [+0x4] (displayMask)
+  NvAPI_GetAssociatedNvidiaDisplayName  <- 0x100468ae/0x10047140
+  NvAPI_GetDisplayPortInfo              <- 0x10046975/0x10047162   (DP path info)
+  NvAPI_I2CWrite                        <- 0x100450fb/0x10045398/0x100455b6/0x1004564e
+  NvAPI_I2CRead                         <- 0x10045158/0x100456aa/0x1004596e
+NVAPI_I2C_* struct build (0x10045060, field values observed):
+  version   = 0x3002c          = MAKE_NVAPI_VERSION(NV_I2C_INFO_V3, 3) (size 0x2c)
+  bIsDDCPort= 1                (required by API docs)
+  displayMask = object member +0x4 (== outputId from GetAssociatedDisplayOutputId,
+                                    same idiom as NVIDIA's own i2c.cpp sample)
+  i2cDevAddress = caller byte PASSTHROUGH -> 8-bit DDC form (slave<<1 | RW);
+                  read variant ORs the LSB (0x6E -> 0x6F) before NvAPI_I2CRead
+  pbI2cRegAddress = &caller's register arg (combined-format txn per header docs)
+  i2cSpeed  = 0xffff           = NVAPI_I2C_SPEED_DEPRECATED (V3 requirement)
+  hPhysicalGpu = object member +0x0
+  Sequence: NvAPI_I2CWrite (pointer+data) THEN NvAPI_I2CRead (reply) —
+  exactly our ScalerBus word_write/read_burst pairing.
+=> The public half of NVAPI's path is what we ALREADY replicated byte-exactly
+   (nvbus framing over NV0073 0x731341; addresses in the other form only
+   because RM shifts for us — see Facts.AUXI2C comment).
+
+4. PRIVATE FIFTH PATH: NvAPI_Disp_DpAuxChannelControl (0x8EB56969)
+----------------------------------------------------------
+Lazy wrapper at 0x10014c00: QueryInterface(0x8eb56969) (+ pepQueryInterface
+fallback, global ds:0x1020aa98); ID NOT in R615 public table -> legacy API
+(R2xx-R3xx era headers; id/name confirmed by 15+ independent community
+tables incl. NvAPIWrapper FunctionId.cs; one community tool's log string
+"NvAPI_Disp_DpAuxChannelControl (NV_DP_AUXCH_CMD_REQ_TYPE_READ) failed"
+proves a REQ_TYPE read/write enum exists on the struct).
+Caller = second half of the SAME mode-3 method (0x10045060):
+  flag ds:0x1021ae90 != 0  ->  chunked path (0x10045181 leg):
+    struct version 0x20068 (V2, 0x68 = 104 B, memset 0x64 first)
+    len arg packed (chunks<<4 | tail)  -> <= 255 B total
+    first txn mode 0x2 (write: pointer byte + data), then loop mode 0x3
+    (read) pulling 16 B per transaction (movups), tail = remainder bytes.
+=> 16 B/txn + write-then-read = DP AUX transaction size + ISP poke shape.
+   No SDK control of that name exists in 615.x (grep: only NV0073
+   AUXCH 0x731341/0x73137C) -> NVAPI almost certainly assembles these
+   client-side over the same AUXCH controls; no Linux-reachable extra
+   hardware door identified. Flag likely SetAuxMode-adjacent (SetAuxMode
+   export itself is the 0x1003b630 stub in THIS build).
+
+5. CONSEQUENCE FOR OPEN QUESTION #2 (honest downgrade)
+----------------------------------------------------------
+"Windows works because NVAPI has a secret driver door" is NOT supported:
+the decoded Windows surface = public NVAPI I2C (same RM primitives we
+exhausted, 4 origins) + a legacy private API whose RM backend is either
+the same AUXCH pair or unaddressable from Linux, + ADL/Intel backends for
+other vendors. AND no evidence exists that ANY Windows run ever completed
+against THIS sink (the tool's Windows attempt on the user's 4090 ended in
+0x45 — our HANDOFF attributes 0x45 to comm-layer failure — the "Windows
+reaches 0x22" premise was inherited, not observed). Dead-end #11 stays:
+the Intel/AMD (or CH341A) measurement remains the deciding experiment.

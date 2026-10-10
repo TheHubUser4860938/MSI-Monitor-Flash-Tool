@@ -1161,3 +1161,71 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
   **48 green**; FakeBus.writes_to unpacking bug fixed (probe 2-tuples).
   ruff + live verify/backup/status/flash-gate matrix green on both
   transports; module left loaded (dev state).
+
+## Session 15a (2026-10-10) — open question #2 CLOSED: Comm_Aux.dll's real NVAPI surface decoded from the binary; "Windows works" downgraded to unproven
+
+- Chosen plan (a): stage NVIDIA/nvapi R615 kit (`/tmp/opencode/nvapi` @
+  `70d337db`, re-clone: `git clone --depth 1 https://github.com/NVIDIA/nvapi`;
+  CHM extract via 7z = same doxygen text as the header, no extra lore) and
+  decode what the Windows tool ACTUALLY executes in `vendor/Comm/Comm_Aux.dll`.
+- Method note (three self-inflicted traps caught and fixed mid-run, all now
+  encoded in the repro tool): objdump prints this build's call/jump targets
+  with `0x` prefixes AND `mov ebp,esp` WITHOUT a space — naive prologue and
+  call-target regexes silently found zero functions/calls until fixed; and a
+  list-comprehension that referenced a stale outer match variable crashed
+  prettily rather than wrong. Lesson stands: on stripped PE32, verify the
+  disassembler's exact output format before trusting any scan that returns
+  "nothing".
+- Naive interface-ID immediate scan sees 276 hits and says nothing — that is
+  the *statically linked lazy-resolution facade* (nvapi.c pattern: cached fp
+  global + generation-stamped invalidation triple per function) which the
+  plugin code itself never calls. The honest question — wrapper ENTRY
+  recovered from prologues, then who CALLS it — flipped the picture entirely:
+  the NVIDIA backend (transport dispatcher `0x1003a3e0`,
+  `switch ds:0x1021ae1c`, mode 3 = NVAPI; modes 1/2 carry AMD-ADL
+  (`ADL_Display_NativeAUXChannel_Access` et al.) and Intel
+  (`vendor/Comm/IntelControlAPI/`) siblings) executes exactly TEN interfaces:
+  Initialize, 6 display-discovery calls (outputId → `displayMask` member),
+  and `NvAPI_I2CWrite` ×4 / `NvAPI_I2CRead` ×3. Struct build decoded:
+  `NV_I2C_INFO_V3` (`0x3002c`), `bIsDDCPort=1`, 8-bit DDC slave passthrough
+  with the read LSB ORed (`0x6E→0x6F`), `i2cSpeed=0xffff`
+  (DEPRECATED-conformant), `pbI2cRegAddress=&reg` arg (combined format per
+  the header's own ≤16 B rule) — then write-then-read pairs: functionally
+  EXACTLY what ScalerBus/nvbus already do over NV0073 `0x731341`.
+- The one genuinely private door: `QueryInterface(0x8EB56969)` —
+  **`NvAPI_Disp_DpAuxChannelControl`**, absent from the R615 public table
+  (name confirmed by 15+ independent community tables, e.g. NvAPIWrapper's
+  `FunctionId.cs`, and a community tool's
+  `"NV_DP_AUXCH_CMD_REQ_TYPE_READ" failed` log string). Called from the
+  SAME mode-3 method behind flag `ds:0x1021ae90` (`SetAuxMode`-adjacent;
+  the export itself is a stub in this build): V2 struct `0x20068` (104 B),
+  length packed `(16B-chunks<<4 | tail)` ≤ 255 B, mode `2` = write the
+  pointer+data, mode `3` = read back 16 B per transaction (`movups` loop) —
+  i.e. client-side DP-AUX message assembly. The 615.x SDK has NO control of
+  that name (`0x731341`/`0x73137C` are the only AUXCH controls) ⇒ NVAPI is
+  re-wrapping what our relay already calls, both proven wire-dead for `0x22`
+  here. Only nvapi.dll's internal defer/retry pacing stays unobservable.
+- Architecture facts worth keeping forever: EVERY Comm module stubs the
+  flash-scope exports (`ReadFlashData/WriteFlashData/SectorErase/BankErase/
+  ConfigProgramFlash/ResetFirmware/IspEnable/SetAuxMode` all aliased to one
+  no-op) — the flash engine is the updater CORE; the plugin only executes
+  paged I2C transactions (`GetI2CPageLength`: 32 for the commID-1 build —
+  matches INI — and 128 in `rtd38/Comm_GFXI2C.dll`, whose `GetCommID()==5`:
+  a different scaler-family backend, not this monitor's path).
+- **Biggest finding is the premise downgrade**: nothing in the decoded
+  Windows path exceeds what Linux reaches (4 origins, dead-end #11), AND no
+  evidence exists that ANY Windows run ever reached `0x22` on this sink —
+  the user's own Windows attempt failed with 0x45, which this decode fits
+  perfectly. "Windows reaches 0x22 via NVAPI" (HANDOFF's blocking-wall line)
+  was inherited assumption, now corrected to "Windows uses the same
+  primitives; success on this unit unobserved". Issue #1 (Intel/AMD wire
+  test) stays THE decider — and the ADL backend's existence hints the AMD
+  answer may ride `ADL_Display_DDCBlockAccess_Get` semantics, plain i2c-dev
+  likely fine.
+- Artifacts: `re/g_nvapi_surface.txt` (full evidence write-up),
+  `scratch/nvapi_surface.py` (standing repro: EAT alias map + live-NVAPI-call
+  scan + private-ID diff, run against any vendor Comm DLL), `Facts.NVAPI_SURFACE`
+  block; HANDOFF blocking-wall line rewritten, open question #2 struck as
+  CLOSED. No tool-behavior change this session; monitor untouched; suite
+  48 green; ruff/compile gates green. Kit reacquisition: nvapi clone is
+  ephemeral under /tmp/opencode (like ogkm); evidence is git-tracked.

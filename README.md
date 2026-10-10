@@ -98,6 +98,18 @@ FW.009, and both bins carry an EDID table; `verify` therefore pattern-
 searches and confirms your monitor's byte-exact EDID is present in the
 file, which is version-proof.)*
 
+**How the Windows tool actually talks** — decoded from the vendor binaries
+themselves, not inferred: `Comm_Aux.dll` (the module loaded for `commID=1`)
+runs its NVIDIA backend on exactly ten public NVAPI calls (display discovery
++ `NvAPI_I2CRead/Write` with a documented struct — the same transactions our
+`ScalerBus` builds byte-exactly over the RM AUX channel) plus one legacy
+private AUX wrapper that assembles 16-byte messages client-side. Its flash
+exports (`ReadFlashData`, `SectorErase`, …) are stubs: the flash engine lives
+in the updater core. Nothing in the Windows path is a driver door Linux lacks
+— and notably, no Windows run is on record reaching the flash slave on this
+monitor either: the updater's own failure *is* the 0x45 above. Evidence
+`re/g_nvapi_surface.txt`; re-run with `scratch/nvapi_surface.py`.
+
 **The `_4023` in the filename** = a content checksum: the updater sums every
 byte of the `.bin` and compares only the **low 16 bits** against the last 4
 hex digits of the filename (cracked from the v1.0.6 exe: `0x4119a0` byte-sum
