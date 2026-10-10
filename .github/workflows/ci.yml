@@ -23,7 +23,9 @@ jobs:
         run: |
           pip install "ruff==0.17.0"
           ruff check .
-      - name: Syntax-check every Python file
-        run: python -m compileall -q msi_isp tests kernel re scratch
+      - name: Syntax-check every shipping Python file
+        # scratch/ (incl. scratch/legacy/) is frozen session records —
+        # same exemption ruff.toml applies; they may use dev-box syntax.
+        run: python -m compileall -q msi_isp tests kernel re
       - name: Unit tests (stdlib, fake busses)
         run: python -m unittest discover -s tests -t . -v
