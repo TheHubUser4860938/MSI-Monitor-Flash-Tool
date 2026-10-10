@@ -110,8 +110,30 @@ class TestScalerFraming(unittest.TestCase):
         self.assertEqual(len(out), 100)
         self.assertEqual(seen, [(32, 100), (64, 100), (96, 100), (100, 100)])
         hdrs = [d for d in bus.writes_to(0x22)]
-        self.assertEqual(hdrs, [bytes.fromhex("1200"), bytes.fromhex("1220"),
-                                bytes.fromhex("1240"), bytes.fromhex("1260")])
+        # 24-bit big-endian header per Comm fn 0x7e50 (both addr>>16 and the
+        # full dword reach the wire); the pre-audit [hi, lo] pair dropped
+        # bits 8-15 and aliased every 64 KiB -- see isp.read_burst docstring.
+        self.assertEqual(hdrs, [bytes.fromhex("123400"), bytes.fromhex("123420"),
+                                bytes.fromhex("123440"), bytes.fromhex("123460")])
+
+    def test_read_burst_header_no_aliasing(self):
+        # 0x123400 vs 0x123500 must produce DIFFERENT headers (the middle
+        # byte carries bits 8-15; the old [hi, lo] shape collided here).
+        bus = FakeBus(reads=[0xAA])
+        sc = ScalerBus(bus=bus)
+        sc.read_burst(self.tgt, 0x123400, 32)
+        sc.read_burst(self.tgt, 0x123500, 32)
+        hdrs = bus.writes_to(0x22)
+        self.assertEqual(hdrs, [bytes.fromhex("123400"), bytes.fromhex("123500")])
+        self.assertNotEqual(hdrs[0], hdrs[1])
+
+    def test_read_burst_silent_slave_raises(self):
+        class Dead(FakeBus):
+            def read(self, *a, **k):
+                return b""                      # zero-progress "read"
+        sc = ScalerBus(bus=Dead())
+        with self.assertRaises(isp.IspError):
+            sc.read_burst(self.tgt, 0, 64)
 
     def test_isp_alive_bit_semantics(self):
         self.assertEqual(isp_alive(FakeBus(reads=[0x8A])), 0x8A)
@@ -154,24 +176,38 @@ class TestFlashPath(unittest.TestCase):
 
 
 class TestJedec(unittest.TestCase):
+    # The register window IS the 0x22 register file (Facts: "two views of
+    # the same 0x22 register file"; safety policy names 0x22 explicitly).
+    # The 0x20 slave belongs to read_burst only -- pre-audit call sites
+    # poked the window on 0x20, contradicting our own fact base.
     def setUp(self):
-        self.tgt = I2CTarget(name="isp-flash", addr7=0x20)
+        self.tgt = I2CTarget(name="isp-mcu-window", addr7=0x22)
 
     def test_window_grammar_first_hit(self):
         bus = FakeBus(reads=[b"\x1f\x8d\x20"])   # AMIC A25L032M JEDEC
         sb = ScalerBus(bus=bus)
         self.assertEqual(isp.jedec_id(sb, self.tgt), bytes.fromhex("1f8d20"))
-        self.assertEqual(bus.writes_to(0x20)[:3],
+        self.assertEqual(bus.writes_to(0x22)[:3],
                          [bytes.fromhex("42089f"),   # OPCODE <- 0x9F
                           bytes.fromhex("4108b8"),   # CTRL latch
                           bytes.fromhex("4108b9")])  # CTRL GO
 
-    def test_index_grammar_fallback(self):
+    def test_index_grammar_fallback_script_ladder(self):
+        # arm pair (0x20/0x06/0x21 via 0x60/0x61), then the vendor script's
+        # ID-transaction staging verbatim: ARM 0x38, opcode in 0x61,
+        # addr/mode/len in 0x64/0x65/0x66, TRIGGER 0x39, one 0x60 poll,
+        # reply read from 0x64 (14i guess, flagged in isp.py).
         bus = FakeBus(reads=[b"\x00\x00\x00",     # window grammar: dead
+                             b"\x00",             # busy poll
                              b"\xc8\x40\x16"])    # index grammar: GD25Q
         sb = ScalerBus(bus=bus)
         self.assertEqual(isp.jedec_id(sb, self.tgt), bytes.fromhex("c84016"))
-        self.assertIn(bytes.fromhex("60009f"), bus.writes_to(0x20))
+        self.assertEqual(bus.writes_to(0x22)[4:13], [   # [0:4] = window attempt
+            bytes.fromhex("600020"), bytes.fromhex("610006"),
+            bytes.fromhex("600021"),
+            bytes.fromhex("600038"), bytes.fromhex("61009f"),
+            bytes.fromhex("640000"), bytes.fromhex("650028"),
+            bytes.fromhex("660000"), bytes.fromhex("600039")])
 
     def test_all_garbage_returns_none(self):
         sb = ScalerBus(bus=FakeBus(reads=[]))     # all-zero reads

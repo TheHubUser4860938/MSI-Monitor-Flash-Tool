@@ -207,6 +207,9 @@ class NvRMAuxBus:
                                   mot=True)
             if name != "ACK":
                 break
+            if not got:
+                break            # "ACK" that delivered nothing: never
+                                 # advance, never spin (15k phantom rule)
             buf += got[:chunk]
         self._term_write(addr7)         # kernel-style message terminator
         return bytes(buf[:n])

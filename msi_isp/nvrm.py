@@ -480,13 +480,21 @@ class NvRM:
         for i, b in enumerate(data[:16]):
             p.data[i] = b
         p.size = size0
+        st = 0xFFFFFFFF
         for _ in range(retries):
             st = self.control(self.hDisp, CTRL_DP_AUXCH_CTRL, p)
-            if st in (0, 0x26):      # NV_OK / NV_ERR_TIMEOUT kept for name
+            if st in (0, 0x26):      # NV_OK / NV_ERR_TIMEOUT: trust replyType
                 break
-            # NVOS_STATUS_ERROR_RETRY == 0x65? treat nonzero nonzero as fail
+            # any other status: RM rejected the control outright; the
+            # replyType field is untouched residue. (The loop is one
+            # call today -- kept retrying only what a retry could fix.)
             break
-        name = REPLY.get(p.replyType, f"?{p.replyType:#x}")
+        if st and st != 0x26:
+            name = f"RM-ERR {st:#06x}"
+        elif st == 0x26:
+            name = "TIMEOUT"
+        else:
+            name = REPLY.get(p.replyType, f"?{p.replyType:#x}")
         got = bytes(p.data[:p.size]) if req == AUX_REQ_READ else b""
         return name, got, st
 
@@ -524,7 +532,13 @@ class NvRM:
             p.size = max(len(payload) - 1, 0)
         name = "ERROR"
         for _ in range(retries):
-            self.control(self.hDisp, CTRL_DP_AUXCH_CTRL, p)
+            st = self.control(self.hDisp, CTRL_DP_AUXCH_CTRL, p)
+            if st:
+                # control-level failure: replyType is residue (the kernel
+                # relay pairs st with replyType for the same reason) --
+                # surface it instead of posing as an ACK.
+                name = "TIMEOUT" if st == 0x26 else f"RM-ERR {st:#06x}"
+                break
             name = REPLY.get(p.replyType, f"?{p.replyType:#x}")
             if name in ("ACK", "NACK", "TIMEOUT", "I2CNACK", "INVALID_ARG"):
                 break

@@ -21,7 +21,7 @@ NODE = "/dev/msi-auxch"
 MAX_DATA = 16                     # NV0073_CTRL_DP_AUXCH_MAX_DATA_SIZE
 AUX_REQ_MOT, AUX_REQ_WRITE, AUX_REQ_READ = 0x4, 0, 1
 REPLY = {0: "ACK", 1: "NACK", 2: "DEFER", 3: "TIMEOUT",
-         4: "I2CNACK", 8: "I2CDEFER"}
+         4: "I2CNACK", 8: "I2CDEFER", 0xFFFFFFFF: "INVALID_ARG"}
 
 
 class _Xfer(ctypes.Structure):
@@ -65,7 +65,6 @@ class AuxDevBus:
                           f"install kernel/99-msi-auxch.rules (root:video "
                           f"0660) and join the video group") from None
         self._slave = None
-        self._unlocked_until = 0.0
 
     def close(self):
         if self.fd is not None:
@@ -82,10 +81,11 @@ class AuxDevBus:
     def unlock(self, purpose: str = "") -> None:
         """Arm kernel-side ISP-slave (0x18..0x22) writes for 5 s. Call it
         immediately before the write sequence, not at open() time: the
-        timed window is the safety property."""
+        timed window is the safety property. The authoritative timer is
+        the module's (UNLOCK_MS); userspace keeps no mirror state --
+        re-unlock rather than reason about expiry."""
         import fcntl
         fcntl.ioctl(self.fd, MSI_AUXCH_UNLOCK)
-        self._unlocked_until = time.monotonic() + 4.5   # module: 5000 ms
 
     # ---- RTBus parity --------------------------------------------------
     def select(self, addr7):
@@ -130,8 +130,15 @@ class AuxDevBus:
                         f"relay: writes to ISP slave {addr7:#04x} are gated; "
                         f"call bus.unlock() first (5 s window, logged)") from None
                 raise
+            if x.rmStatus:
+                # The RM control itself failed (head gone, bad state,
+                # rejected params). replyType/sizeDone are then untouched
+                # residue -- the insmod-time oracles in msi_auxch.c pair
+                # st with replyType for exactly this reason. Never let
+                # residue pose as an ACK (phantom-ACK rule, 15k).
+                return f"RM-ERR {x.rmStatus:#06x}", b""
             name = REPLY.get(x.replyType, f"?{x.replyType:#x}")
-            if name in ("ACK", "NACK", "TIMEOUT", "I2CNACK"):
+            if name in ("ACK", "NACK", "TIMEOUT", "I2CNACK", "INVALID_ARG"):
                 break
             time.sleep(0.005)                      # DEFER: retry (nvrm parity)
         got = bytes(x.data[:x.sizeDone]) if req == AUX_REQ_READ and \
@@ -170,6 +177,9 @@ class AuxDevBus:
                                   mot=True)
             if name != "ACK":
                 break
+            if not got:
+                break            # "ACK" that delivered nothing: never
+                                 # advance, never spin (15k phantom rule)
             buf += got[:chunk]
         self._term_write(addr7)
         return bytes(buf[:n])
