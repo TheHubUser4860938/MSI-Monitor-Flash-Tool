@@ -1578,3 +1578,77 @@ Also this window: leaked wine processes from the self-matching pkill
 teardown were reaped (wine/wineserver/umu all gone); monitor re-witnessed
 FW.009 + bus idle. pkill-self-match hazard now bitten 3x -- future scripts:
 use exact -x names or PID files, never -f patterns contained in own cmdline.
+
+## Session 15h (2026-10-10) — user-driven recheck audit: 15g confabulations corrected vs sources; HDMI re-probe + I2C_RDWR=ENOTTY close the native question for GOOD; RMUseSwI2c retired with evidence; A25L032M datasheet banked; flashrom = our out-of-box clip referee
+
+- User mandate: "recheck what you know, use the web, find what was overlooked
+  or done wrong." Verdict: several things, mine included. All corrected here
+  against primary sources (files fetched, not remembered).
+- **15g confabulations (corrected against flashrom mstarddc_spi.c source):**
+  * flashrom's ISP-enable magic = the ASCII string "MSTAR" (4D 53 54 41 52);
+    my quoted enter-sequence "0x85 0xA0 [A0 3D 05 02 A0]" exists nowhere in
+    the file -- confabulated from memory. (Our 0x24-exit provenance IS right:
+    flashrom sends single-byte 0x24 reset on shutdown.)
+  * 'MSTARDDCCIACK' is NOT a flashrom constant -- I invented the name. The
+    engine's failure-branch `mov byte [edi],0x6A` is most plausibly the
+    SLAVE ADDRESS stored in the error record; "no-ACK status" was my gloss.
+  * flashrom PARAMETERIZES the ISP address (dev=…:addr); the community
+    standard for MSTAR monitors is 7-bit **0x49** (github memues/mstar-
+    monitor-firmware-dumper: ddcutil-bus scan -> "MSTAR" magic -> full SPI
+    read -> SECOND read + MD5 compare). 0x35 is not a documented default.
+  * Tone-down logged in Facts.ISP_LADDER: the (0x6A, 0xCA) push pattern is
+    a disassembly fact; "8-bit slave 0x6A -> 7-bit 0x35" is convention-
+    INFERENCE (consistent with +0x140's proven 8-bit form); the "MSTAR-
+    DP-CI" family label was over-identification on a Realtek scaler.
+- **Proton "third-party witness" RETRACTED (evidence):** upstream dxvk-nvapi
+  (jp7677, the SAME 2215950-byte dll shipped by both Protons) feature list =
+  DLSS/Reflex/D3D-ext/PhysX-queries/topology/HDR/DRS -- NO I2C/DDC surface
+  ("does not and will never cover the complete surface"). The user's 0xd21
+  run therefore most likely died on shim stubs (W2 leading) -- ISP bytes
+  probably never hit the wire. Decision unchanged (native probes ARE the
+  evidence); the 12%-observable for borrowed real Windows STANDS. Open
+  micro-question banked: how did the Proton run pass version/model checks
+  with an I2C-less shim? (WinOperateCScaler route? fake-success stubs?
+  15f-forensics next session.)
+- **RMUseSwI2c formally RETIRED (user's instinct, then evidence):** its
+  documented class = cards where BASIC DDC/CI fails (ddcutil page, 2014-
+  2018 threads, debian#999670 2021 modprobe pitfall). This box's basic
+  DDC/CI has ALWAYS worked (we never set it) -> not our failure class.
+  Freshest sighting (2026-08-13 NVIDIA dev-forum, RTX 4060 Ti, 595.84,
+  GSP era): RMUseSwI2c=1 + RmEnableI2CBUserModeAccess=1 accepted, zero
+  effect. New knob name RmEnableI2CBUserModeAccess banked to the dormant
+  list. No reboot spent.
+- **HDMI re-probe (user reconnected HDMI; bus i2c-3 = session-8 stable
+  mapping; ISP magic verifiably ALIVE: cand1 -> status 0xCA, another open-
+  #12 flake datum):** {0x30..0x35, 0x49, 0x21, 0x41} + controls: ONLY
+  0x30/0x37/0x50 ACK on the ANALOG DDC bus too; "MSTAR" magic UNREACHABLE
+  at 0x35/0x49 (address-phase NACK precedes any payload); 0x30 = address+
+  1 byte then EIO on longer writes, reads zeros (DDC stub behavior).
+  **NEW STRUCTURAL FACT: I2C_RDWR = ENOTTY on NVIDIA i2c-dev at every
+  address** -> flashrom's mstarddc_spi read path (combined 2-msg START) is
+  ARCHITECTURALLY impossible under this driver, sink-agnostic -- every
+  community mstarddc success is amdgpu/i915, and that is WHY. Closes the
+  session-8 "low prio, never revisited" mailbox-framing thread forever.
+  Also: installed flashrom 1.8.0 has ch341a_spi (WCH 1a86:5512 listed OK)
+  but NOT mstarddc_spi -- the clip route is out-of-box software-ready.
+- **A25L032M datasheet (AMIC rev1.3 fetched):** 32Mbit SPI NOR, 2.7-3.6 V
+  ONLY (data pins NOT 5-V-tolerant -> verify clone signal levels or zener-
+  mod before clipping); packages: 8-SOP-208 AND 8-WSON-6x5 (WSON = NO LEGS
+  = clip impossible -> FIRST step on open-case day is a package check);
+  uniform 4KB sectors + 256B pages (consistent with 14i ladder: 0x20
+  sector-erase + 0x100 page-length arm); "advanced write protection
+  mechanisms" (BP bits: record RDID 1F4010 + RDSR BEFORE any write; note
+  flashrom auto-unlocks by default -> our playbook must be explicit and
+  restore); flashrom table entry A25L032 carries flag PREW -> verify
+  semantics when wiring clip commands. Internal provenance re-verified:
+  ID 0x1F4010 in our own records; Flash.dat key '70'+capacity ('40 00' =
+  4 MiB ✓); GetFlashType maps by CSV, never compares 0x9F -> our gate is
+  OUR honest mirror, not the vendor's.
+- Next stages this arc: CLIP-PLAYBOOK.md (open-case pkg check -> level
+  check -> RDID/RDSR record -> double-dump+hash -> compose inactive bank
+  -> write -> verify -> flag commit -> witness); Flash.dat Phase A = the
+  record->script bind 14i assigned ("31 script blocks for 136 chips --
+  full record->script binding = its own future session" -- that session
+  is now).
+- Monitor throughout: FW.009, VCPs as user set, EDID head intact after
+  every cell; DP+HDMI dual-linked during probes, clean exits.

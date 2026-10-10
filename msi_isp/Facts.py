@@ -236,31 +236,45 @@ NVAPI_SURFACE = {
 #      gate; the sink-side only-refuser is 0x22 itself, at the ADDRESS
 #      phase (NACK) -- payload acceptability structurally cannot be the
 #      failure variable there.
-# ---- Vendor ISP-control ladder = slave 0x35 mailbox (session 15g) -------
+# ---- Vendor ISP-control ladder: comm slots +0x74/+0x78 (15g, 15h-fixed) -
 # The five 0xd21 sites in WinIspPlugIn (HandShakeBeforeEnterIspModeBy-
 # BootType, EnableIspProgramChannelOneBankMode, SetBackgroundFlashWrite-
-# Time, ask-start-bank, ask-user-flag/key-address) all ride comm vtable
-# slots +0x74 (write) / +0x78 (read) with args (slave8=0x6A -> 7-bit
-# 0x35, reg=0xCA, count, &buf): the flashrom-documented MSTAR-style
-# scaler mailbox (mstarddc_spi family: enter 0x85 0xA0 [A0 3D 05 02 A0],
-# exit ...0x24 -- the same grammar our 0x37 ISP-magic turns out to
-# mirror one address over). Failure path stamps status=0x6A =
-# 'MSTARDDCCIACK' (no ACK) before logging enumError -> 0xd21.
-# LIVE 15g: 0x35 on THIS box = i2c-dev NACK/EIO (probe+read+write),
-# relay bare-addr False + TIMEOUT on CA-writes; monitor healthy after
-# every cell. => vendor tool's 0xd21 under proton-cachyos is the
-# vendor engine itself confirming dead-end #11 through the NVAPI-shim
-# path: first non-ACKing slave, first failure. 0x35 joins the dead
-# roster (0x18/0x20/0x22/0x35); 0x37/0x50 stay the only alive lanes.
+# Time, ask-start-bank, ask-user-flag/key-address) all call comm vtable
+# slots +0x74 (write) / +0x78 (read) pushing (0x6A, 0xCA, count, &buf).
+# DISASSEMBLY FACT: the byte pair. INFERENCE (flagged 15h): 0x6A is an
+# 8-bit slave -> 7-bit 0x35 (consistent with +0x140's proven 8-bit form);
+# the earlier "MSTAR-DP-CI" family label was over-identification -- this
+# is a Realtek scaler. flashrom ground truth (source fetched 15h):
+# mstarddc_spi PARAMETERIZES its address (dev=…:addr); its enter magic is
+# ASCII "MSTAR" and exit a single 0x24; there is NO 'MSTARDDCCIACK'
+# constant (15g name was confabulated -- the failure-path `mov [edi],0x6A`
+# is most plausibly the slave address in the error record). Community
+# MSTAR ISP slave = 7-bit 0x49 (memues/mstar-monitor-firmware-dumper:
+# "MSTAR" magic, full read, SECOND read + MD5 verify -- same discipline
+# as our verify-by-readback doctrine).
+# LIVE (15g DP + 15h HDMI, ISP magic verifiably alive on HDMI: cand1 ->
+# status 0xCA): 0x35/0x49/0x31-0x34/0x21/0x41 all NACK on BOTH buses;
+# "MSTAR" magic unreachable (address-phase NACK precedes payload);
+# 0x30 = DDC stub (ACKs 1 byte, EIO beyond). Dead roster: 0x18/0x20/
+# 0x22/0x35/0x49; alive lanes stay 0x37/0x50 (+0x4a/0x4b branch, 0x30
+# stub). STRUCTURAL CLOSER (15h): I2C_RDWR ioctl = ENOTTY on NVIDIA
+# i2c-dev at every address -> flashrom's mstarddc read framing (combined
+# 2-msg START) is architecturally impossible on this driver, sink-
+# agnostic; every community mstarddc success is amdgpu/i915. The Proton
+# 0xd21 run is NOT a wire witness (dxvk-nvapi has no I2C surface at all,
+# see PROTON_045) -- the NATIVE probes are the evidence.
 ISP_LADDER = {
-    "slave7": "0x35 (8-bit 0x6A), reg 0xCA page via comm slots +0x74/78",
-    "status_here": "DEAD: i2c-dev EIO + relay TIMEOUT (15g first i2c-dev "
-                   "cells; 14k relay sweep agreed)",
-    "engine_verdict": "vendor tool 0xd21 = MSTARDDCCIACK on this ladder "
-                      "(12% = first command) -- third-party Linux witness "
-                      "(comm init is click-deferred in unattended reruns, "
-                      "15g-addendum: no-log != no-attempt; W1-vs-W2 "
-                      "bookkeeping shelved -- same conclusion either way)",
+    "slots": "+0x74 (write) / +0x78 (read), args (0x6A, 0xCA, count, &buf)",
+    "slave7": "0x35 IF 0x6A is 8-bit (inference); community family std = "
+              "0x49; BOTH dead here (DP 15g, HDMI 15h, ISP-alive)",
+    "status_here": "DEAD both transports, both buses, magic-alive state; "
+                   "ENOTTY-on-I2C_RDWR closes the flashrom-DDC framing "
+                   "thread architecturally (NVIDIA driver, sink-agnostic)",
+    "engine_verdict": "0xd21 = engine's own no-further-progress code at "
+                      "the first ladder command (12%); under proton-cachyos "
+                      "most likely shim-stubbed BEFORE the wire (W2, 15h "
+                      "retraction) -- borrowed real Windows + the 12% "
+                      "observable remains the only way to settle Windows",
 }
 
 WRITE_ACCEPTANCE = {
@@ -381,6 +395,51 @@ PROTON_045 = {
             "keeps dxgi builtin (no overrides recorded in the run env)",
     "wire": "zero I2C calls logged -> 0x45 is NOT wire evidence; dead- "
             "end #11 stands with a logged cross-check of the Wine route",
+}
+
+# ---- 15h: the shim's true surface + the GSP-era knob evidence -----------
+# jp7677/dxvk-nvapi (upstream of the dll BOTH Protons ship -- identical
+# 2215950-byte binaries) feature list: DLSS (Vulkan/D3D11/D3D12), Reflex,
+# D3D11 extensions, PhysX queries, adapter/display topology, HDR, DRS.
+# NO I2C/DDC entry points exist, and the README states it "does not and
+# will never cover the complete surface" of NVAPI. Consequences:
+#   * the 15f umu/proton-cachyos 0xd21 run cannot have carried ISP bytes
+#     through NvAPI_I2CRead/Write -> W2 (stub-fail before the wire) is
+#     the leading reading; 15g's "vendor engine confirms dead-end #11"
+#     is RETRACTED. The native probes (14k/15c/15g/15h) remain the
+#     evidence; the borrowed-real-Windows 12%-observable stands.
+#   * open micro-question (15f-forensics): how did that run pass the
+#     version/model checks? Candidates: WinOperateCScaler's own path, or
+#     DW-fork-specific stub behavior. Does not move any decision.
+#   * RMUseSwI2c (+RMI2cSpeed) retirement evidence: documented class =
+#     basic-DDC-broken cards (2014-2018 era, debian#999670 2021); this
+#     box's basic DDC/CI always worked without it; freshest sighting
+#     2026-08-13 dev-forum (RTX 4060 Ti, 595.84 GSP-era): knob + the new
+#     RmEnableI2CBUserModeAccess accepted, ZERO effect. Dormant-knob
+#     list from that thread (never tried anywhere, all low-value now):
+#     RMUsePmuI2c, RMUsePmuSwI2c, RMUsePmuHwI2c, RMHotPlugI2cDisplays,
+#     RMI2CValidatedPortMask, RMI2cRevalidateDdcPortWAR,
+#     RMI2cClockStretchTimeoutMs.
+#   * STRUCTURAL: I2C_RDWR ioctl = ENOTTY on NVIDIA i2c-dev (15h, every
+#     address, both buses) -> flashrom mstarddc_spi's combined-START read
+#     framing is driver-impossible here, sink-agnostic. Machine's
+#     flashrom 1.8.0: ch341a_spi YES (1a86:5512 OK), mstarddc_spi NOT
+#     built. Clip route = out-of-box software.
+FLASH_CHIP = {
+    "part": "AMIC A25L032M (Flash.dat key '70'+cap '40 00' = 4 MiB ✓; "
+            "in-house JEDEC record 0x1F4010; GetFlashType uses CSV maps, "
+            "never compares 0x9F -- our 0x1F gate is OUR safety mirror)",
+    "voltage": "2.7-3.6 V ONLY; data pins NOT 5-V-tolerant -> verify "
+               "clone signal levels (zener mod if 5V)",
+    "packages": "8-SOP-208-mil OR 8-WSON-6x5 (no legs = clip impossible) "
+                "-> PACKAGE CHECK is step 1 of open-case day",
+    "geometry": "uniform 4KB sectors, 256B pages, 100MHz max -- matches "
+                "14i ladder arms (0x20 sector erase, 0x100 page length)",
+    "wp": "advanced BP-bit write protection: record RDID + RDSR BEFORE "
+          "any write; flashrom auto-unlocks silently -- playbook must be "
+          "explicit read-record/unlock/restore",
+    "flashrom": "table entry 'AMIC A25L032' PREW flag -> verify "
+                "semantics at clip implementation time",
 }
 
 # ---- Bulk I2C-over-AUX control (0x73137C), probed session 14n -----------
