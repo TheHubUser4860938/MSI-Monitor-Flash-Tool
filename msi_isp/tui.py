@@ -18,6 +18,7 @@ import textwrap
 from .cli import _edid_model_name as edid_model_name
 from .cli import read_edid, vendor_fw_version
 from .console import Console
+from .console import run as run_console
 
 MENU = [
     ("info",    "Info — monitor identity + live firmware"),
@@ -230,8 +231,11 @@ class Tui:
                        else "kernel relay /dev/msi-auxch"
                        if getattr(self.c, "use_auxdev", False)
                        else f"i2c-dev /dev/i2c-{self.c.bus_num}")
+            priv = ("" if os.geteuid() == 0
+                    else "  (rootless relay)" if self.c.use_auxdev
+                    else "  (--nvrm needs root)" if self.c.use_nvrm else "")
             scr.addstr(1, 1, f"transport: {bus_txt}   uid: {os.geteuid()}"
-                             + ("" if os.geteuid() == 0 else "  (sudoless i2c path)"))
+                             + priv)
             if self.err:
                 scr.addstr(2, 1, f"monitor: header read failed: {self.err}"[:w - 1], cr)
             else:
@@ -355,8 +359,8 @@ def run_tui(bus_num: int, bin_path: str | None = None,
             use_nvrm: bool = False, use_auxdev: bool = False) -> None:
     if not (sys.stdout.isatty() and os.environ.get("TERM", "") not in ("", "dumb")):
         # no usable terminal: fall back to the plain text REPL
-        Console(bus_num, bin_path, use_nvrm=use_nvrm,
-                use_auxdev=use_auxdev).cmdloop()
+        run_console(bus_num, bin_path, use_nvrm=use_nvrm,
+                    use_auxdev=use_auxdev)
         return
     console = Console(bus_num, bin_path, use_nvrm=use_nvrm,
                       use_auxdev=use_auxdev)

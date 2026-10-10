@@ -162,11 +162,13 @@ class TestFlashPath(unittest.TestCase):
         self.assertIn("ISP entry failed", reason)
 
     def test_silent_slave_reason_still_exits_isp(self):
-        # cand0 magic wins immediately, but 0x20 stays silent: the scaler
-        # must be left the way we found it -- exit 0x24 in the log.
+        # cand0 magic wins immediately, but BOTH flash lanes (0x20 burst
+        # engine AND 0x22 register file — audit 15l probes both) stay
+        # silent: the scaler must be left the way we found it — exit 0x24
+        # in the log.
         bus = self.SilentSlave(reads=[0x00, 0x8A])
         reason = isp.flash_path_enter(bus)
-        self.assertIn("stays silent", reason)
+        self.assertIn("0x20/0x22 stay silent", reason)
         self.assertIn(bytes([Facts.EXIT_ISP_CMD]), bus.writes_to(0x37))
 
     def test_exit_hygiene_reports_edid(self):

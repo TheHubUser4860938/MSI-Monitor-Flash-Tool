@@ -111,7 +111,7 @@ class Console(cmd.Cmd):
                                          else "bus unopenable")
         root = ("not needed (kernel relay)" if self.use_auxdev else
                 "root" if os.geteuid() == 0 else
-                "NOT root -- NVIDIA RM AUX path needs sudo")
+                "NOT root -- --nvrm needs sudo; i2c-dev needs node access")
         bus_txt = ("kernel relay /dev/msi-auxch" if self.use_auxdev else
                    "nvrm RM DP-AUX (NVIDIA, root)" if self.use_nvrm
                    else f"/dev/i2c-{self.bus_num}")
@@ -202,11 +202,9 @@ class Console(cmd.Cmd):
     def do_backup(self, arg):
         """dump scaler SPI flash -> file. --write actually writes it out"""
         from .buslock import BusBusyError, bus_lock
-        write_out = "--write" in arg
-        out = None
-        for tok in arg.split():
-            if not tok.startswith("--"):
-                out = tok
+        toks = arg.split()
+        write_out = "--write" in toks        # exact token, not substring
+        out = next((t for t in toks if not t.startswith("--")), None)
         if write_out and not out:
             print("usage: backup <file> --write")
             return
@@ -218,10 +216,11 @@ class Console(cmd.Cmd):
 
     def _backup_locked(self, write_out, out):
         from .isp import flash_path_enter, flash_path_exit, jedec_id
-        t = I2CTarget("ISP flash", 0x20)
+        tw = I2CTarget("scaler MCU window", 0x22)   # JEDEC register file
+        t = I2CTarget("ISP flash", 0x20)            # ReadFlashData burst
         try:
             with self._bus() as bus:
-                reason = flash_path_enter(bus, 0x20)
+                reason = flash_path_enter(bus)
                 if reason:
                     print(BAD(f"{reason} — nothing to dump yet.\n"
                               "  This is the measured NVIDIA routing gap "
@@ -231,14 +230,22 @@ class Console(cmd.Cmd):
                     return
                 try:
                     sb = ScalerBus(bus, delay_ms=1)
-                    jid = jedec_id(sb, t)
+                    jid = jedec_id(sb, tw)
                     if jid is None:
                         print(BAD("JEDEC gate: 0x9F returned no sane "
                                   "manufacturer ID — refusing to trust a "
                                   "dump."))
                         self.backup_ok = False
                         return
-                    print(f"JEDEC ID       : {jid.hex(' ')}")
+                    if jid[0] != 0x1F:
+                        # binding user policy: JEDEC must answer 0x1Fxxxx
+                        # from 0x22 (Facts.FLASH_CHIP: 1f 40 10)
+                        print(BAD(f"JEDEC gate: answered {jid.hex(' ')}, "
+                                  "this target requires 0x1Fxxxx — "
+                                  "refusing to trust a dump."))
+                        self.backup_ok = False
+                        return
+                    print(f"JEDEC ID       : {jid.hex(' ')} (0x22 register file)")
                     self._do_backup(sb, t, write_out, out)
                 finally:
                     exited, edid_ok = flash_path_exit(bus)
@@ -259,6 +266,10 @@ class Console(cmd.Cmd):
             return
         total = Facts.FLASH_SIZE
         if write_out:
+            if os.path.exists(out) and os.path.getsize(out):
+                print(BAD(f"refusing to overwrite non-empty {out} — the "
+                          "backup IS the artifact; pick a fresh path"))
+                return
             print(f"dumping {total} bytes -> {out}")
             bar = Bar(total, "backup")
             with open(out, "wb") as f:
@@ -269,9 +280,16 @@ class Console(cmd.Cmd):
 
                     def prog(got, _n, _b=base):
                         bar.update(_b + got)
-                    f.write(sb.read_burst(t, done, n,
+                    chunk = sb.read_burst(t, done, n,
                               page=Facts.SLAVES["isp_page_len"],
-                              progress=prog))
+                              progress=prog)
+                    if len(chunk) != n:
+                        self.backup_ok = False
+                        print(BAD(f"short burst at {done:#x} "
+                                  f"({len(chunk)} of {n}) — "
+                                  f"{out} NOT trusted"))
+                        return
+                    f.write(chunk)
                     done += n
                     bar.update(done)
             bar.done()
@@ -300,8 +318,11 @@ class Console(cmd.Cmd):
         gate("ISP flash slave visible", bool(isp),
              "needs a live 0x22: Intel/AMD box, or NVIDIA --auxdev/--nvrm "
              "(dead-end #11 today)")
-        gate("trusted backup this session", self.backup_path is not None,
-             "backup <file> --write")
+        # path alone is NOT trust: a later FAILED backup clears backup_ok
+        # while the previous file lingers on disk (audit 15l)
+        gate("trusted backup this session",
+             bool(self.backup_ok and self.backup_path is not None),
+             "backup <file> --write (must pass JEDEC + sane-read checks)")
         try:
             with self._bus() as bus:
                 cur = vendor_fw_version(bus)
@@ -368,5 +389,10 @@ class Console(cmd.Cmd):
 
 def run(bus_num: int, bin_path: str | None = None,
         use_nvrm: bool = False, use_auxdev: bool = False) -> None:
-    Console(bus_num, bin_path, use_nvrm=use_nvrm,
-            use_auxdev=use_auxdev).cmdloop()
+    con = Console(bus_num, bin_path, use_nvrm=use_nvrm,
+                  use_auxdev=use_auxdev)
+    try:
+        con.cmdloop()
+    except KeyboardInterrupt:
+        print("\ninterrupted — monitor untouched")
+        raise SystemExit(130) from None

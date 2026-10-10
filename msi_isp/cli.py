@@ -6,7 +6,7 @@ the DisplayPort AUX tunnel the kernel already manages.
 Modes, in increasing confidence order:
   info     what the monitor and a .bin file actually say        (safe, works today)
   verify   the tool's own 0x45 model-match check, done natively (safe, works today)
-  probe    ISP slave-address ACK scan (+ optional enter-ISP)   (safe: reads only)
+  probe    ISP slave-address ACK scan                           (safe: scans only)
   backup   dump the scaler SPI flash                            (needs ISP ACKs)
   write    full flash program cycle                             (--allow-write + typed confirm)
 
@@ -258,6 +258,8 @@ def cmd_verify(args):
 def cmd_probe(args):
     with _bus(args) as bus:
         print(f"# read-only ACK scan of {_busname(bus, args)}")
+        print("#  (relay/nvrm probes are pure address-phase; the i2c-dev "
+              "probe writes one 0x00 pointer byte per slave, ddcutil parity)")
         isp_visible = False
         for t in TARGETS:
             ack = bus.probe(t.addr7)
@@ -284,19 +286,30 @@ def cmd_backup(args):
 def _backup_locked(args):
     from .isp import flash_path_enter, flash_path_exit, jedec_id
     with _bus(args) as bus:
-        reason = flash_path_enter(bus, 0x20, verbose=args.verbose)
+        reason = flash_path_enter(bus, verbose=args.verbose)
         if reason:
             sys.exit(f"backup: {reason}.\nIntel/AMD boxes are the live "
                      "path (TEST-INTEL-AMD.md); NVIDIA measured dead on "
                      "every transport (dead-end #11).")
         try:
             sb = ScalerBus(bus, verbose=args.verbose, delay_ms=1)
+            # JEDEC rides the 0x22 register file (Facts: both window maps ARE
+            # 0x22; policy names 0x22 explicitly).  The 0x20 slave is the
+            # ReadFlashData burst engine and is used for the dump itself.
+            tw = I2CTarget("scaler MCU window", 0x22)
             t = I2CTarget("ISP flash", 0x20)
-            jid = jedec_id(sb, t, verbose=args.verbose)
+            jid = jedec_id(sb, tw, verbose=args.verbose)
             if jid is None:
                 sys.exit("backup: JEDEC gate failed — 0x9F returned no sane "
                          "manufacturer ID (--verbose shows the raw pokes).")
-            print(f"JEDEC ID        : {jid.hex(' ')}")
+            if jid[0] != 0x1F:
+                # binding user policy: no erase/program until JEDEC answers
+                # 0x1Fxxxx from 0x22 (AMIC family, Facts.FLASH_CHIP 1f4010)
+                sys.exit(f"backup: JEDEC answered {jid.hex(' ')} on the 0x22 "
+                         "window, but this target requires 0x1Fxxxx "
+                         "(binding safety policy) — refusing to build a "
+                         "backup on an unconfirmed chip.")
+            print(f"JEDEC ID        : {jid.hex(' ')} (0x22 register file)")
             print("reading first 256 bytes …")
             head = sb.read_burst(t, 0, 256, page=Facts.SLAVES["isp_page_len"])
             print(" head:", head[:32].hex(" "))
@@ -304,6 +317,9 @@ def _backup_locked(args):
                 sys.exit("read returned all zeros -- not trusting this "
                          "path, nothing saved.")
             out = args.out
+            if os.path.exists(out) and os.path.getsize(out):
+                sys.exit(f"backup: refusing to overwrite non-empty {out} — "
+                         "the backup IS the artifact; pick a fresh path.")
             total = args.size
             print(f"dumping {total} bytes -> {out}")
             bar = Bar(total, "backup")
@@ -315,9 +331,14 @@ def _backup_locked(args):
 
                     def prog(got, _n, _base=base):
                         bar.update(_base + got)
-                    f.write(sb.read_burst(t, done, n,
+                    chunk = sb.read_burst(t, done, n,
                                           page=Facts.SLAVES["isp_page_len"],
-                                          progress=prog))
+                                          progress=prog)
+                    if len(chunk) != n:
+                        sys.exit(f"backup: short burst at {done:#x} "
+                                 f"({len(chunk)} of {n} bytes) — dump not "
+                                 f"trusted, {out} is incomplete")
+                    f.write(chunk)
                     done += n
                     bar.update(done)
             bar.done()

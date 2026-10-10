@@ -206,26 +206,31 @@ def exit_isp(bus, verbose: bool = False) -> bool:
 # we found it: exit_isp + EDID re-verify at 0x50. flash_path_enter/exit
 # wrap that so CLI and console share one honest implementation.
 
-def flash_path_enter(bus, flash_slave7: int = 0x20,
+def flash_path_enter(bus, flash_slaves=(0x20, 0x22),
                      verbose: bool = False) -> str:
-    """Enter ISP mode (idempotent) and report whether the flash slave
-    answers.  Returns "" on success, else a refusal reason.  ALWAYS safe
-    to pair with flash_path_exit: on refusal we exit again ourselves, so
-    callers never leave the scaler mid-ISP."""
+    """Enter ISP mode (idempotent) and report whether a flash-path slave
+    answers.  BOTH lanes are probed because the vendor uses both: the
+    0x20 ReadFlashData burst engine (Comm fn 0x7e50, re/f_readflash.txt)
+    and the 0x22 register-file page lane (Facts.ISP_PIPELINE: the plugin
+    engine's DumpFlash rides slot +0x14 on 0x22).  Returns "" on success,
+    else a refusal reason.  ALWAYS safe to pair with flash_path_exit: on
+    refusal we exit again ourselves, so callers never leave the scaler
+    mid-ISP."""
     try:
         enter_isp(bus, verbose=verbose)
     except IspError as e:
         return f"ISP entry failed: {e}"
-    try:
-        alive = bus.probe(flash_slave7)
-    except Exception as e:
-        flash_path_exit(bus, verbose=verbose)
-        return f"probe of {flash_slave7:#04x} errored: {e}"
-    if not alive:
-        flash_path_exit(bus, verbose=verbose)
-        return (f"ISP mode entered, but flash slave {flash_slave7:#04x} "
-                f"stays silent (measured NVIDIA gap, dead-end #11)")
-    return ""
+    for slave7 in flash_slaves:
+        try:
+            if bus.probe(slave7):
+                return ""
+        except Exception as e:
+            if verbose:
+                print(f"  probe of {slave7:#04x} errored: {e}")
+    flash_path_exit(bus, verbose=verbose)
+    lane = "/".join(f"{s:#04x}" for s in flash_slaves)
+    return (f"ISP mode entered, but flash slaves {lane} stay silent "
+            f"(measured NVIDIA gap, dead-end #11)")
 
 
 def flash_path_exit(bus, verbose: bool = False) -> tuple[bool, bool]:
