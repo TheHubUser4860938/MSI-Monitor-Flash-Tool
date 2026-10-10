@@ -150,7 +150,9 @@ def enter_isp(bus, verbose: bool = False,
     rts = retries or time_.get("retries", 10)
     for attempt in range(rts):
         for i in range(n):
-            cand = Facts.AUTOENTER_CANDIDATES[(loop0 + i) % n]
+            idx = loop0 + i                       # restricted: the exact cand;
+            cand = Facts.AUTOENTER_CANDIDATES[    # full pass: i itself
+                idx % len(Facts.AUTOENTER_CANDIDATES)]
             try:
                 bus.write(Facts.ISP_HANDSHAKE_SLAVE7, bytes([cand[0]]),
                           warmup=True)
@@ -162,7 +164,7 @@ def enter_isp(bus, verbose: bool = False,
                 time.sleep(0.001)
                 st = isp_alive(bus, verbose)
                 if st is not None:
-                    return ((loop0 + i) % n, st)
+                    return (idx, st)
                 time.sleep(slack)
             except Exception as e:            # NACK/timeout: try next
                 if verbose:

@@ -53,6 +53,10 @@ def _holder_pid(fd) -> str:
         return "?"
 
 
+def lock_path(bus: int) -> str:
+    return f"/tmp/msi-isp-bus{bus}.lock"          # noqa: S108
+
+
 @contextmanager
 def bus_lock(bus: int, timeout: float = 0.0):
     """Acquire the lock; raise BusBusyError if held. timeout > 0 waits up
@@ -64,7 +68,7 @@ def bus_lock(bus: int, timeout: float = 0.0):
     except OSError:
         dev_lock = False
         try:
-            path = f"/tmp/msi-isp-bus{bus}.lock"      # noqa: S108
+            path = lock_path(bus)
             fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o666)
             with contextlib.suppress(OSError):
                 os.chmod(path, 0o666)   # noqa: S103  (peer exclusion is the point)
