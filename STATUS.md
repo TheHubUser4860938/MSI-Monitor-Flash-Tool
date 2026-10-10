@@ -1851,3 +1851,28 @@ use exact -x names or PID files, never -f patterns contained in own cmdline.
 - Files: scratch/standby_button.py; Facts.GI_BUNDLE new; HANDOFF #14
   updated (GI branch CLOSED evidence-based; Windows prediction added);
   monitor healthy throughout (fw/edid byte-identical; relay resident).
+
+## Session 15j (addendum) — user correction: power button = FULL OFF; standby comes only from no-signal
+
+- User (owner of the actual device): "The power button turns it off — it
+  doesn't put it into standby. Only no signal does that." Corrects the
+  button-semantics I had encoded in 15j's Facts/HANDOFF/script text.
+- CONSEQUENCE (bigger than a wording fix): the input-blind runs (VCP 60
+  -> empty DP-2) were ALREADY probing the no-signal-standby region —
+  the community's target state. In that state on this unit: DDC/CI
+  (0x37) and EDID (0x50) provably STAY answering for 150+ s, ISP magic
+  still cand5->0x8A, and 0x35 still silent. So the MStar behavior the
+  community chases (asleep -> 0x49/0x59 appear on DDC) simply does not
+  reproduce on this RTD2711 unit — the standby axis closes negative,
+  modulo one visual-confirmation polish run (cell A: dark screen/LED
+  state named by the user's eyes at sweep time).
+- New second cell (B): powered-OFF bus state (button press -> full off).
+  boeglin-2014 reported mstarddc worked "even with the screen is off"
+  -> worth one unfiltered-relay sweep in true OFF (script's silence-
+  poll semantics fit this state perfectly; wake = press again). Relay
+  is live, so both cells are one short user-presence session away.
+- Files corrected: Facts.STANDBY_AXES (button_semantics key + re-split
+  queued cells), HANDOFF dead-end #14 (standby claim rewritten),
+  scratch/standby_button.py (docstring + press instruction now honest
+  about OFF vs standby). GI payload files deleted from tmpfs per user
+  request (3.3 GB freed; findings already banked in Facts.GI_BUNDLE).

@@ -503,10 +503,23 @@ STANDBY_AXES = {
     "input_blind": "DP-2 empty-input verified; 151 s: 0x37/0x50 ACK, "
                    "magic cand5->0x8A, 0x35 silent, table frozen",
     "d6_power": "ignored: undeclared, setvcp verify-fail, no sleep",
+    "button_semantics_USER_CORRECTION": "the power button = FULL OFF, "
+        "not standby; standby is reached only via no-signal (auto). "
+        "Reframe: 'blind input' experiments were actually probing the "
+        "no-signal-standby region all along (DDC/CI demonstrably lives "
+        "through it); and a second distinct cell now matters = powered- "
+        "OFF bus state, which boeglin-2014 says also worked ('even seem "
+        "to work when the screen is off'). Neither state was ever "
+        "visually timestamped by us — next runs pair a bus poll with "
+        "the user's eyes.",
     "ddcisp_85a0": "routes to mailbox (6e 80 be x2) but opens nothing; "
                    "the only writes EVER with non-zero reply on 0x37",
-    "queued": "button-standby sweep (user minute) + relay unfiltered "
-              "half (blocked on: sudo insmod kernel/msi_auxch.ko)",
+    "queued": "TWO cells: (A) no-signal-standby sweep with visual "
+              "confirmation (I blind via VCP 60, user confirms dark/LED, "
+              "bus sweep in that window); (B) powered-OFF sweep (user "
+              "button press, script detects silence, unfiltered relay "
+              "sweep -- 0x35 appearing in OFF state = the community's "
+              'bootloader-window hope"); relay is LIVE (pkexec loaded)',
 }
 
 # ---- Gaming Intelligence payload dissection (session 15j) --------------

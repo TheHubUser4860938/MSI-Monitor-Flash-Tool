@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """15j: the button-standby cell — the ONE state the community recipe
-needs and automation can't reach. Polls patiently; user presses the
-monitor's power key once; the sweep + magic attempt then run IN sleep,
-and everything auto-witnesses on wake (signal or second press).
+needs and automation can't reach. USER CORRECTION post-15j: the power
+button = FULL OFF (not standby) -- standby is only ever no-signal. So
+this script's silent-bus window is the OFF state (cell B, boeglin's
+'worked even with the screen off'); the standby cell (A) is produced by
+blinding the input (standby_input.py) ideally with a visual dark/LED
+confirmation from the user. Polls for the bus going silent, sweeps +
+magic-attempts there, then auto-witnesses once it answers again.
 
 0x35 is inside NVIDIA's i2c-dev allow-list, so even without the kernel
 relay this cell is honest for the address that matters most. If the
@@ -31,8 +35,9 @@ def main():
     with _bus(A()) as bus:
         log(f"transport: {getattr(bus, 'label', 'i2c-dev /dev/i2c-4')}")
         ed0, fw0 = read_edid(bus), vendor_fw_version(bus)
-        log(f"awake baseline fw={fw0!r}; PRESS POWER ONCE within "
-            f"{PATIENCE_S // 60} min — screen must go truly dark")
+        log(f"awake baseline fw={fw0!r}; PRESS POWER ONCE (= FULL OFF) "
+            f"within {PATIENCE_S // 60} min; for STANDBY use "
+            "standby_input.py + visual confirm")
         asleep = False
         t0 = time.monotonic()
         while time.monotonic() - t0 < PATIENCE_S:
