@@ -1229,3 +1229,52 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
   CLOSED. No tool-behavior change this session; monitor untouched; suite
   48 green; ruff/compile gates green. Kit reacquisition: nvapi clone is
   ephemeral under /tmp/opencode (like ogkm); evidence is git-tracked.
+
+## Session 15b (2026-10-10) — write acceptance PROVEN through our own framing (T0a/T0b/T1) + user corrections banked (Wine/0x45 attribution, USB-C display-only)
+
+- User corrections accepted and propagated: (1) the recorded 0x45 was a
+  **Wine/Proton** run — `nvapi.dll` has no driver behind it there, so that
+  failure says "backend absent," NOT "wire silent" → real-Windows behavior
+  on this sink is genuinely UNOBSERVED (15a's "Windows fails the same way"
+  clause overclaimed; fixed in HANDOFF wall-line + open #2, README,
+  Facts.NVAPI_SURFACE, TEST-INTEL-AMD); (2) the X28's USB-C/upstream port
+  is **display-only** → vendor USB-ISP backends are board-level-only here,
+  new dead-end #12, open #8 reinforced (recovery = service or CH341A).
+  Borrowed-Windows-PC flagged as the remaining zero-code datum.
+- **T0a (ddcutil)**: `setvcp 0x10` same-value round-trip, exit 0 = monitor
+  returned result 0x00. Baseline surprises honestly recorded: brightness
+  reads 0/100 (verified via `--verify` raw: `mh=00 ml=64 sh=00 sl=00`) —
+  plausibly the user's actual setting, contrast/gain read sanely.
+- **T0b (our plumbing, scratch/vcp_write_test.py)**: our raw MCCS set packet
+  `51 84 03 10 00 32 9a` ACCEPTED: brightness moved 0→50→0 with every step
+  verified through live GET replies; final reply byte-identical to baseline
+  (FW-version query 'FW.009' before/after as witness). First write performed
+  by our own framing that the monitor accepted, changed state for, and we
+  restored — the exact lifecycle the flash write driver will run, rehearsed
+  at zero risk. Two design facts captured:
+  * vendor GET-reply layout has ONE filler byte beyond the MCCS textbook
+    (cur = payload[6:8]) — calibrated against three VCPs + ddcutil;
+  * the in-band write-reply (0x6E 0x82 02 00) is NEVER readable through the
+    i2c-dev 0x37 proxy (retry ladder 0→320 ms → all-zero, kernel swallow):
+    **verify-by-readback is the only write oracle** — already the flash
+    design (verify-after-program), now with the reply-path dead-end proven.
+- **T1 (write_policy_probe.py, 2×6 matrix)**: i2c-dev shim AND kernel relay
+  both forward 1- and 2-byte writes to every ACKed slave (0x30/0x4a/0x4b/
+  0x50), zero rejections; emulated slaves swallow writes statelessly; relay
+  first-byte-shift quirk visible once more (`ffffff00` pre-pointer-write →
+  `00ffffff` after — pointer write doubles as quirk reset). Conclusion:
+  host-side write policy is exactly our unlock gate; sink-side, only `0x22`
+  refuses — and it NACKs the ADDRESS byte, so "we never wrote acceptable
+  data" cannot explain `0x22` on this box (payload never reaches the
+  conversation). The user's risk-instinct was still right on the merits:
+  what remained unproven was OUR write framing, and that is now proven.
+- Tooling self-crit noted: T0b first run mis-indexed the reply value (wrote
+  0x6400 — out-of-range, harmless, state provably unchanged) and T1 first
+  run treated write()'s None-return as failure — both caught by reading raw
+  outputs instead of trusting verdict lines; fixes baked into the scripts.
+- Next (approved queue): dump attempt with entry-variant × flash-slave
+  matrix + cross-transport combos (15c), then the systematic combing pass
+  (15d: Comm.dll commID map, WinIspPlugIn vocabulary, ctrl2080i2c port
+  enumeration re-check, Flash.dat binding), THEN the T2 decision with
+  full evidence in hand. Gates: ruff/compile/48-tests green; monitor
+  healthy (FW.009, brightness restored, EDID anchors unchanged).

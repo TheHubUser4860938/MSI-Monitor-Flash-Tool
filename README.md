@@ -107,7 +107,9 @@ private AUX wrapper that assembles 16-byte messages client-side. Its flash
 exports (`ReadFlashData`, `SectorErase`, …) are stubs: the flash engine lives
 in the updater core. Nothing in the Windows path is a driver door Linux lacks
 — and notably, no Windows run is on record reaching the flash slave on this
-monitor either: the updater's own failure *is* the 0x45 above. Evidence
+monitor either: the only recorded updater run happened under Wine/Proton,
+where NVAPI has no driver behind it — that 0x45 means “backend absent,” not
+“wire silent,” and real-Windows behavior here remains unobserved. Evidence
 `re/g_nvapi_surface.txt`; re-run with `scratch/nvapi_surface.py`.
 
 **The `_4023` in the filename** = a content checksum: the updater sums every

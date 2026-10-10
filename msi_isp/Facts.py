@@ -187,8 +187,10 @@ def bin_content_checksum(data: bytes) -> int:
 #     over DP-AUX. No 615.x SDK control by that name exists: NVAPI is
 #     almost certainly re-wrapping the same AUXCH controls from user side.
 #   * => No Linux-unreachable NVAPI magic door found. And no evidence ANY
-#     Windows run ever reached 0x22 on THIS sink -- the user's own Windows
-#     attempt failed with 0x45, consistent with our comm-layer verdict.
+#     Windows run ever reached 0x22 on THIS sink: the only recorded vendor-
+#     tool run was under Wine/Proton, where nvapi.dll has no driver behind
+#     it -- that 0x45 is "backend absent", NOT "wire silent". Real-Windows
+#     behavior on this sink is UNOBSERVED (15b correction of this claim).
 #     Dead-end #11 stands; Intel/AMD measurement (issue #1) is the decider.
 NVAPI_SURFACE = {
     "live_interfaces": ["NvAPI_Initialize", "NvAPI_EnumPhysicalGPUs",
@@ -206,6 +208,39 @@ NVAPI_SURFACE = {
     "flash_ops": "stubs in Comm layer -- engine is the main tool",
     "backends": "mode 3 = NVIDIA/NVAPI; ADL (AMD) + Intel (IntelControlAPI/) "
                 "sibling backends in same dispatch",
+}
+
+# ---- Wire WRITE acceptance (session 15b, measured live) ------------------
+# T0a: `ddcutil setvcp 0x10 <same value>` -> exit 0 (monitor returned MCCS
+#      result 0x00): stateful writes ARE accepted on this link (reference).
+# T0b (scratch/vcp_write_test.py): OUR raw 0x03 packet (51 84 03 10 00 32
+#      9a) accepted -- brightness 0->50->0 verified through live GET replies,
+#      final reply byte-identical to baseline. First accepted+verified+
+#      restored write performed by our own framing on this monitor.
+#      * Reply layout calibrated for THIS sink: GET payload =
+#        [02][result][vcp][filler][MH][ML][SH][SL]; current = p[6]<<8|p[7]
+#        (one filler byte beyond the standard layout; pinned against three
+#        VCPs x ddcutil's independent live values).
+#      * In-band write-REPLY (0x6E 0x82 02 00 ...) never readable through
+#        the i2c-dev 0x37 proxy on this stack (retry ladder 0-320 ms ->
+#        all-zero) -- the kernel MCCS proxy swallows it. Consequence for
+#        the write driver: verification oracle = GET/readback round-trips
+#        (already the design: verify-after-program), never the promise
+#        that a transaction merely "completed".
+# T1 (scratch/write_policy_probe.py): both transports forward 1- and
+#      2-byte writes to EVERY slave that ACKs reads (0x30/0x4a/0x4b/0x50,
+#      2x6 matrix, zero rejections; emulated slaves swallow writes
+#      statelessly). Host-side write policy = only our 0x18-0x22 unlock
+#      gate; the sink-side only-refuser is 0x22 itself, at the ADDRESS
+#      phase (NACK) -- payload acceptability structurally cannot be the
+#      failure variable there.
+WRITE_ACCEPTANCE = {
+    "vcp_set": "our raw 0x03 packet accepted; state moved 0->50->0, byte-"
+               "identical restore (T0b 2026-10-10)",
+    "reply_read": "in-band set-reply unreadable via the 0x37 proxy -> "
+                  "verify-by-readback is the ONLY write oracle",
+    "forwarding": "every ACKed slave accepts forwarded writes on both "
+                  "transports (T1 2x6 matrix)",
 }
 
 # ---- Bulk I2C-over-AUX control (0x73137C), probed session 14n -----------
