@@ -520,7 +520,12 @@ STANDBY_AXES = {
         "RULE: bare ACKs on NVIDIA aux are only meaningful paired with "
         "a content oracle (off_content_probe.py pattern). DP HPD death "
         "makes 'flash while asleep' structurally non-portable from the "
-        "VGA-era community recipe.",
+        "VGA-era community recipe. 15k UPDATE: the phantom window is "
+        "BIDIRECTIONAL -- right after power-on (scaler boot ~20 s) "
+        "bare probes ALSO all-ACK before the DDC/CI proxy comes up; "
+        "GATE every sweep behind a passing content oracle (version "
+        "reads 'FW.*' = go). Post-cycle settled sweep = frozen "
+        "baseline; one 0x03 single-sighting noted.",
     "queued": "TWO cells: (A) no-signal-standby sweep with visual "
               "confirmation (I blind via VCP 60, user confirms dark/LED, "
               "bus sweep in that window); (B) powered-OFF sweep (user "

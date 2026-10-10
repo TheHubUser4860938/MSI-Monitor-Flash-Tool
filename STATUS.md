@@ -1910,3 +1910,32 @@ use exact -x names or PID files, never -f patterns contained in own cmdline.
 - Files: scratch/off_content_probe.py (content oracles), standby_
   button.py hardened (silent() counts EXC; connector-status logs;
   --wake-wait); monitor state: OFF (user's doing), nothing touched.
+
+## Session 15k (cont.) — power-on watcher fired: full OFF->boot->settled cycle witnessed; PHANTOM WINDOW exists after power-on too
+
+- Watcher caught the connector back at 11:07:36 (user powered on ~45 min
+  after OFF). Sequence inside the capture tells a clean transport story:
+  * t+0 (link already back): selected-sweep showed ALL 17 addresses
+    'ACK' (even 0x35/0x49/0x59/0x6A) AND version-read said FW.009 —
+    but 20 s later the full 0x03-0x77 relay sweep returned the TRUE
+    settled set {0x30,0x37,0x4a,0x4b,0x50} (0x03 additionally: single
+    low-address flake, unexplained, one sighting). => during the
+    scaler's boot window (like during OFF), bare-address relay probes
+    complete 'ACK-shaped' while the DDC/CI proxy is not yet serving:
+    PHANTOM WINDOW is bidirectional (off AND boot). Sweep results in
+    either window are transport artifacts, not monitor replies.
+  * Standing rule (already banked in Facts, now with both halves):
+    GATE EVERY SWEEP BEHIND A PASSING CONTENT ORACLE (version-read
+    returning 'FW.*' = go; anything else = the bus is lying).
+  * EDID shim first-byte quirk struck again in transit: raw 0x50 read
+    came back one byte shifted ('header=False' yet 0d c4 vendor bytes
+    plainly present, checksum passed) — same family as the documented
+    0x37 first-byte drop; content oracles must tolerate it (we do).
+- Settled state post-cycle: connector connected, FW.009, EDID parses,
+  relay sweep = frozen baseline (ISP slaves NONE). Full 15k loop closed:
+  OFF cell negative + recovery witnessed + tooling hardened. 0x03
+  single-ACK noted only — if it recurs we'll chase it.
+- Nothing was written to the monitor at any point; button-cycle fully
+  benign (that is itself a datum: our enter/exit + probe discipline
+  survives power cycles untouched — open #12 flakiness thread: this
+  cycle adds a clean data point, no ISP state leaked across OFF).
