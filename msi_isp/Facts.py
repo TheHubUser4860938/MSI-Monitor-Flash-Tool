@@ -514,6 +514,13 @@ STANDBY_AXES = {
         "the user's eyes.",
     "ddcisp_85a0": "routes to mailbox (6e 80 be x2) but opens nothing; "
                    "the only writes EVER with non-zero reply on 0x37",
+    "cellB_powered_off": "CLOSED negative (15k): content-level NOTHING "
+        "(i2c-dev EIO; aux version-query stalls ~8 min) BUT bare-addr "
+        "relay probes still ACK = PHANTOM completions on the dead link. "
+        "RULE: bare ACKs on NVIDIA aux are only meaningful paired with "
+        "a content oracle (off_content_probe.py pattern). DP HPD death "
+        "makes 'flash while asleep' structurally non-portable from the "
+        "VGA-era community recipe.",
     "queued": "TWO cells: (A) no-signal-standby sweep with visual "
               "confirmation (I blind via VCP 60, user confirms dark/LED, "
               "bus sweep in that window); (B) powered-OFF sweep (user "

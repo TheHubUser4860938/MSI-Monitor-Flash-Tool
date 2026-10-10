@@ -1876,3 +1876,37 @@ use exact -x names or PID files, never -f patterns contained in own cmdline.
   scratch/standby_button.py (docstring + press instruction now honest
   about OFF vs standby). GI payload files deleted from tmpfs per user
   request (3.3 GB freed; findings already banked in Facts.GI_BUNDLE).
+
+## Session 15k (2026-10-10) — powered-OFF cell executed during user's button-off window: RM aux serves PHANTOM bare-ACKs on the dead link
+
+- User pressed power (= FULL OFF per their correction) and gave a 30-min
+  window. Cell B = the bus state with the monitor powered off, first
+  time ever observed with the unfiltered relay.
+- Host-side ground truth: connector flips to `disconnected` immediately
+  (DP HPD drops; the analog-era BenQ recipe never had this dimension —
+  VGA/DVI DDC stays energized, DP links die. Structurally, "flash it
+  while asleep" was never portable to a DP-only box.)
+- **MIRAGE FINDING: bare-address probes via the relay still 'answer'
+  with the monitor OFF** (0x30/0x35/0x37/0x49/0x50/0x6A all ACK-shaped
+  for 5 full min — scratch/standby_button.py first run 'no OFF detected').
+  A CONTENT-level read tells the truth: i2c-dev 0x50 EDID read = EIO
+  (no phantom reads; header would fail even if served), and the RM
+  vendor-version query over aux STALLS ~8 min before erroring (the first
+  run's 10:16->10:24 gap). => On NVIDIA i2c-dev/aux, bare-ACK results
+  are only meaningful together with a content oracle; future scripts
+  must pair them (banked in Facts.STANDBY_AXES).
+- Verdict for the OFF state: NOTHING answers at content level; the
+  boeglin 'worked even with the screen off' condition does not
+  reproduce here (and on DP cannot: link+HPD dead). Cell B CLOSED
+  negative — same conclusion family as standby (blind-input) and the
+  whole dead roster, but now with the transport-mirage mechanism
+  characterized, which retroactively explains why 'no OFF detected'
+  happened on the first pass and guards future probes.
+- Power-on recovery edge pending: user's power-back-on had not happened
+  as of this writing (60 s after xrandr re-detect nudge: still
+  disconnected); a 90-min background watcher (poweron_watcher.log)
+  catches the moment: connector-back -> content verify -> full relay
+  sweep -> EDID check -> commit-able log.
+- Files: scratch/off_content_probe.py (content oracles), standby_
+  button.py hardened (silent() counts EXC; connector-status logs;
+  --wake-wait); monitor state: OFF (user's doing), nothing touched.
