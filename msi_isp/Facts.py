@@ -11,7 +11,13 @@ MONITOR = {
     "product_code": "0x3DE3",              # MS-3DE3
     "scaler": "RTD2711",
     "panel": "TPO340QH1-CH01",
-    "fw_live": "FW.009N",                  # read natively over vendor VCP
+    "fw_live": "FW.009N",                  # RAW vendor-VCP reply as read.
+                                          # The trailing 'N' (0x4E) is the
+                                          # frame CHECKSUM byte bleeding into
+                                          # the string (proven 15e); the
+                                          # firmware VERSION is FW.009 --
+                                          # docs/expectations say "FW.009"
+                                          # and tolerate the N tail
     "ddc_bus": "/dev/i2c-4",
 }
 
@@ -438,8 +444,14 @@ FLASH_CHIP = {
     "wp": "advanced BP-bit write protection: record RDID + RDSR BEFORE "
           "any write; flashrom auto-unlocks silently -- playbook must be "
           "explicit read-record/unlock/restore",
-    "flashrom": "table entry 'AMIC A25L032' PREW flag -> verify "
-                "semantics at clip implementation time",
+    "flashrom": "table entry 'AMIC A25L032' TEST_OK_PREW -- entry "
+                "independently re-verified vs flashrom v1.8.0 source "
+                "(audit 15l): 4K sector erase 0x20 (also 64K blocks "
+                "0x52/0xD8, chip 0x60/0xC7), unlock = BP2/SRWD clearing, "
+                "WRSR_WREN + OTP 64B (0x4B/0x48 read, 0x42 write), "
+                "2.7-3.6 V -- corroborates the 14i ladder arm reading "
+                "(0x20 sector) and the geometry claims; flashrom "
+                "auto-unlocks silently, playbook stays explicit",
 }
 
 # ---- Flash.dat record->script bind (session 15i Phase A) ----------------

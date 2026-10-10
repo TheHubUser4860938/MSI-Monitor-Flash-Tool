@@ -10,6 +10,7 @@ are weak -- these tests pin that whole story.
 """
 import hashlib
 import os
+import shutil
 import tempfile
 import unittest
 
@@ -137,6 +138,36 @@ class TestRealBins(unittest.TestCase):
 def _mag(blk: bytes) -> bool:
     from msi_isp.cli import _edid_model_name
     return _edid_model_name(blk) == NAME
+
+
+class TestFilenameChecksum(unittest.TestCase):
+    """The _XXXX suffix check the vendor exe performs (Facts 14c crack),
+    wired into bin_header by audit 15l (the README promised it; the code
+    had the helper but verify never called it)."""
+
+    def parse_named(self, data, suffix=""):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        path = os.path.join(d, f"MSI_FW_TEST{suffix}.bin")
+        with open(path, "wb") as f:
+            f.write(data)
+        return bin_header(path)
+
+    def test_suffix_parsed_and_agrees(self):
+        data = b"\x01\x02" * 600          # sum 1800 = 0x0708
+        want = sum(data) & 0xFFFF
+        h = self.parse_named(data, f"_{want:04X}")
+        self.assertEqual((h["filename_sum"], h["sum16"]), (want, want))
+
+    def test_mismatch_is_visible(self):
+        h = self.parse_named(b"\x01", "_beef")
+        self.assertEqual((h["filename_sum"], h["sum16"]), (0xBEEF, 1))
+
+    def test_absent_suffix_is_no_verdict(self):
+        h = self.parse_named(b"\x01")
+        self.assertIsNone(h["filename_sum"])
+        self.assertEqual(h["sum16"], 1)
+
 
 
 if __name__ == "__main__":

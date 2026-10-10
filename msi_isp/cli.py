@@ -146,7 +146,7 @@ def _edid_candidates(data: bytes) -> list[tuple[int, bytes]]:
 
 
 def bin_header(path: str, live_edid: bytes = b"") -> dict:
-    """Extract model/version/size/sha from an updater .bin.
+    """Extract model/version/size/sha/content-checksum from an updater .bin.
 
     Version-relative by construction (14o): 'FW.NNN' is pattern-searched
     (it moved +0x7A00 between .009/.012), and model identity is content-
@@ -159,6 +159,12 @@ def bin_header(path: str, live_edid: bytes = b"") -> dict:
     with open(path, "rb") as f:
         data = f.read()
     size, sha = len(data), hashlib.sha256(data).hexdigest()
+    # the _XXXX filename checksum (cracked 14c, Facts.BIN_CHECKSUM_EXPECTED):
+    # low 16 bits of the plain byte sum, cross-checkable ONLY when the
+    # filename carries the suffix -- a mismatch means corrupt/wrong file.
+    fn = re.search(r"_([0-9A-Fa-f]{4})\.bin$", os.path.basename(path))
+    filename_sum = int(fn.group(1), 16) if fn else None
+    content_sum = Facts.bin_content_checksum(data)
 
     m = re.search(rb"FW\.([0-9]{2,3})", data)
     version = m.group(1).decode() if m else ""
@@ -184,8 +190,23 @@ def bin_header(path: str, live_edid: bytes = b"") -> dict:
 
     names = sorted({_edid_model_name(blk) for _, blk in _edid_candidates(data)})
     return {"version": version, "model": model, "size": size, "sha256": sha,
+            "sum16": content_sum, "filename_sum": filename_sum,
             "edid_offset": edid_off, "edid_exact": exact,
             "edid_models": names}
+
+
+def _checksum_line(h: dict) -> tuple[str, bool]:
+    """(display line, gate-pass) for the content/filename checksum."""
+    if h["filename_sum"] is None:
+        return (f"content cksum   : 0x{h['sum16']:04X} (no _XXXX suffix in "
+                "the filename -- cannot cross-check)", True)
+    if h["filename_sum"] == h["sum16"]:
+        return (f"content cksum   : OK (filename _{h['filename_sum']:04X} "
+                "== byte sum low16)", True)
+    return (f"content cksum   : MISMATCH (filename "
+            f"_{h['filename_sum']:04X} != byte sum low16 "
+            f"0x{h['sum16']:04X}) -- the vendor's 'Compare checksum "
+            f"fail!' -- file corrupt or mislabeled", False)
 
 
 def cmd_info(args):
@@ -243,6 +264,10 @@ def cmd_verify(args):
     if h["edid_exact"]:
         print(f"\nmodel match     : OK — the monitor's EXACT EDID (block0) "
               f"is in the bin @ {h['edid_offset']:#x}")
+        line, ok = _checksum_line(h)
+        print(line)
+        if not ok:
+            sys.exit(1)
         return
     b, m = h["model"].strip().lower(), mon_name.strip().lower()
     ok = b in m or m in b
@@ -252,6 +277,10 @@ def cmd_verify(args):
               "the image does not cover)")
     else:
         print("\nmodel match     : MISMATCH (this is what error 0x45 means)")
+        sys.exit(1)
+    line, chk_ok = _checksum_line(h)
+    print(line)
+    if not chk_ok:
         sys.exit(1)
 
 

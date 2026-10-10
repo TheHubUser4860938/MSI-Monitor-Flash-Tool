@@ -14,7 +14,7 @@ import os
 import sys
 
 from . import Facts
-from .cli import TARGETS, bin_header, read_edid, vendor_fw_version
+from .cli import TARGETS, _checksum_line, bin_header, read_edid, vendor_fw_version
 from .cli import _edid_model_name as edid_model_name
 from .ddc import RTBus
 from .isp import I2CTarget, ScalerBus
@@ -76,6 +76,8 @@ class Console(cmd.Cmd):
                   + ", ".join(repr(n) for n in self.bin_hdr["edid_models"])
                   + "  (verify matches against YOUR monitor's exact EDID)")
         print(f"  sha256 {self.bin_hdr['sha256']}")
+        line, _ok = _checksum_line(self.bin_hdr)
+        print(f"  {line}")
         return True
 
     def _monitor_edid(self) -> bytes:
@@ -188,6 +190,7 @@ class Console(cmd.Cmd):
             print(f"monitor model  : {mon!r}")
             print(OK(f"match          : OK — monitor's EXACT EDID in bin @ "
                      f"{hdr['edid_offset']:#x}"))
+            self._apply_checksum(hdr)
             return
         match = b in m or m in b
         self.verified = match
@@ -196,8 +199,19 @@ class Console(cmd.Cmd):
         if match:
             print(WARN("match          : OK by NAME only (bin has no byte-"
                        "exact copy of this EDID)"))
+            self._apply_checksum(hdr)
         else:
             print(BAD("match          : MISMATCH — would be error 0x45"))
+
+    def _apply_checksum(self, hdr) -> None:
+        """Content/filename checksum gate (audit 15l: a corrupt bin must
+        not pass verify just because the MODEL matches)."""
+        line, ok = _checksum_line(hdr)
+        print(line)
+        if not ok:
+            self.verified = False
+            print(BAD("verify         : gate CLOSED — byte sum does not "
+                      "match the filename checksum"))
 
     def do_backup(self, arg):
         """dump scaler SPI flash -> file. --write actually writes it out"""
