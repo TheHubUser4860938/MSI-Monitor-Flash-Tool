@@ -2080,3 +2080,46 @@ smoke OK (no bus touched). Commits: 5 batches A-E + this record; pushed.
 Relay .ko untouched (kernel edit was comment-only). Resume state =
 HANDOFF as always; queue unchanged: kit day (CLIP-PLAYBOOK) primary,
 WinPE/12 % with the prediction, issue #1.
+
+## Session 15l (cont.) — repo purpose-sweep: 9 dead artifacts deleted, two purpose indexes written
+
+User ask: keep only what has a purpose / could serve further development.
+Method: citation matrix over ALL 253 tracked evidence files (scratch/ + re/)
+against the docs corpus (79 exact-cited); the remainder adjudicated by
+CONTENT inspection, not filename stats -- and content justified nearly all
+of it: re/ dumps are self-labeled ("==== module!fn RVA ====") primary
+sources the PENDING write driver must re-verify against (the cli write
+stub says so by name), and every root scratch script carries a
+hypothesis-bearing docstring + STATUS-provenance lineage.
+
+DELETED (9, git-recoverable, all uncited everywhere):
+- 4 crash captures masquerading as dumps: re/f_dumpflash.txt,
+  re/f_enter_export.txt, re/f_recfwver.txt (NameError CS_MODE_64 -- the
+  documented pre-b367ef6 tool bug; their real 32-bit successors exist
+  under other names), re/s_autoenter.txt (fsum.py SyntaxError output).
+- 5 sixtgarbage dumps (64-bit-mode disasm of i386 bytes: 'push rbp' for
+  opcode 55, rip-relative operands, movabs/hlt smear): re/f_aux_txn,
+  f_i2cread, f_i2cwrite, f_read_thunk, f_write. Full-corpus marker scan
+  confirmed exactly five + zero remaining -- HANDOFF's "files predating
+  b367ef6 may contain stale 64-bit garbage" warning now CLOSED, text
+  updated to past tense. Two functions (0x39e50, 0x3b060) have clean
+  twins (a_init, a_i2cwr); the two orphan RVAs (0x3b120, 0x3a8e0) carry
+  no knowledge anywhere in the fact base (verified by grep) -- nothing
+  lost.
+Earlier (batch C) the same sweep already untracked poll_isp.tmp, deleted
+re/disp_ctrl_meta.json and added the *.tmp ignore.
+
+WRITTEN (make purpose DECLARATIVE, not tribal knowledge):
+- re/README.md -- prefix legend verified against file headers (a_/b_/o_ =
+  Comm_Aux; c_/f_ = Comm + P!P plugin; g_ = engine + the two generated
+  analysis outputs; u_ = RealtekUSB (GI lineage); w_*/named = the
+  register primitives isp.py emulates; wire1-9, exp_*, str_*, keys_*,
+  plg1); tool usage + '55 must decode as push ebp' regeneration check.
+- scratch/README.md -- full root inventory grouped by question arc (CI-pin,
+  runbook tools, 15c-f mailbox ladder, 15j-k state axes incl. the
+  standby_matrix mini-library dependency, 14-era window probes as
+  Intel/AMD-day settle-material, HDMI variants, RM internals, Proton
+  trio, log pairings), with the t_* basename-collision caution.
+Nothing else was cut: core lib, kernel module, tests, docs, vendor-facing
+runbooks all have live roles (audit 15l + queue). Suite unchanged; all
+gates re-run green.
