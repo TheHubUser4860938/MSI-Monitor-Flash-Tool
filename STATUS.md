@@ -1278,3 +1278,43 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
   enumeration re-check, Flash.dat binding), THEN the T2 decision with
   full evidence in hand. Gates: ruff/compile/48-tests green; monitor
   healthy (FW.009, brightness restored, EDID anchors unchanged).
+
+## Session 15c (2026-10-10) — dump attempt, exhaustively matrixed: no entry variant opens the flash slaves; wire half of open #5 CLOSED; monitor data baseline captured
+
+- User framing: "try to dump the firmware/data off the monitor -- if that
+  cracks this open it's the best path" + "make sure nothing was overlooked."
+  Script: `scratch/dump_attempt_matrix.py` (re-runnable, 25 s).
+- **A. entry-candidate x flash-slave matrix (i2c-dev, full vendor pacing).**
+  First-run bug self-caught: `retries=1` false-failed every candidate
+  (handshake walk takes ~8 polls); with correct pacing the real picture is
+  richer than any prior session had it:
+  * cand2 (0x54/0x56/0x58) -> handshake WON, status **0x88**
+  * cand3 (0x98/0x9A/0x68) -> handshake WON, status **0xdf**
+  * cand4 (0x9C/0x9E/0x6C) -> handshake WON, status **0xff**
+  * cand0/cand1/cand5 -> no handshake this run (cand5 WON in relay-era
+    runs -- candidate winners vary across sessions/order: open #12's
+    flakiness, now measured, not folklore).
+  * **After EVERY candidate -- handshake or not -- 0x18/0x20/0x22 stay
+    silent and JEDEC (both grammars x both targets) returns None.**
+    => open #5's WIRE half closes: no entry variant opens the flash slave
+    on this GPU/driver. (Which variant opens it on live wire remains an
+    issue-#1 question; the probe matrix is ready for that box.)
+- **B. cross-transport:** enter-i2c-dev/probe-relay and enter-relay/probe-
+  i2c-dev -- probes False + JEDEC None in both directions; no transport
+  pairing changes the silence. One transient TypeError in a status-probe
+  line (non-reproducible standalone; probe cells unaffected).
+  Observation: during ISP, i2c-dev raw 0x37 reads return 0x02 (proxy view
+  shifts during ISP -- consistent with STATUS:401 raw-traffic weirdness;
+  recorded for whoever designs mid-ISP recovery paths).
+- **C. monitor DATA baseline (files /tmp/opencode/monitor_state_15c/, sha
+  only here -- serials are PII):** EDID 256 B cross-verified byte-identical
+  between i2c-dev chunked read and relay read (sha256[:16] 28ca86b6dfde329e
+  both); ddcutil capabilities captured (1878 B, ca351cf27c4d0cf5); FW 'FW.009'
+  witness before/after every phase; monitor healthy throughout. First time
+  the sink's readable identity has a cross-transport-consistent snapshot on
+  record -- the anchor line for the day the flash dump happens.
+- Verdict: the dump stays honestly blocked -- but the block is now
+  exhaustively characterized (6 entry variants x 3 slaves x 2 grammars x
+  2 transports = 72 probe cells + cross combos, all silent). Next: 15d
+  combing pass (Comm.dll commID map, WinIspPlugIn vocabulary, NV2080 I2C
+  port-enumeration re-check, Flash.dat binding) -- then the T2 decision.
