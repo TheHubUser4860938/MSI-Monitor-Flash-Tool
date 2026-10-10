@@ -33,8 +33,11 @@ python3 scratch/sweep_slaves.py --bus N   # exhaustive 0x03-0x77 scan; on this
 python3 scratch/spec_0x22.py --bus N
 ```
 
-`--bus N` is optional everywhere (auto-detect via 0x50 EDID magic; it refuses
-ambiguously rather than guessing). On an NVIDIA box the script would
+`--bus N` is optional for the **scratch scripts** (auto-detect via 0x50 EDID
+magic; they refuse ambiguously rather than guessing). The shipped tool does
+NOT auto-detect: `msi-isp` defaults to bus 4 / `$MSI_ISP_BUS`, so pass
+`--bus N` explicitly wherever `ddcutil detect` reports otherwise.
+On an NVIDIA box the script would
 auto-select the RM transport instead — irrelevant here, no `/dev/nvidiactl`.
 
 ## Reading the result (script prints verdicts itself)

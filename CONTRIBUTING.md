@@ -23,10 +23,11 @@ paperweight, not a stack trace.** Binding safety policy:
 
 ## Dev environment
 
-- **The tool** (`msi_isp/`): Python ≥ 3.10, standard library only. There is
+- **The tool** (`msi_isp/`): Python ≥ 3.11, standard library only. There is
   no runtime dependency, no build step — keep it that way.
 - **Lint**: `ruff check .` must pass. The policy is pinned in `ruff.toml`:
-  strict on shipping surfaces (`msi_isp/`, `kernel/`, `re/`, `tests/`),
+  strict on shipping surfaces (`msi_isp/`, `kernel/`, `tests/`, and `re/`
+  except its one-shot `re/*.py` helpers, which carry archival exemptions),
   real-bug-family
   rules only on the research archives (`scratch/` incl. `scratch/legacy/`,
   those are frozen experiment records; don't restyle them).
@@ -59,11 +60,12 @@ paperweight, not a stack trace.** Binding safety policy:
    xargs python3 -m py_compile`) are clean.
 2. Regression sweep on the live monitor matches recorded baselines
    (`STATUS.md` has the expected outputs — outputs are byte-stable by
-   convention): `./msi-isp info`, `verify --bin`, `probe`, and if you
+   convention): `./msi-isp info`, `--bin <file> verify`, `probe`, and if you
    touched transport code: `sudo ./msi-isp --nvrm probe`, both arms of
    `scratch/spec_0x22.py`.
 3. Kernel module touched? rebuild + `insmod`, confirm the dmesg oracle lines
-   (`DPCD0 reply=ACK b0=0x12`, `0x50 read 8B ... 00ffffffffffff00`), run
+   (`probe displayId 0x200: st=0x0 reply=0 b0=0x12` — reply 0 = ACK — and
+   `0x50 read 8B: st=0x0 reply=0 data=00 ff ff ff ff ff ff 00`), run
    `python3 kernel/test_relay.py` **unprivileged**, then `rmmod` — twice.
 4. TUI changes: exercise under a real terminal, and
    `printf '1qq' | script -qec './msi-isp shell' /dev/null` for automation.

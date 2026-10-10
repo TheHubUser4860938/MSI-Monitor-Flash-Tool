@@ -20,14 +20,16 @@ Pure-stdlib Python 3 — no pip installs for the tool itself.
 ./msi-isp --bin vendor/…_FW.012_4023.bin verify       # the Windows updater's 0x45 check, natively
 ./msi-isp probe                                       # ISP slave-address ACK scan (read-only)
 ./msi-isp shell                                       # curses menu (arrow keys); --plain = text REPL
+./msi-isp tui                                         # the menu directly (same thing, no auto-fallback)
 sudo ./msi-isp --nvrm probe                           # NVIDIA RM DP-AUX transport instead (root)
 ./msi-isp --auxdev probe                              # ...same, but sudoless via kernel/msi_auxch.ko
 python3 scratch/spec_0x22.py                          # the decisive 0x22 contact experiment
 ```
 
 Requirements: the monitor on **DisplayPort**, your user in the `video` group
-(or `sudo`), and a bus number — `ddcutil detect` or the auto-detect in
-`scratch/spec_0x22.py` will find it; everything takes `--bus N`.
+(or `sudo`), and the bus number — `ddcutil detect` or the auto-detect in
+`scratch/spec_0x22.py` will find it. `--bus N` defaults to `$MSI_ISP_BUS`
+or 4 (the tool itself does not auto-detect; only the scratch probes do).
 
 ## How it works
 
@@ -41,8 +43,8 @@ road to the flash is the **DisplayPort AUX wire**, which carries an I2C bus
  ────────────────────────────────────────────────────────────────────
  A) i2c-dev       /dev/i2c-N  (kernel DRM AUX→I2C      DP AUX pair
     (Intel/AMD     bridge; plain I2C semantics)            │
-     or via the                                       sink DP branch (0x30)
-    kernel relay)                                          │  I2C-over-AUX
+     only)                                            sink DP branch (0x30)
+                                                       │  I2C-over-AUX
  B) NVIDIA RM     NV0073_CTRL_CMD_DP_AUXCH_CTRL        scaler RTD2711
     (root, or     (0x731341) — raw DP AUX from the         ├── 0x37 DDC/CI  ← info/verify
     via the       driver's Resource Manager               ├── 0x50 EDID     ← work anywhere
@@ -62,13 +64,15 @@ road to the flash is the **DisplayPort AUX wire**, which carries an I2C bus
   byte-exactly like the Windows tool does), and the Realtek ISP handshake
   (magic-byte entry candidates written to `0x37`, status bit `0x80` = ISP
   alive, `0x24` exit). Flash erasure/programming itself rides the scaler's
-  `0x22` register file (index reg `0x60`, data `0x61–0x66`, strobes
-  `0x20/0x21`, `0x38/0x39`) driving a pin-banged SPI master ("PWM2SPI").
+  `0x22` register file (window index/CTRL reg `0x60` — values arm `0x38`
+  / trigger `0x39`; opcode/data reg `0x61`; addr+length regs `0x64–0x66`;
+  per the 15i Flash.dat decode) driving a pin-banged SPI master ("PWM2SPI").
 - **Layer 3 — session + safety** (`console.py`, `tui.py`, `cli.py`): the
   curses menu and the text REPL share one state machine. `write` is fenced
-  by five gates (firmware loaded → model verified → ISP slave visible →
-  trusted backup this session → root) plus a typed `flash`. Everything else
-  is strictly read-only by construction.
+  by four gates (firmware loaded → model verified → ISP flash lane visible
+  → trusted backup THIS session, i.e. the most recent backup attempt
+  passed) plus a privilege gate that only arms for `--nvrm`, plus a typed
+  `flash`. Everything else is strictly read-only by construction.
 
 The Windows updater's own flash sequence is fully decoded (`Facts.ISP_PIPELINE`):
 chip detect → write-protect disable → bank erase (sector fallback) → program
@@ -80,7 +84,7 @@ whole attempt — the failure semantics our `write` will reproduce.
 | Capability | NVIDIA 615.x (dev box) | Intel/AMD | Notes |
 |---|---|---|---|
 | EDID, DDC/CI, live FW version (`info`) | ✅ i2c-dev | ✅ | byte-matched to ddcutil 3.0.2 wire dumps |
-| Model/checksum `verify` (the 0x45 check) | ✅ | ✅ | also verifies the `_4023` filename checksum (see below) |
+| Model/checksum `verify` (the 0x45 check) | ✅ | ✅ | plus the `_XXXX` filename content-checksum gate (byte-sum low-16, cracked 14c, wired in 15l: mismatch ⇒ refuse) |
 | ISP slave ACK scan (`probe`) | ✅ runs; ISP slaves **no-ack** | ❓ the open question | allow-list quirk below |
 | Flash `backup` / `write` | ⛔ gated | ❓ | need live transactions at 7-bit `0x22` |
 | RM AUX transport | ✅ root (`--nvrm`); ✅ **sudoless** (`--auxdev` + relay) | n/a | see relay note below |
@@ -137,7 +141,12 @@ that same AUXCH control from kernel context — the entry point NVIDIA's own
 `nvidia-modeset` module uses — and the tool consumes it via **`--auxdev`,
 with no sudo at all**. Setup: `make -C kernel LLVM=1 CC=clang`, `sudo insmod
 kernel/msi_auxch.ko`, and install `kernel/99-msi-auxch.rules` so the node is
-`0660 root:video` (the group that already owns DDC). Security posture: I2C
+`0660 root:video` (the group that already owns DDC) — on this project's
+dev box the non-interactive pattern is `pkexec` (polkit GUI prompt) rather
+than `sudo`. The module must be rebuilt after every kernel **or** NVIDIA
+driver update; `kernel/Makefile` documents fetching the matching
+open-gpu-kernel-modules headers (kept under `/tmp/opencode/ogkm` — tmpfs,
+gone on reboot). Security posture: I2C
 writes to the ISP register-file slaves (`0x18`–`0x22`) are refused in-kernel
 until userspace explicitly unlocks — a timed 5-second window, logged — while
 reads and ordinary DDC pointer writes work freely. `kernel/test_relay.py`

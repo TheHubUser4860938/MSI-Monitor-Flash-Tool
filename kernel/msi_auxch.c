@@ -128,8 +128,18 @@ static bool isp_write_gated(u32 cmd, u32 addr7, bool addr_only)
                                              * same shape nvbus proved safe
                                              * against the ISP slaves */
         return false;
-    if (cmd & AUX_MODE_AUX)                 /* native AUX: DPCD space, free */
+    if (cmd & AUX_MODE_AUX) {               /* native AUX: DPCD/MTPMT space,
+                                             * deliberately free. Honesty
+                                             * (audit 15l): native WRITES can
+                                             * change link params there — but
+                                             * that space is host-owned (any
+                                             * modeset writes it) and cannot
+                                             * brick the scaler; the brick
+                                             * risk is the flash register
+                                             * file below, so that is what
+                                             * gets gated */
         return false;
+    }
     if ((cmd & 3u) != AUX_REQ_WRITE)
         return false;
     if (addr7 < ISP_SLAVE_MIN || addr7 > ISP_SLAVE_MAX)
