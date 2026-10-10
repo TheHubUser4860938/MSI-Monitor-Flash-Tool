@@ -2,8 +2,9 @@
 """msi-isp console: shurectl-style interactive REPL.
 
 Every flash path is gated: bin selected -> verify (model match, the 0x45
-check) -> backup (trusted flash dump) -> root -> ISP slave visible -> typed
-confirmation. No gate, no write.
+check) -> backup (trusted flash dump) -> ISP slave visible -> transport
+privilege where the transport needs it (only --nvrm requires root) ->
+typed confirmation. No gate, no write.
 """
 from __future__ import annotations
 
@@ -117,7 +118,7 @@ class Console(cmd.Cmd):
         self._load_bin(parts[1])
 
     def do_scan(self, arg):
-        """read-only slave ACK scan (safe, no root needed to see ISP state)"""
+        """read-only slave ACK scan (safe; privilege only for --nvrm)"""
         try:
             with self._bus() as bus:
                 for t in TARGETS:
@@ -181,9 +182,9 @@ class Console(cmd.Cmd):
         isp = self._isp_visible()
         if not isp:
             print(BAD("ISP flash slave does not ACK — nothing to dump yet.\n"
-                      "  sudo (root) is required on NVIDIA for the privileged "
-                      "RM AUX channel;\n  Intel/AMD reach it over plain "
-                      "i2c-dev without sudo."))
+                      "  This is the measured NVIDIA routing gap (dead-end #11)"
+                      " on every NVIDIA transport;\n  Intel/AMD boxes reach it"
+                      " over plain i2c-dev. See TEST-INTEL-AMD.md."))
             return
         t = I2CTarget("ISP flash", 0x20)
         try:
@@ -238,7 +239,8 @@ class Console(cmd.Cmd):
         gate("model verified against monitor", self.verified, "verify")
         isp = self._isp_visible()
         gate("ISP flash slave visible", bool(isp),
-             "run with sudo (NVIDIA RM) or on Intel/AMD i2c-dev")
+             "needs a live 0x22: Intel/AMD box, or NVIDIA --auxdev/--nvrm "
+             "(dead-end #11 today)")
         gate("trusted backup this session", self.backup_path is not None,
              "backup <file> --write")
         try:
@@ -246,7 +248,10 @@ class Console(cmd.Cmd):
                 cur = vendor_fw_version(bus)
         except Exception:
             cur = "?"
-        gate("running as root", os.geteuid() == 0, "sudo msi-isp shell")
+        if self.use_nvrm:      # the only transport that needs privilege now
+            gate("running as root (--nvrm only)", os.geteuid() == 0,
+                 "sudo msi-isp --nvrm shell — or load the kernel relay and "
+                 "use --auxdev")
         all_ok = True
         for name, good, hint in gates:
             print(f"  [{'+' if good else '-'}] {name}"

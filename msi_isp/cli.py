@@ -223,8 +223,10 @@ def _backup_locked(args):
         t = I2CTarget("ISP flash", 0x20)
         if not bus.probe(t.addr7):
             sys.exit("backup: ISP slave 0x20 does not ACK on this link/driver yet.\n"
-                     "On NVIDIA the kernel routes no AUX transactions for it; "
-                     "run on Intel/AMD or extend with the RM NV0073 aux backend (STATUS.md).")
+                     "On NVIDIA NO transport routes transactions for it "
+                     "(measured: i2c-dev allow-list, RM --nvrm, kernel relay "
+                     "--auxdev — dead-end #11); Intel/AMD boxes are the live "
+                     "path (TEST-INTEL-AMD.md).")
         # JEDEC-like ID read must look sane before we trust any dump
         print("reading first 256 bytes …")
         head = sb.read_burst(t, 0, 256, page=Facts.SLAVES["isp_page_len"])
