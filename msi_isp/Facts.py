@@ -243,6 +243,61 @@ WRITE_ACCEPTANCE = {
                   "transports (T1 2x6 matrix)",
 }
 
+# ---- Vendor toolchain config, fully decoded (session 15d) ----------------
+# From IspSetting.ini (identical md5 d1be1f3a... across Wine prefix copies)
+# + updater-exe UTF-16 strings + WinIspPlugIn.dll EAT/disasm. Architecture
+# facts that reshape our write plan and dump expectations:
+#   * ARCHITECTURE = GUI ('MSI Firmware Update Utility') relaunches the
+#     same engine as 'WinISPTool.exe --ispdiff --newboot --fw X --comm N
+#     --settingfile Y' (and --userdefinedinfo mode) -> PlugIn/
+#     WinIspPlugIn.dll engine -> Comm module (commID: 1=Comm_Aux [ours],
+#     5=rtd38/Comm_GFXI2C for RTD38-family -- NOT this monitor's path).
+#   * DUAL-BANK flash design: [ISP_DualBank] enumBootCodeType=1,
+#     bSwitchFLag=1, ulTimeWaitCopyBank=8000, enumIspMode=1 -> update =
+#     program inactive bank + switch boot flag (4 MiB chip, two ~2 MiB
+#     images: ALSO explains the .009-vs-.012 +0x20000 block-shift = bank
+#     slotting, not mere layout drift). Our write driver must implement
+#     bank-copy semantics, NOT in-place erase-and-hope.
+#   * Version check rides DDC/CI, not the wire under test:
+#     [ISP_User_Defined] bGetVersion=1, strVersionDdcciCmd =
+#     0x6E,0x51,0x84,0x01,0xFE,0xE1,0xE6 -- BYTE-IDENTICAL to our
+#     vendor_fw_version packet (independent confirmation of ddc.py),
+#     ucVersionStartIndex=6 ucVersionReadLength=20
+#     enumVersionRecordMode=2 (engine worker 0x10025fc0 pushes 0x6E/0x51
+#     through comm vtable slot +0x140 = DDCCI mailbox).
+#   * BUT flash dump = I2C pages: DumpFlash worker 0x100239b0 uses comm
+#     vtable slot +0x14 (I2C_READ) -- flash contents ride the 0x22 lane
+#     only. Info over DDC/CI yes; bulk flash no (as decoded).
+#   * Bin parsing is INI-driven per release: BinVersionAddress=0xF800
+#     BinVersionLength=3 ulModelNamePosInBin=0xF806 (the .012-era ini) --
+#     14o's pattern-search was the right call; these keys PROVE addresses
+#     are release config, not fixed geometry.
+#   * Comm_AUX per-vendor routing knobs (issue-#1 testers care):
+#     AUX_GraphicsType=1 (manual vendor select exists),
+#     AUX_SendCmdToFirstBranchForAMD=1 (AMD path: ISP cmds via first DP
+#     branch -- plain-i2c semantics), AUX_bAutoDetectIntelSDK=1 +
+#     AUX_IntelSDKType=1 (Intel path rides Intel's display SDK -- see
+#     vendor/Comm/IntelControlAPI/), AUX_CheckSlaveAddress=1 +
+#     AUX_(Extar)SlaveAddress knobs (slave address is configurable!),
+#     AUX_I2CPageLen=32 (matches Facts), AUX_CheckBranchOUIOnly=0,
+#     AUX_CheckDpcdTable=0.
+#   * Live probe 15d: vendor ISP-DDC/CI opcode 0xA0 (strInitialDdcciCmd
+#     = 0x85,0xA0 = length-flag n5 + opcode A0) sent as [51 85 a0 00 00
+#     00 00 chk] gets FRAMED REPLY 6e 80 be ... from this sink -- the
+#     mailbox answers ISP opcodes. Full SendUserDefinedInfo grammar bind
+#     (workers 0x1002b2d0/0x1002b7e0 + IspUserDefined.txt format) = open
+#     question #13, the only lead with 'flash over the working lane'
+#     upside.
+VENDOR_CONFIG = {
+    "ini_md5": "d1be1f3a9a43fd44e510eb94272f5a1c",
+    "comm_ids": {1: "Comm/Comm_Aux.dll (NVIDIA NVAPI/AMD ADL/Intel SDK)",
+                 5: "rtd38/Comm_GFXI2C.dll (RTD38 family, 128 B pages)"},
+    "isp_mode": "dual-bank: program inactive bank + boot-flag switch",
+    "version_path": "DDC/CI mailbox (proven == our vendor_fw_version)",
+    "flash_path": "I2C page primitives on 0x22 lane (vtable +0x14)",
+    "ddcci_isp_opcode": "0xA0 answered 6e 80 be (15d) -- grammar bind = open #13",
+}
+
 # ---- Bulk I2C-over-AUX control (0x73137C), probed session 14n -----------
 # NV0073_CTRL_CMD_DP_AUXCH_I2C_TRANSFER_CTRL: "bulk ... splitting up the
 # data into pieces and retrying for pieces that aren't ACK'd" (SDK doc).

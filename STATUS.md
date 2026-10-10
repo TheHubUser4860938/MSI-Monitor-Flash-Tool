@@ -1318,3 +1318,75 @@ Static analysis of open-gpu-kernel-modules **615.78.08** (shallow clone at
   2 transports = 72 probe cells + cross combos, all silent). Next: 15d
   combing pass (Comm.dll commID map, WinIspPlugIn vocabulary, NV2080 I2C
   port-enumeration re-check, Flash.dat binding) -- then the T2 decision.
+
+## Session 15d (2026-10-10) — the systematic combing: vendor INI fully decoded -> DUAL-BANK architecture; DDCCI-ISP mailbox answers on this box (open #13); NV2080 door verified-closed
+
+- Ran the "make sure nothing was overlooked" pass the user asked for, item
+  by item, with receipts:
+  1. **NV2080 I2C port enumeration** (suspicion: did session 13 guess port
+     numbers?) — NO: STATUS:419 shows GET_I2C_PORTID(0x730211) enumerated
+     portids 4-7 and READ/WRITE_BUFFER + READ_REG + **I2C_ACCESS(0x20800610)
+     TEST_PORT** all returned INVALID_ARGUMENT (session 10 explicitly:
+     "DDC ports for DP are AUX-emulated shims, dead lane"). The one header
+     find of value (ACCESS = raw bit-bang API with PORT_DYNAMIC) was
+     ALREADY tested. Door verified closed, not overlooked.
+  2. **Comm.dll loader + commID map**: GUI relaunches the engine as
+     `WinISPTool.exe --ispdiff --newboot --fw "%ls" --comm %d
+     --settingfile "%ls"` (+ `--userdefinedinfo --newboot ...`) — note the
+     **--ispdiff mode: the vendor itself diffs flash vs bin before
+     updating**, validating our backup-compare policy. commID 1 =
+     Comm/Comm_Aux (ours); 5 = rtd38/Comm_GFXI2C (RTD38-family, 128 B
+     pages -- different chip, not our path).
+  3. **IspSetting.ini fully decoded** (md5 d1be1f3a..., identical across
+     both Wine prefixes; only file surviving the Wine runs):
+     * `[ISP_DualBank] bSwitchFLag=1 enumBootCodeType=1
+       ulTimeWaitCopyBank=8000 enumIspMode=1` -> **the flash is a
+       DUAL-BANK design: program the inactive bank, switch the boot flag**.
+       The 4 MiB chip = two ~2 MiB images; this ALSO explains the .009 vs
+       .012 +0x20000 block shifts as BANK SLOTTING (14o's mystery,
+       resolved). Write driver plan updated (open #7 rewritten).
+     * `[ScalerConfig] BinVersionAddress=0xF800 ulModelNamePosInBin=0xF806`
+       -> bin offsets are per-RELEASE CONFIG, confirming 14o's
+       pattern-search as the right tool; `CheckVersion=0` (model+checksum
+       checked, version not).
+     * `[ISP_User_Defined] bGetVersion=1 strVersionDdcciCmd=0x6E,0x51,0x84,
+       0x01,0xFE,0xE1,0xE6` -- **byte-identical to our vendor_fw_version
+       packet**: the tool's own version path is the DDC/CI lane we've
+       always proven working (independent confirmation).
+     * `[Comm_AUX]` per-vendor routing knobs (issue-#1 gold):
+       `AUX_SendCmdToFirstBranchForAMD=1` (AMD: ISP cmds to first DP
+       branch = plain-i2c semantics we replicate),
+       `AUX_bAutoDetectIntelSDK=1` + `IntelControlAPI/` (Intel path rides
+       Intel's display SDK -- refinement for Intel replies),
+       `AUX_GraphicsType` manual-vendor selector, `AUX_CheckSlaveAddress=1`
+       + ExtarSlaveAddress knobs (slave address is CONFIGURABLE in vendor
+       design -- another data-point that ISP slaves are treated as
+       board-variable), `AUX_I2CPageLen=32` matches Facts.
+  4. **WinIspPlugIn.dll EAT + spot-disasm**: engine verbs =
+     IspFlash/BankEraseFlash/ChipEraseFlash/DumpFlash/EnterISPModeExport/
+     ResetMCUExport/IspEeprom/GetKeyFromFlash/RecordFWVersion/
+     GetUserDefinedInfoFromDDCCI/SendUserDefinedInfo (+merge-fw verbs).
+     GetUserDefinedInfoFromDDCCI mode-switch (enumVersionRecordMode=2 ->
+     worker 0x10025fc0) pushes 0x6E/0x51 via comm vtable +0x140 (DDCCI
+     mailbox); **DumpFlash worker (0x100239b0) rides vtable +0x14 = the
+     I2C page primitives -> flash bulk stays on the 0x22 lane**.
+  5. **NEW LEAD (open #13)**: sent the engine's `strInitialDdcciCmd`
+     (0x85,0xA0 = len-flag n5 + ISP opcode A0) as raw MCCS on THIS box:
+     `51 85 a0 00 00 00 00 1a -> 6e 80 be ...` -- **the sink's DDCCI
+     mailbox ANSWERS ISP opcodes on the working lane**. SendUserDefinedInfo
+     parses a 5228-byte IspUserDefined.txt record format (info domain;
+     flash-window capability undecided). Time-boxed bind owed: workers
+     0x1002b2d0/0x1002b7e0 + enumIspMode dispatch + the record format --
+     if flash read/write can ride DDCCI, THIS box gets a backup path
+     without the dead 0x22 lane; if info-only, on-box options are
+     formally exhausted and CH341A/other-box decides.
+- Also banked from strings: exe verifies model via *flash* ("Compare bin
+  and flash model name" -- 0x45 needs backend reachability, consistent
+  with the Wine no-NVAPI failure), IspLog.txt/bSaveDebugLog knobs exist
+  (debug-log run of the vendor tool = wire-capture option if Windows ever
+  enters the picture), engine also knows Eeprom targets and merge-fw mode.
+- Monitor: untouched this phase (read-only probes + one harmless vendor-
+  opcode probe, state witnesses 'FW.009' + EDID intact after every step).
+- Gates: ruff/compile/48-tests green after Facts.VENDOR_CONFIG block +
+  HANDOFF (#1 refined, #5 wire-half closed, #7 dual-bank rewrite, #12
+  measured, #13 new) updates.
