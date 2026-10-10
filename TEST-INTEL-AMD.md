@@ -89,6 +89,12 @@ utility, done. Two observables, both free:
    corroboration; passing it = `0x35` ACKs only where the Windows RM aux
    driver can reach, and the borrow could literally flash the inactive
    bank (dual-bank design = safe until the flag flip).
+   **15j falsifiable expectation:** the GI-bundle success log shows the
+   `Try 0x6A` handshake riding the monitor's internal USB-MCU I2C on
+   GI-era models, and the X28 exposes no such carrier — so expect this
+   run to STOP at 12 % too (medium confidence); a pass would mean the
+   Windows RM aux reaches an internal lane Linux demonstrably cannot,
+   which would itself be the datum worth having.
 2. **Device Manager with USB-C plugged** (MSI's documented combo): does
    ANY device appear from the monitor (COM / HID / usbccgp)? On Linux the
    answer is provably no (VIA billboard is host-side; 15j) — Windows may
