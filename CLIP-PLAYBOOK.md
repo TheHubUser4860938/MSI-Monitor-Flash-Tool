@@ -21,6 +21,13 @@ Open the back (screws; note warranty sticker). Locate the 4 MB SPI NOR
 - **WSON-8 (flat pads, no legs)** → STOP. The clip cannot grab it.
   Options: solder a SOIC-8 breakout "stump" onto the pads, or pogo probe
   rig, or abandon clip route. Take a photo before deciding.
+- **While the case is open, hunt a 4-pad `ISP`/`UART` footprint** near
+  the scaler or flash (unpopulated headers are normal). RTD scalers
+  have a documented serial ISP mode (the community RTDTool/ROVA
+  "1-to-1" flashers), and the CH341A in our kit does UART TTL — if the
+  header exists and the pads reach the RTD2711's ISP pins, that's a
+  clip-**alternate** route, not just a log port. Photograph silkscreen;
+  do not experiment blindly.
 
 ## Step 1 — level check (before touching the chip)
 
@@ -134,6 +141,29 @@ roles — even after commit, the other bank remains a full fallback).
 | WSON pads | reality | Step 0 exit, deliberate |
 | write verify fails | BP bits / PREW sequencing | record SRS, unlock, retry; worst case restore dump1 |
 | anything at all, ever | — | you hold a verified dump; this is the reversible state |
+
+## Kit-day side quest: the same dongle as an I2C master on HDMI-DDC
+
+The CH341A is not only SPI — it does **I2C and UART TTL** too (chip is
+tri-mode; community precedents: mitxela's DDC-OLED project powers and
+talks to I2C slaves straight off HDMI pins; multiple CH341A-I2C/eeprom
+writeups). One zero-risk experiment closes the allow-list confound
+(Facts.STANDBY_AXES: the 15h HDMI cells for `0x21/0x41/0x49` never
+reached the wire through NVIDIA's filter):
+
+- PC **off entirely** (no driver in the loop at all), monitor on with
+  its HDMI input selected (`ddcutil setvcp 60 0x11` before shutdown, or
+  OSD afterwards);
+- three wires only: SCL→HDMI pin 15, SDA→pin 16, GND→pin 4/17 — **no
+  VCC injection**: the pull-ups live inside the monitor;
+- `i2cdetect -y -a <ch341a-i2c bus>` for the full 0x03–0x77 sweep,
+  ISP magic + `0x35/0x49` cells included, then a version-window read as
+  the reply-framing sanity control (compare against our proven
+  `6e ...` frames).
+
+A reply from any address NVIDIA couldn't reach is news; the identical
+{0x30,0x37,0x4a,0x4b,0x50} set is the expected close of that thread —
+either way the analog bus gets its first honest verdict.
 
 ## What the clip does NOT need
 
