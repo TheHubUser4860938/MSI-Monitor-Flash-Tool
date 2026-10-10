@@ -42,7 +42,12 @@ auto-select the RM transport instead — irrelevant here, no `/dev/nvidiactl`.
 | Result at `0x22` | Meaning | Next |
 |---|---|---|
 | `ACK` + data (`STEP 1 RESULT: CONTACT`) | I2C-over-AUX to the flash register file works | ACK path: `backup`/`write` implementation proceeds. Step-2 reg values (`0x60/0x61/0x00/0xFF`) decide address-sensitivity — capture them all. |
-| `STABLE-NACK/EIO` (or `STABLE-TIMEOUT`) for the full 2 s | The slave does not answer here either | Silence path: ship v0.1 conclusion; remaining difference is Windows NVAPI's defer/transparent policy. |
+| `STABLE-NACK/EIO` (or `STABLE-TIMEOUT`) for the full 2 s | The slave does not answer here either | Silence path: ship the v0.1 conclusion — with the session-15a caveat that "Windows NVAPI works" was never an observed fact for this unit (the Windows updater itself failed: that's error 0x45); a decoded `Comm_Aux.dll` shows the Windows path uses the same class of primitives. If every Linux vendor goes silent too, the realistic remaining routes are the vendor's Realtek-USB ISP backend (a Comm module exists for it) or a CH341A clip. |
+
+Note (session 15a, for AMD reporters): the vendor's own AMD comm backend rides
+`ADL_Display_DDCBlockAccess_Get` — plain DDC I2C semantics — so the i2c-dev
+`--bus` path used above IS the faithful reproduction of what Windows does on
+AMD hardware; no driver special-casing needed in the reply.
 
 Note: on i2c-dev the kernel performs the DEFER-retry loop internally, so the
 2.0 s wall budget is met with fewer, slower tries than the RM path
