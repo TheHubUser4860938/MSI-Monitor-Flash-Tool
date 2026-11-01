@@ -1356,3 +1356,57 @@ WINE_WITNESS = {
     "outcome": "12% in every combination; no IspLog.txt appeared (the name is "
                "built at runtime - no static xref to the literal)",
 }
+
+
+# ---- 16j: the record override does NOT open the gate ----------------------
+# Relaunched under Wine with IspUserDefined.txt IN FORCE (written before
+# launch, so plugin init read it): section [UserDefinedInfo] carrying
+#   ModelName=MAG 341CQ X28   IgnoreModelName=1  IgnorePanelName=1
+#   IgnoreVersionName=1  IgnoreCapabilityInfo=1  IgnoreSIName=1
+# with the INI on the native lane (AUX_NvidiaIICAuxAccess=1) and logging on,
+# and FW.012 loaded. Result: FAIL, "Compare bin and flash model name fail
+# fail, error code: 0x45", 12% - identical to the run without the file.
+# => the Ignore* switches govern the RECORD WRITE (SendUserDefinedInfo), not
+# the pre-flight compare. The compare is not skippable from config; it has to
+# be SATISFIED, which means reading the block out of flash.
+WINE_OVERRIDE_RUN = {
+    "levers": "IspUserDefined.txt [UserDefinedInfo] with ModelName + all five "
+              "Ignore switches, INI native lane + debug log + bSaveProgress, "
+              "set before launch (plugin init) and after startup (INI)",
+    "result": "FAIL 0x45 at 12%, unchanged",
+    "reading": "the switches belong to the record-write path; the pre-flight "
+               "compare must be satisfied by content, not config",
+    "measured": "2026-11-01 12:0x, wine, /tmp/opencode/isp7.png",
+}
+
+# Where the ID codes are read from, measured on the wire (16j):
+#   slave 0x37, token 0xCA, indices 0x00 0x01 0x0E 0x0F all answer the SAME
+#   frame `8a 02 00 fe 00 46...` - the index byte does not select a register
+#   on the DDC/CI mailbox. Slave 0x35 (the triple member) is EIO on i2c-dev.
+#   Plugin side: comm slot +0xc0 is a GETTER (Comm_Aux returns obj+0xc8), so
+#   the ID codes are cached at init by one bus read, not read per call.
+# => IDCode0/IDCode1 ride the ISP slave (0x35), not the DDC/CI mailbox, and
+# measuring them natively needs 0x35 to answer on some lane.
+ID_CODE_LANE = {
+    "measured": "2026-11-01, i2c-dev /dev/i2c-4, read-only",
+    "ddci_mailbox": "0x37 token 0xCA: indices 0,1,0xE,0F all reply "
+                    "'8a 02 00 fe 00 46' - index byte does not select",
+    "isp_slave_0x35": "EIO on i2c-dev (16f: same on all four NVIDIA lanes)",
+    "comm_slot_0xc0": "a getter of obj+0xc8 in Comm_Aux - the codes are "
+                      "cached at init by a single bus read",
+    "consequence": "ScalerType 0x45 is inferred from the GUI's own number "
+                   "(one mov eax,0x45 site, on the (0x14,0x30) branch); the "
+                   "direct measurement is a 0x35 read",
+}
+
+# 16j, on the vtable hunt (16h left it open): scanning Comm_Aux.dll and
+# Comm.dll for runs of >=164 code pointers gives 38 runs each, in 19 distinct
+# shapes - and every shape at the top is an MFC class (+0xc0 =
+# CBasePane::get_accKeyboardShortcut, +0x28c shared). The comm object's table
+# is NOT among them, which is consistent with the plugin calling it through a
+# pointer the host installs (SetCommInterface), so the table lives in the
+# module that DEFINES the object, not in the ones we scanned by shape.
+VTABLE_SCAN = "16j: 38 runs >=164 slots in Comm_Aux.dll and in Comm.dll, 19 " \
+              "distinct shapes, all MFC families - the comm vtable is not a " \
+              "shape-match in these two modules; hunt it from the object's " \
+              "constructor (the export the host calls), not from pointer runs"

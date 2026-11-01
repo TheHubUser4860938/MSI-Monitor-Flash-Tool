@@ -763,3 +763,48 @@ say `MAG 341CQ X28` — the box's filename says `341CQP`, the payload does not.
 
 Facts: `GUI_UPDATE_LADDER`, `SCALER_TYPE_TABLE`, `USER_DEFINED_RECORD`,
 `BIN_RECORD`, `DDCI_RECORD_FRAMES`, `PANEL_RECORD`, `WINE_WITNESS`.
+---
+
+# Session 16j — the gate is not skippable: content, not config
+
+Relaunched under Wine with the record file **in force** — `IspUserDefined.txt`
+written *before* launch, so plugin init read it — carrying
+
+```ini
+[UserDefinedInfo]
+ModelName=MAG 341CQ X28
+IgnoreModelName=1
+IgnorePanelName=1
+IgnoreVersionName=1
+IgnoreCapabilityInfo=1
+IgnoreSIName=1
+```
+
+with the INI on the native lane (`AUX_NvidiaIICAuxAccess=1`) and logging on,
+FW.012 loaded, ISP clicked: **FAIL, "Compare bin and flash model name fail
+fail, error code: 0x45", 12%** — byte-identical to the run without the file.
+
+So the `Ignore*` family belongs to the **record write** path
+(`SendUserDefinedInfo`), not to the pre-flight compare. The compare has to be
+*satisfied*, and satisfying it means reading the record block out of flash.
+That is pipeline step 7, and it is now the single blocking step.
+
+## Two measurements
+
+**The mailbox index byte selects nothing on the DDC/CI lane.** Slave `0x37`,
+token `0xCA`, indices `0x00 0x01 0x0E 0x0F` all answer the same frame
+`8a 02 00 fe 00 46 …`. Slave `0x35` is EIO on i2c-dev. So the ID codes ride
+the ISP slave, and `ScalerType 0x45` is inferred from the GUI's own number —
+soundly, because the whole plugin contains exactly one `mov eax,0x45` and it
+sits on the `(0x14, 0x30)` branch of `FUN_10016c20`.
+
+**Comm slot `+0xc0` is a getter.** In Comm_Aux the slot at that index returns
+`obj+0xc8`: the ID codes are **cached at init** by one bus read, not read per
+call. Which also closes 16h's vtable hunt a little: scanning Comm_Aux.dll and
+Comm.dll for runs of ≥164 code pointers gives 38 runs each in 19 distinct
+shapes, and every shape at the top is an MFC family (`+0xc0` =
+`CBasePane::get_accKeyboardShortcut`). The comm table is not a shape-match in
+these modules — reach it from the constructor the host's `SetCommInterface`
+installs.
+
+Facts: `WINE_OVERRIDE_RUN`, `ID_CODE_LANE`, `VTABLE_SCAN`.

@@ -2497,3 +2497,29 @@ with the INI on the native lane. Both stop at **12%**: Heroic `0xd21`, Wine
 Gates: ruff clean, **247 unit tests OK** (+33: the record parser, the compare
 and its switches, the ScalerType table, the live gate facts, the Wine witness).
 Notes: re/ghidra_isp_engine.md (16i).
+
+## Session 16j (2026-11-01) — the 12% gate is not skippable, so the flash read is the one blocking step
+
+Relaunched the vendor GUI under Wine with `IspUserDefined.txt` written **before
+launch** (so plugin init reads it) carrying `ModelName=MAG 341CQ X28` and all
+five `Ignore*` switches, the INI on the native lane and logging on, FW.012
+loaded: **FAIL 0x45 at 12%, identical to the run without the file.** So the
+`Ignore*` family governs the record WRITE (SendUserDefinedInfo), not the
+pre-flight compare — the compare must be *satisfied by content*, which makes
+pipeline step 7 (the ISP flash read) the single blocking step.
+
+Two measurements, both read-only:
+- **The mailbox index byte selects nothing on DDC/CI.** Slave 0x37, token 0xCA,
+  indices 0x00/0x01/0x0E/0x0F all answer the same frame `8a 02 00 fe 00 46…`;
+  0x35 is EIO on i2c-dev. So the ID codes ride the ISP slave, and ScalerType
+  0x45 is inferred from the GUI's own number — soundly: the plugin has exactly
+  one `mov eax,0x45`, on the (0x14,0x30) branch of FUN_10016c20.
+- **Comm slot +0xc0 is a getter of obj+0xc8** (Comm_Aux) — the ID codes are
+  cached at init by one bus read, not read per call. Closes 16h's hunt a step:
+  scanning Comm_Aux.dll and Comm.dll for runs of ≥164 code pointers gives 38
+  runs each in 19 distinct shapes, all MFC families (+0xc0 =
+  CBasePane::get_accKeyboardShortcut) — the comm table is not a shape-match
+  here; reach it from the constructor SetCommInterface installs.
+
+Facts: WINE_OVERRIDE_RUN, ID_CODE_LANE, VTABLE_SCAN.
+Gates: ruff clean, **253 unit tests OK** (+6). Notes: re/ghidra_isp_engine.md (16j).

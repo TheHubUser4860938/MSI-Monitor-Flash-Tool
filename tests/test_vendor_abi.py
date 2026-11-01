@@ -344,6 +344,29 @@ class TestRecordGateLive(unittest.TestCase):
         self.assertIn("IgnoreModelName", Facts.WINE_WITNESS["levers_tried"])
 
 
+class TestGateNotSkippable(unittest.TestCase):
+    """16j: what the record override does and does not do."""
+
+    def test_the_override_leaves_the_gate_at_45(self):
+        self.assertIn("FAIL 0x45 at 12%", Facts.WINE_OVERRIDE_RUN["result"])
+        self.assertIn("Ignore switches", Facts.WINE_OVERRIDE_RUN["levers"])
+
+    def test_the_compare_must_be_satisfied_not_skipped(self):
+        self.assertIn("by content", Facts.WINE_OVERRIDE_RUN["reading"])
+
+    def test_the_mailbox_index_byte_selects_nothing_on_ddci(self):
+        self.assertIn("does not select", Facts.ID_CODE_LANE["ddci_mailbox"])
+
+    def test_the_id_codes_are_cached_at_init(self):
+        self.assertIn("obj+0xc8", Facts.ID_CODE_LANE["comm_slot_0xc0"])
+
+    def test_the_scaler_type_is_inferred_and_says_so(self):
+        self.assertIn("inferred", Facts.ID_CODE_LANE["consequence"])
+
+    def test_the_vtable_scan_is_recorded_as_mfc(self):
+        self.assertIn("MFC", Facts.VTABLE_SCAN)
+
+
 class TestFlashModes(unittest.TestCase):
     """IspFlash (0x10008520) only runs for these DAT_1024a2d4 values; 0x1a is
     the background bank (its own engine), 0x1b the foreground (log only)."""
