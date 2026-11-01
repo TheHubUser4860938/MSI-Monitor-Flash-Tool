@@ -257,6 +257,93 @@ class TestHostChain(unittest.TestCase):
         self.assertIn("SetCommInterface", Facts.COMM_VTABLE_HUNT)
 
 
+class TestScalerType(unittest.TestCase):
+    """16i: the 12% gate is a model-name compare; 0x45 is the ScalerType."""
+
+    def test_the_gate_is_the_gui_compare_step(self):
+        self.assertIn("FUN_004119f0", Facts.GUI_UPDATE_LADDER["routine"])
+        self.assertIn("12%", Facts.GUI_UPDATE_LADDER["progress_codes"])
+
+    def test_the_ladder_reads_both_sides_before_comparing(self):
+        self.assertIn("GetFWInfo", Facts.GUI_UPDATE_LADDER["step1"])
+        self.assertIn("model name", Facts.GUI_UPDATE_LADDER["step2"])
+
+    def test_scaler_type_comes_from_two_id_registers(self):
+        t = Facts.SCALER_TYPE_TABLE
+        self.assertEqual(t["id_registers"], {"IDCode0": 0x00, "IDCode1": 0x0F})
+        self.assertEqual(t["comm_slot"], 0xC0)
+
+    def test_this_panel_is_scaler_type_45(self):
+        self.assertEqual(Facts.SCALER_TYPE_TABLE["this_panel"], (0x14, 0x30, 0x45))
+        self.assertEqual(Facts.SCALER_TYPE_TABLE["sample_entries"][(0x14, 0x30)], 0x45)
+
+    def test_the_type_range_is_1_to_51(self):
+        self.assertEqual(Facts.SCALER_TYPE_TABLE["valid_range"], (1, 0x51))
+
+    def test_the_record_is_a_file_read_at_plugin_init(self):
+        r = Facts.USER_DEFINED_RECORD
+        self.assertEqual(r["file"].split()[0], "IspUserDefined.txt")
+        self.assertIn("BEFORE", r["read_at"])
+
+    def test_the_record_carries_one_ignore_switch_per_field(self):
+        r = Facts.USER_DEFINED_RECORD
+        self.assertEqual(len(r["switches"]), len(r["fields"]) - 1)
+        self.assertIn("IgnoreModelName", r["switches"])
+
+    def test_the_ddcci_read_is_the_measured_mailbox_ladder(self):
+        """16i correction: the INI line is the WIRE form. 0x6E is the slave
+        address byte, 0x51 0x84 the MCCS header, 0x01 the VCP, FE E1 E6 the
+        payload - so the read is VCP 0x01, not VCP 0x6E (my first reading)."""
+        r = Facts.USER_DEFINED_RECORD
+        self.assertIn("VCP 0x01", r["ddcci_read"])
+        self.assertEqual(r["wire_cmd"].split(",")[0], "0x6E")
+        self.assertEqual(r["wire_cmd"].split(",")[3], "0x01")
+
+    def test_both_bins_carry_the_same_model_string(self):
+        self.assertEqual(Facts.BIN_RECORD["fw009"]["model"],
+                         Facts.BIN_RECORD["fw012"]["model"])
+        self.assertEqual(Facts.BIN_RECORD["fw012"]["model"], "MAG 341CQ X28")
+
+    def test_the_bins_differ_only_in_version_and_offset(self):
+        for k in ("model", "panel", "scaler"):
+            self.assertEqual(Facts.BIN_RECORD["fw009"][k],
+                             Facts.BIN_RECORD["fw012"][k], k)
+        self.assertNotEqual(Facts.BIN_RECORD["fw009"]["version"],
+                            Facts.BIN_RECORD["fw012"]["version"])
+
+
+class TestRecordGateLive(unittest.TestCase):
+    """16i: the gate as measured on the panel, and the Wine witness."""
+
+    def test_the_version_frame_layout_is_recorded(self):
+        f = Facts.DDCI_RECORD_FRAMES
+        self.assertEqual(f["version_at"], {"raw": 6, "payload": 4})
+        self.assertIn("FW.009", f["version_raw"].replace("46 57 2e 30 30 39", "FW.009"))
+
+    def test_the_model_vcp_is_recorded_as_needing_the_edid(self):
+        self.assertIn("10/10", Facts.DDCI_RECORD_FRAMES["model_vcp_0x02"])
+
+    def test_the_panel_side_matches_the_fw012_bin_by_model(self):
+        self.assertEqual(Facts.PANEL_RECORD["model"],
+                         Facts.BIN_RECORD["fw012"]["model"])
+        self.assertIn("model MATCH", Facts.PANEL_RECORD["gate_vs_fw012"])
+
+    def test_the_gate_is_named_as_a_flash_read(self):
+        self.assertIn("IN FLASH", Facts.PANEL_RECORD["consequence"])
+
+    def test_the_wine_error_code_is_the_scaler_type(self):
+        self.assertIn("ScalerType", Facts.WINE_WITNESS["result"])
+        self.assertIn("0x45", Facts.SCALER_TYPE_TABLE["sample_entries"]
+                      and "0x45")
+
+    def test_the_ini_is_rewritten_at_startup(self):
+        self.assertIn("1498", Facts.WINE_WITNESS["ini_lifecycle"])
+
+    def test_the_levers_that_were_tried_are_listed(self):
+        self.assertIn("AUX_NvidiaIICAuxAccess", Facts.WINE_WITNESS["levers_tried"])
+        self.assertIn("IgnoreModelName", Facts.WINE_WITNESS["levers_tried"])
+
+
 class TestFlashModes(unittest.TestCase):
     """IspFlash (0x10008520) only runs for these DAT_1024a2d4 values; 0x1a is
     the background bank (its own engine), 0x1b the foreground (log only)."""

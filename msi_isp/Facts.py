@@ -1183,3 +1183,176 @@ HOST_CHAIN = {
 # reachable from that string's xref in Ghidra, and the object it passes has
 # its vtable pointer at [0] - one hop to the table.
 COMM_VTABLE_HUNT = "open: find the host's SetCommInterface call site (name string at WinOperateCScaler 0x101a6100 region), read the object's [0]"
+
+
+# ---- 16i: the 12% gate is a STRING COMPARE, and 0x45 is not an error -------
+# The GUI's update routine is exe FUN_004119f0. Its ladder, read off the
+# strings it uses and the progress writes (_DAT_006194dc = 4, 6, 7, 8, 0xc):
+#   1. FUN_00412330            init            (progress 4)
+#   2. comm vtable +0xc        GetFWInfo(bin)  -> "Get bin version and model
+#                                                name fail, error code: 0x%x"
+#   3. (progress 6, 7)
+#   4. FUN_00410270             read the MONITOR's model name
+#                                                -> "Get flash model name fail…"
+#   5. compare, progress 8 -> 0xc = 12%
+#      "Bin model name:%ls"  /  "Compare %ls with bin model name"
+#      "Compare bin and flash model name fail fail, error code: 0x%x"
+#                                              (the vendor's own double "fail")
+# The %x in that last message is NOT an ISP error code: it is the value the
+# plugin's GetScalerType returns (see below). Measured on this panel: 0x45.
+# Both lanes fail at the SAME step (12%), under Wine with the native lane and
+# under Heroic with the tunnel lane (0xd21 there, 0x45 here) - so the gate is
+# the compare, not the transport.
+GUI_UPDATE_LADDER = {
+    "routine": "exe FUN_004119f0 (the MFC dialog's update handler)",
+    "progress_codes": "4 init, 6/7 bin parse, 8 flash read, 0xc = 12% compare",
+    "step1": "GetFWInfo(bin) - version + model name out of the .bin",
+    "step2": "read the monitor's model name (DDC/CI, VCP 0x02)",
+    "step3": "compare; on mismatch the dialog shows the ScalerType as the code",
+    "evidence": "strings 005e96c8 / 005e9850 / 005e98a8 / 005e98d0 / 005e9938, "
+                "all xref'd from FUN_004119f0",
+}
+
+# GetScalerType: comm slot +0xc0 reads an ID CODE by index; two reads, then a
+# table lookup. Plugin FUN_10016b00:
+#     (*(comm[0] + 0xc0))(0x00, &IDCode0);     // register 0x00
+#     (*(comm[0] + 0xc0))(0x0f, &IDCode1);     // register 0x0F
+#     type = FUN_10016c20(IDCode0, IDCode1);   // the dictionary
+#     log("ScalerType: 0x%x, IDCode0: 0x%x, IDCode1: 0x%x")
+#     valid range: 1 .. 0x51 (outside it: "Read Scaler Type Fail!, 0xd0d")
+# THIS panel measures IDCode0=0x14, IDCode1=0x30 -> ScalerType 0x45 (69),
+# which is the number the GUI prints. The same 0x45 is the first argument of
+# Set Background Flash Write Time (slot +0x21c, 16a) - one value, two uses.
+SCALER_TYPE_TABLE = {
+    "reader": "plugin FUN_10016b00; the dictionary is FUN_10016c20",
+    "id_registers": {"IDCode0": 0x00, "IDCode1": 0x0F},
+    "comm_slot": 0xC0,
+    "this_panel": (0x14, 0x30, 0x45),
+    "valid_range": (1, 0x51),
+    "sample_entries": {   # (IDCode0, IDCode1) -> ScalerType, from FUN_10016c20
+        (0xFF, 0x70): 0x29, (0xFF, 0x90): 0x2A, (0xD3, 0x10): 0x41,
+        (0xD3, 0x00): 0x3F, (0x00, 0x01): 0x30, (0xD4, 0x00): 0x48,
+        (0x14, 0x30): 0x45, (0xC0, 0x01): 0x39, (0x13, 0x10): 0x3E,
+        (0x14, 0x10): 0x47, (0x15, 0x00): 0x49, (0x16, 0x00): 0x4E,
+        (0x17, 0x00): 0x50, (0x10, 0x00): 0x33, (0x12, 0x00): 0x3A,
+        (0x0E, 0x00): 0x04,
+    },
+}
+
+# The record the compare is against: a FILE, not the INI.
+# Plugin FUN_100275e0 builds the name "IspUserDefined.txt" (the literal is
+# split across two stack slots: "Is" + "pUserDefined.txt") next to
+# IspSetting.ini, reads section [UserDefinedInfo], keys "ModelName" and
+# "HPModelName". FUN_10027870 is the writer: the same block carries
+# ModelName, PanelName, CapabilityInfo, Version, SIName and one switch per
+# field - IgnoreModelName, IgnorePanelName, IgnoreVersionName,
+# IgnoreCapabilityInfo, IgnoreSIName - plus RecordModelMode / RecordPanelMode /
+# RecordVersionMode / FindBinUseVerMode.
+# The INI's [ISP_User_Defined] section carries the READ side of the same
+# record (measured on the shipped file):
+#     ucRetryCount=10  bGetVersion=1  ucVersionStartIndex=6
+#     ucVersionReadLength=20  enumVersionRecordMode=2
+#     strVersionDdcciCmd=0x6E,0x51,0x84,0x01,0xFE,0xE1,0xE6
+#     ulDelayTimeAfterDdcciWrite=3000  bDDCCIReadNotReturn0x6E=0
+# That DDC/CI command is 16e's mailbox ladder in one line: VCP 0x6E, payload
+# 0x51 0x84 0x01 0xFE 0xE1 0xE6, reply taken at byte 6 for 20 bytes - which is
+# exactly the frame we measured ("8a 02 00 fe 00 FW.009N", the string at 6).
+USER_DEFINED_RECORD = {
+    "file": "IspUserDefined.txt (same directory as IspSetting.ini)",
+    "section": "UserDefinedInfo",
+    "fields": ["ModelName", "HPModelName", "PanelName", "CapabilityInfo",
+               "Version", "SIName"],
+    "switches": ["IgnoreModelName", "IgnorePanelName", "IgnoreVersionName",
+                 "IgnoreCapabilityInfo", "IgnoreSIName"],
+    "modes": ["RecordModelMode", "RecordPanelMode", "RecordVersionMode",
+              "FindBinUseVerMode"],
+    "ddcci_read": "VCP 0x01, payload FE E1 E6, reply taken at [6:26]",
+    # The INI's own byte string, verbatim: the slave address, the MCCS length
+    # and flag bytes, the VCP code, then the payload. Read it as the WIRE form
+    # (a field name is not its units, 16i): 0x6E=slave 0x37 write,
+    # 0x51 0x84=header, 0x01=VCP, FE E1 E6=payload.
+    "wire_cmd": "0x6E,0x51,0x84,0x01,0xFE,0xE1,0xE6",
+    "read_at": "plugin init (FUN_100275e0) - so the file must exist BEFORE the "
+               "tool starts; editing it mid-run does nothing",
+}
+
+# The bin carries the same record in plaintext, mid-file (not in a header):
+# FW.009 bin @194566 and FW.012 bin @63494 both hold
+#     "...e009" / "...e012"  then  "MAG 341CQ X28"  0xff
+#     "TPO340QH1-CH01 D01"   0xff  "RTD2711"       0xff
+# i.e. version, model, panel, scaler - the four fields of the record, with
+# 0xff separators. Both bins say "MAG 341CQ X28" (the box's filename says
+# 341CQP, the payload does not). The first 1 KiB of both bins is high entropy:
+# the header is packed, this table is not.
+BIN_RECORD = {
+    "fw009": {"offset": 194566, "model": "MAG 341CQ X28",
+              "panel": "TPO340QH1-CH01 D01", "scaler": "RTD2711",
+              "version": "FW.009"},
+    "fw012": {"offset": 63494, "model": "MAG 341CQ X28",
+              "panel": "TPO340QH1-CH01 D01", "scaler": "RTD2711",
+              "version": "FW.012"},
+    "layout": "version, model, panel, scaler - 0xff separated, plaintext",
+    "sizes": {"fw009": 1966080, "fw012": 1835008},
+    "measured": "python scan of vendor/*.bin, 2026-11-01",
+}
+
+
+# ---- 16i: the gate, measured on the live panel ----------------------------
+# Raw frames read 2026-11-01 through msi-isp (i2c-dev /dev/i2c-4, slave 0x37):
+#   VCP 0x01 + payload FE E1 E6  ->  6e 8a | 02 00 fe 00 | 46 57 2e 30 30 39 4e
+#                                            reply flag  echo     "FW.009N"
+#   so the version string sits at RAW index 6 = the INI's ucVersionStartIndex,
+#   and at payload index 4 once ddc_parse_reply strips the 2-byte lead. The
+#   vendor VCP 0x01 header is 4 bytes (reply, flag, 0xfe echo, 0x00), NOT the
+#   8-byte GetVCP header - one more grammar on this panel.
+#   VCP 0x02 (MCCS Model Name)  ->  6e 80 be  (N=0) on 10/10 tries, with the
+#   write retried each time. The model name is therefore read from the EDID's
+#   0xFC descriptor, which carries the same string.
+DDCI_RECORD_FRAMES = {
+    "version_raw": "6e 8a 02 00 fe 00 46 57 2e 30 30 39 4e 00...",
+    "version_header": "4 bytes: reply 0x02, flag 0x00, echo 0xfe, 0x00",
+    "version_at": {"raw": 6, "payload": 4},
+    "model_vcp_0x02": "N=0 on 10/10 tries (i2c-dev); use the EDID 0xFC name",
+    "ini_retry_count": 10,
+}
+
+# msi-isp record, live on this panel against the FW.012 bin (2026-11-01):
+#   bin model 'MAG 341CQ X28' == panel model 'MAG 341CQ X28'  -> MATCH
+#   bin code  'e012'           panel version 'FW.009'          -> differ
+# The model-name gate (the GUI's 12% step) is OPEN by content: this bin IS for
+# this monitor. The version difference is the point of an update, and the GUI
+# compares versions in a sibling step ("Compare bin and falsh version fail",
+# the vendor's own typo, exe string 005e9790).
+PANEL_RECORD = {
+    "measured": "2026-11-01, msi-isp record, i2c-dev lane, read-only",
+    "model": "MAG 341CQ X28",
+    "version": "FW.009",
+    "gate_vs_fw012": "model MATCH, version differ",
+    "consequence": "the 12% gate is a flash-content read: the plugin compares "
+                   "the bin's record against the record stored IN FLASH, so "
+                   "the port's next step is the ISP flash read of that block, "
+                   "not a new DDC/CI query",
+}
+
+# The Wine witness (16i), stated as measurements:
+WINE_WITNESS = {
+    "runs": "MSI Firmware Update Utility V1.0.6.exe under /usr/bin/wine "
+            "(Heroic prefix 'MSI firmware updater tool'), Access Method DP",
+    "result": "FAIL at 12%, dialog 'Compare bin and flash model name fail "
+              "fail, error code: 0x45' - and 0x45 is the ScalerType "
+              "(SCALER_TYPE_TABLE), not an ISP error code",
+    "heroic": "the same tool under Heroic/Proton failed at 12% with 0xd21 "
+              "(the handshake gate, 16a) - so both shells stop at the same "
+              "step for lane-specific reasons",
+    "ini_lifecycle": "the tool rewrites IspSetting.ini at startup (1498 B "
+                     "defaults): keys added mid-run survive to the next "
+                     "startup, and the record file is read at plugin INIT, so "
+                     "IspUserDefined.txt must exist BEFORE launch",
+    "levers_tried": "AUX_NvidiaIICAuxAccess=1 (native lane), "
+                    "AUX_EnableDebugLog=1 + bSaveDebugLog=1, bSaveResult=1, "
+                    "bSaveProgress=1, IgnoreModelName=1 in [ISP_User_Defined] "
+                    "and bIgnoreModelName=1, and IspUserDefined.txt "
+                    "[UserDefinedInfo] with all five Ignore switches",
+    "outcome": "12% in every combination; no IspLog.txt appeared (the name is "
+               "built at runtime - no static xref to the literal)",
+}

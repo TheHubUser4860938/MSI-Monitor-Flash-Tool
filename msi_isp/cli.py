@@ -287,6 +287,46 @@ def cmd_verify(args):
         sys.exit(1)
 
 
+def cmd_record(args):
+    """Replay the vendor's FIRST gate (16i): the UserDefinedInfo compare.
+
+    The GUI's 12% step compares the bin's internal record against what the
+    monitor answers over DDC/CI - model name first, version second. The
+    number in its message ("error code: 0x45") is the ScalerType, not the
+    reason; the reason is this compare.
+    """
+    from . import record as rec
+    if not args.bin:
+        sys.exit("record needs --bin /path/to/firmware.bin")
+    with open(args.bin, "rb") as fh:
+        data = fh.read()
+    try:
+        b = rec.parse_bin_record(data)
+    except ValueError as exc:
+        sys.exit(f"no record block in this image: {exc}")
+    with _bus(args) as bus:
+        # VCP 0x02 answers N=0 on this panel (10/10 tries, 16i), so the model
+        # name comes from the EDID's 0xFC descriptor - the same string.
+        p = rec.read_panel_record(bus, model=_edid_model_name(read_edid(bus)),
+                                  verbose=args.verbose)
+    ign = frozenset(x for x in (args.ignore or "").split(",") if x)
+    v = rec.compare(b, p, ignore=ign)
+    print("# the vendor's model-name gate (exe FUN_004119f0, progress 0xc = 12%)")
+    print(f"  bin  model   : {b.model!r}")
+    print(f"  panel model  : {p.model!r}")
+    print(f"  bin  code    : {b.code!r}   (the .bin's own version code)")
+    print(f"  panel version: {p.version!r}")
+    print(f"  bin  panel   : {b.panel!r}   scaler {b.scaler!r}")
+    for name, c in v.checks.items():
+        tag = "ignored" if c["ignored"] else ("match" if c["ok"] else "DIFFER")
+        print(f"  {name:<8}      : {tag}")
+    if ign:
+        print(f"  switches on  : {', '.join(sorted(ign))}")
+    print(f"\ngate            : {v.summary}")
+    if not v.ok:
+        sys.exit(1)
+
+
 def _probe_registers(bus):
     """Native-lane probe: native DP AUX has NO slave addressing, so the
     register index IS the address field. Reading the register file directly
@@ -570,6 +610,11 @@ def main(argv=None):
                                        "with Flash.dat's commands (safe)")
     ld.add_argument("--isp", action="store_true",
                     help="also run the ladder inside ISP mode (enter/exit)")
+    rg = sub.add_parser("record", help="the vendor's model-name gate replayed "
+                                       "(the 12% step of 16i; safe)")
+    rg.add_argument("--ignore", default="",
+                    help="comma list of fields to skip, the way the INI's "
+                         "Ignore* switches do: model,version")
     pl = sub.add_parser("pipeline", help="walk MSI's decoded flash pipeline "
                                          "(enter ISP -> ID -> read -> exit)")
     pl.add_argument("--size", type=lambda s: int(s, 0), default=32,
@@ -592,7 +637,7 @@ def main(argv=None):
     args = p.parse_args(argv)
     {"info": cmd_info, "verify": cmd_verify, "probe": cmd_probe,
      "slaves": cmd_slaves, "ladder": cmd_ladder,
-     "pipeline": cmd_pipeline,
+     "record": cmd_record, "pipeline": cmd_pipeline,
      "backup": cmd_backup, "write": cmd_write,
      "shell": cmd_shell, "tui": cmd_tui}[args.cmd](args)
 

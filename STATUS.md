@@ -2449,3 +2449,51 @@ and it paid: the missed structure is the HOST, not a slot.
 Gates: ruff clean, **214 unit tests OK** (+6: the host chain, the log name,
 the two-shell claim, signing-off, the open hunt). Notes:
 re/ghidra_isp_engine.md (16h).
+
+## Session 16i (2026-11-01) — the 12% gate is a string compare; 0x45 is a ScalerType, and `msi-isp record` runs the gate
+
+The owner ran the vendor GUI under Heroic (Access Method `DP`) and under Wine
+with the INI on the native lane. Both stop at **12%**: Heroic `0xd21`, Wine
+`0x45`. Two lanes, one step — so the step was the target.
+
+- **The gate is a compare.** The GUI's update routine (exe FUN_004119f0) writes
+  progress 4→6→7→8→**0xc = 12%**, and its branches are "Get bin version and
+  model name fail", "Get flash model name fail", "Compare %ls with bin model
+  name", "Compare bin and flash model name fail fail, error code: 0x%x" (both
+  typos are the vendor's, and they identify the branch we measured).
+- **0x45 is the ScalerType, not an error code.** Plugin FUN_10016b00 reads ID
+  registers 0x00 and 0x0F through comm slot **+0xc0** and maps the pair through
+  FUN_10016c20 (the dictionary; the plugin's only `mov eax,0x45` is on the
+  `(0x14,0x30)` branch). **This panel: (0x14, 0x30) → 0x45**, valid range
+  1..0x51. The same 0x45 is slot +0x21c's first arg (16a) — one value, two uses.
+  Slot +0xc0 is the ID-code read, not 16a's "pose/point the bus".
+- **The record has a file form**: `IspUserDefined.txt`, section
+  `[UserDefinedInfo]`, fields ModelName/PanelName/CapabilityInfo/Version/SIName
+  with **one `Ignore*` switch per field**. The INI's `[ISP_User_Defined]`
+  carries the read side, and it *is* 16e's ladder:
+  `strVersionDdcciCmd=0x6E,0x51,0x84,0x01,0xFE,0xE1,0xE6`, start 6, length 20,
+  retry 10. Read as the wire form: 0x6E=slave, 0x51 0x84=header, **0x01=VCP**,
+  FE E1 E6=payload (my first reading called 0x6E the VCP; the live frame
+  corrected it).
+- **Measured on the panel**: `6e 8a | 02 00 fe 00 | "FW.009N"` — the string at
+  raw index 6 is the INI's own start index, and the vendor VCP 0x01 header is
+  4 bytes, not the 8-byte GetVCP one. **VCP 0x02 answers N=0 on 10/10 tries**,
+  so the panel model comes from the EDID 0xFC descriptor (same string).
+- **The bins carry the record in plaintext mid-file** (FW.009 @194566, FW.012
+  @63494): version code, model, panel, 0xaf, scaler, 0xff-separated. Both say
+  `MAG 341CQ X28` — the filename's `341CQP` is not in the payload.
+- **New: `msi-isp record`** (`msi_isp/record.py`) replays the gate natively:
+  bin model `MAG 341CQ X28` == panel model `MAG 341CQ X28` → **model MATCH**;
+  bin code `e012` vs panel `FW.009` → version differ (which is the point of an
+  update). So the model gate is open by content, and the GUI's "flash model
+  name" must be read **from flash** — which makes pipeline step 7 (the ISP
+  flash read) the next real step, with this compare as its proof.
+- Wine lifecycle facts: the tool rewrites IspSetting.ini at startup (1498 B),
+  and the record file is read at plugin init (before launch). Levers tried —
+  native lane, debug log, result/progress saves, IgnoreModelName in the INI and
+  in IspUserDefined.txt with all five switches — **12% every time**, no
+  IspLog.txt (the name is built at runtime, no static xref).
+
+Gates: ruff clean, **247 unit tests OK** (+33: the record parser, the compare
+and its switches, the ScalerType table, the live gate facts, the Wine witness).
+Notes: re/ghidra_isp_engine.md (16i).

@@ -640,3 +640,126 @@ string is in `WinOperateCScaler.dll`'s table (0x101a6100 region) — its xref is
 the call site, and the object passed carries the vtable pointer at `[0]`. One
 hop to the table, then slots `+0x21c` and `+0x124` decompile to the two wire
 forms the pipeline is missing.
+---
+
+# Session 16i — the 12% gate is a string compare, and 0x45 is a ScalerType
+
+The owner ran the vendor GUI under Heroic (Access Method `DP`) and under plain
+Wine, with the INI on the native lane (`AUX_NvidiaIICAuxAccess=1`). Both stop
+at **12%**. Heroic showed `0xd21` (16a's handshake gate); Wine showed
+`0x45`. Same step, two lanes, two numbers — so the step, not the lane, is the
+thing to decode.
+
+## The GUI's ladder, read off its own strings
+
+`FUN_004119f0` (the exe) is the update routine. Its progress writes are
+`4 → 6 → 7 → 8 → 0xc`, and `0xc` **is** the 12% on the bar. The strings at each
+branch:
+
+```
+005e96c8  "Get bin version and model name fail, error code: 0x%x"   step 1
+005e9850  "Get flash model name fail, error code: 0x%x"             step 2
+005e98a8  "Bin model name:%ls"
+005e98d0  "Compare %ls with bin model name"
+005e9938  "Compare bin and flash model name fail fail, error code: 0x%x"  step 3
+005e9790  "Compare bin and falsh version fail, error code: 0x%x"    sibling
+```
+
+(Both typos are the vendor's: "fail fail" and "falsh". They are what identify
+the exact branch — the dialog we measured is 005e9938.)
+
+So the gate is: **parse the bin's record → read the panel's record → compare
+the model name.** Nothing to do with the transport.
+
+## 0x45 is the ScalerType
+
+Plugin `FUN_10016b00`:
+
+```c
+comm->vft[0xc0](0x00, &IDCode0);        // register 0x00
+comm->vft[0xc0](0x0f, &IDCode1);        // register 0x0F
+type = FUN_10016c20(IDCode0, IDCode1);  // the dictionary
+log("ScalerType: 0x%x, IDCode0: 0x%x, IDCode1: 0x%x");
+if (type < 1 || 0x51 < type) log(" Read Scaler Type Fail!, ErrorCode: 0xd0d");
+```
+
+`FUN_10016c20` is a hand-written (IDCode0, IDCode1) → ScalerType dictionary;
+the whole plugin contains exactly one `mov eax,0x45`, and it sits on the
+`(0x14, 0x30)` branch. **This panel: IDCode0=0x14, IDCode1=0x30 → ScalerType
+0x45 (69)** — the number the dialog prints as "error code". The same 0x45 is
+the first argument of *Set Background Flash Write Time* (slot `+0x21c`, 16a):
+one value, two uses, and 16a's note that it was "a REGISTER, not the 0x45 error
+code" is now named.
+
+Slot `+0xc0` (index 48) is therefore the **ID-code read**, not "pose/point the
+bus" as 16a guessed. `Facts.SCALER_TYPE_TABLE` carries the dictionary.
+
+## The record, and where the switches live
+
+`FUN_100275e0` builds the filename `IspUserDefined.txt` (the literal is split
+across two stack slots: `"Is"` + `"pUserDefined.txt"`), reads section
+`[UserDefinedInfo]`, keys `ModelName` and `HPModelName`. `FUN_10027870` is the
+writer, and its name table is the record's full vocabulary:
+
+```
+ModelName · PanelName · CapabilityInfo · Version · SIName
+IgnoreModelName · IgnorePanelName · IgnoreVersionName · IgnoreCapabilityInfo
+IgnoreSIName · RecordModelMode · RecordPanelMode · RecordVersionMode
+FindBinUseVerMode
+```
+
+One `Ignore*` switch per field — the vendor's own escape hatches.
+
+The INI's `[ISP_User_Defined]` section carries the **read** side, and it is the
+16e mailbox ladder written down:
+
+```
+strVersionDdcciCmd = 0x6E,0x51,0x84,0x01,0xFE,0xE1,0xE6
+ucVersionStartIndex = 6      ucVersionReadLength = 20
+ucRetryCount = 10            ulDelayTimeAfterDdcciWrite = 3000
+```
+
+Read as the **wire form** (a field name is not its units): `0x6E` is the slave
+address byte, `0x51 0x84` the MCCS header, `0x01` the VCP, `FE E1 E6` the
+payload. My first reading called `0x6E` the VCP; the live frame corrected it.
+
+## Measured on the panel, no Wine, no ISP mode
+
+```
+6e 8a | 02 00 fe 00 | "FW.009N" 00 …
+  lead   4-byte header   string at raw index 6 = the INI's own start index
+```
+
+VCP 0x02 (MCCS Model Name) answers `6e 80 be` — **N=0 on 10/10 tries** — so the
+panel side takes its model from the EDID's `0xFC` descriptor, which carries the
+same string.
+
+`msi-isp record` (new verb, `msi_isp/record.py`) runs the vendor's gate:
+
+```
+bin  model   : 'MAG 341CQ X28'      panel model  : 'MAG 341CQ X28'   MATCH
+bin  code    : 'e012'               panel version: 'FW.009'          differ
+bin  panel   : 'TPO340QH1-CH01 D01' scaler 'RTD2711'
+gate         : fail: version
+```
+
+The bins carry that record in **plaintext mid-file** (FW.009 @194566, FW.012
+@63494), 0xff-separated: version code, model, panel, `0xaf`, scaler. Both bins
+say `MAG 341CQ X28` — the box's filename says `341CQP`, the payload does not.
+
+## What this changes
+
+1. **The model-name gate is open by content**: this bin is for this monitor.
+2. **The GUI's "flash model name" is read from FLASH**, not from DDC/CI — so
+   the port's next real step is the ISP flash read of that block, which is
+   pipeline step 7. The record compare is the consumer that proves the read.
+3. `msi-isp record` reproduces the vendor's first gate on Linux today.
+4. Wine/INI lifecycle: the tool rewrites `IspSetting.ini` at startup (1498 B of
+   defaults), and the record file is read at **plugin init**, so it must exist
+   before launch. Levers tried (native lane, debug log, result/progress saves,
+   `IgnoreModelName` in the INI and in `IspUserDefined.txt` with all five
+   switches): **12% every time**, and no `IspLog.txt` appears — the name is
+   built at runtime (no static xref to the literal).
+
+Facts: `GUI_UPDATE_LADDER`, `SCALER_TYPE_TABLE`, `USER_DEFINED_RECORD`,
+`BIN_RECORD`, `DDCI_RECORD_FRAMES`, `PANEL_RECORD`, `WINE_WITNESS`.
