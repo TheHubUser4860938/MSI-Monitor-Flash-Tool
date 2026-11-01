@@ -391,7 +391,8 @@ class TestCommApi(unittest.TestCase):
     and the Flash.dat script are read out of the binaries."""
 
     def test_the_api_has_every_resolved_slot(self):
-        self.assertEqual(len(Facts.COMM_API), 153)
+        # 153 names from the plugin's loader + 2 the exe resolves elsewhere
+        self.assertEqual(len(Facts.COMM_API), 155)
 
     def test_the_slots_the_project_uses_are_named(self):
         for n in ("WriteRegEx", "GetI2CSpeed", "SetI2CSpeed", "WriteFlashData",
@@ -399,14 +400,42 @@ class TestCommApi(unittest.TestCase):
                   "ConfigProgramFlash", "GetNativePageLength"):
             self.assertIn(n, Facts.COMM_API, n)
 
-    def test_the_byte_offset_is_four_times_the_index(self):
-        for name, (idx, byte) in Facts.COMM_API.items():
-            self.assertEqual(idx * 4, byte, name)
+    def test_the_member_byte_is_four_times_the_field(self):
+        """16w: the loader writes param_1[field], so 4*field is the MEMBER byte -
+        a different coordinate from the vtable slot the plugin calls."""
+        for name, (field, byte, slot) in Facts.COMM_API.items():
+            if field is None:
+                continue
+            self.assertEqual(field * 4, byte, name)
+
+    def test_the_slot_is_the_coordinate_the_engine_calls(self):
+        """16w: read off the wrapper's vtable at 0x1020d6d0, slot by slot, from
+        each thunk's `MOV EAX,[ECX+disp]`. The delta slot->member is NOT
+        constant, so these are measured, not derived."""
+        for name, want in (("WriteRegEx", 0xc8), ("ReadRegEx", 0xc4),
+                           ("SetI2CSpeed", 0x98), ("GetI2CSpeed", 0x9c),
+                           ("ScalerRun", 0xf0), ("ResetFirmware", 0x124),
+                           ("SetSpecialCommType", 0x21c), ("AdjustOption", 0x94),
+                           ("WriteFlashData", 0x1a8), ("ReadFlashData", 0x19c)):
+            self.assertEqual(Facts.COMM_API[name][2], want, name)
+
+    def test_the_two_namespaces_are_not_the_same_number(self):
+        """16m's offsets were member bytes; 149 of 151 are not the slot."""
+        differ = [n for n, (f, b, sl) in Facts.COMM_API.items()
+                  if sl is not None and b != sl]
+        self.assertGreater(len(differ), 140)
+        self.assertEqual(Facts.COMM_API["WriteFlashData"][:2], (0x7c, 0x1f0))
+
+    def test_the_member_table_survives_the_supersession(self):
+        self.assertEqual(len(Facts.COMM_API_MEMBER_16M), 153)
+        self.assertEqual(Facts.COMM_API_MEMBER_16M["WriteRegEx"], (0x3c, 0xf0))
 
     def test_the_erase_uses_the_register_write_slot(self):
-        """The chip erase writes regs 0x60/0x61 through slot +0xf0, and the
-        table names index 0x3c = byte 0xf0 as WriteRegEx - a register write."""
-        self.assertEqual(Facts.COMM_API["WriteRegEx"], (0x3c, 0xf0))
+        """The chip erase writes regs 0x60/0x61 through slot +0xf0 (16b), and the
+        16w table names that slot ScalerRun; the member byte 0xf0 is WriteRegEx -
+        a register write. Both readings are real, in two namespaces."""
+        self.assertEqual(Facts.COMM_API["WriteRegEx"], (0x3c, 0xf0, 0xc8))
+        self.assertEqual(Facts.COMM_API["ScalerRun"][2], 0xf0)
 
     def test_the_erase_packet_shape(self):
         e = Facts.FLASH_ERASE_PACKET

@@ -14,6 +14,14 @@ it — and unproven at the *cell* level, because live transactions at 7-bit
 `0x22` need a host path that reaches the scaler's internal bus. The monitor in
 the dev lab has never received a flash-cell write.
 
+## Verbs
+
+`info`, `verify`, `record`, `probe`, `slaves`, `ladder`, `flashread`, `pipeline`,
+`backup`, `write`, `shell`, `tui`, and **`flashdat`** (16w) — the vendor's per-chip
+flash library, read offline: `msi-isp flashdat --chip A25L020` prints one part's
+phases (WREN, then the read command the part supports, then the poll). 150 records,
+15 with scripts.
+
 ## Quick start
 
 Pure-stdlib Python 3 — no pip installs for the tool itself.
@@ -120,7 +128,8 @@ whole gate natively: model **matches**, version differs.
 
 **The "mystery vtable" is a named API.** The plugin resolves **153** comm
 methods by `GetProcAddress` into a fixed struct, so every slot the flash engine
-calls has a name and an offset (`Facts.COMM_API`): `WriteRegEx`,
+calls has a name, a member byte and a vtable slot (`Facts.COMM_API`, 16w):
+`WriteRegEx`,
 `WritePWM2SPIDev`, `ReadFlashData`, `WriteFlashData`, `ConfigProgramFlash`,
 `AutoEnterIspMode`, `GetI2CSpeed`, and the rest. That is what turned "the two
 undecoded wire forms" in the flash pipeline into named, byte-shaped steps.

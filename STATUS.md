@@ -2901,3 +2901,62 @@ the flash side, i.e. the clip.
 
 Facts: ISP_WINDOW_MAP.
 Gates: ruff clean, **340 unit tests OK** (+3). Notes: re/ghidra_isp_engine.md (16v).
+
+## Session 16w (2026-11-01) — the naming layer redone from the binary; Flash.dat is a 150-record chip library
+
+The owner's framing: rebuild against the properly decompiled Windows tool, because
+some of what is built rests on shallow reads. Measured verdict, layer by layer:
+the naming layer needed redoing (done), and the wire layer stands.
+
+- **The comm interface has two arrays and 16m named the wrong one.**
+  FUN_100057c0's only xref is DATA at 0x1020d6d8 and its body calls slot +8: it
+  is a **vtable entry** of a plugin-local wrapper class (base 0x1020d6d0, 176
+  slots). It writes `param_1[field]`, fields scattered in name order
+  (GetI2CPageLength 0x0e, GetNativePageLength 0x21, WriteFlashData 0x7c). So
+  `4 x index` is the MEMBER byte. Each vtable slot is a thunk
+  `MOV EAX,[ECX+disp]` calling its own member, and the slot→member delta is NOT
+  constant (0x28, 0x40, 0x30, 0x20, 0x34 all occur) — so the naming layer must be
+  read per slot. I decoded 161 slots from their encodings: **149 of 151 of 16m's
+  offsets were member bytes, not slots.** Renamed: +0x14 GetCommCount, +0x54
+  GetNativePageLength, +0x74 I2CWordRead, +0x78 I2CWriteEx, +0x94 AdjustOption,
+  +0xa0 SetAuxMode, +0xc0 WritePortRegBit, +0xc4 ReadRegEx, +0xf0 ScalerRun,
+  +0x124 ResetFirmware, +0x1bc Write32BitRegEx, +0x21c SetSpecialCommType,
+  +0x28c DebugMessageGetString. Flash path by true slot: ReadFlashData +0x19c,
+  AutoEnterIspMode +0x1a0, WriteFlashData +0x1a8, WritePWM2SPIDev +0x1e4,
+  ConfigProgramFlash +0x238, I2CSlaveRead +0x270. The log gets more coherent:
+  the GUI's "Enter ISP mode" is ResetFirmware, "settle delay" is AdjustOption.
+  COMM_API is now name -> (field, member byte, vtable slot); COMM_API_MEMBER_16M
+  kept. **Packets, ladders, windows, banks: unaffected** — wire bytes, not layout.
+- **Flash.dat is a 150-record chip library, not a CSV** (16m's "ASCII CSV"
+  superseded). 12-byte header, variable-length records: manufacturer ID byte
+  (c2 Macronix, ef Winbond, 1c ESMT, c8 GigaDevice…), (n+1,n) capacity code, NUL
+  name, u16 capacity in 64 KiB, two mode bytes, an ID opcode (9f RDID and the
+  per-vendor bf/ff/a0/bc/fc/9c/7f), expected ID bytes, optional CSV tail. Opened
+  by the UTF-16 literal "PlugIn/Flash.dat" from NINE inlined sites — one per
+  flash entry point. Grammar: 06,60,<reg> selects / 06,61,<val> writes (an
+  index-data pair), 06,64/65/66 = 24-bit address, 06,38+06,39 = command+strobe,
+  06,20+06,21 = command-only, 0d,reg,n,mask,val,tries,d1,d2 = poll (SEVEN args —
+  which is what 16m's "18 statements / 3 phases" pins). The 15 scripts are
+  **read-mode ladders**: WREN then 0x90 serial / 0x3b fast 1-1-2 / 0xc3 normal /
+  0xa5 dual read. Those register numbers land in the native-lane window (offset
+  0x20 answers 07, 0x60 answers 05 21 00 04) — one address space. Shipped as
+  msi_isp/flashdat.py + the `flashdat` verb.
+- **Two INI numbers we have never honoured: ulTimeAfterCommand=200 ms and
+  ulCommandRetryCount=10.** My writes went out back-to-back with 50 ms sleeps.
+  16t varied address, bank, trailer, trigger — **timing is the last untested
+  variable in the mute matrix.** The INI also confirms AUX_I2CPageLen=32 (second
+  source for 16n), ulTimeAfterReset=10000, bSwitchFLag=1, and the gate:
+  CheckModelName=1 CheckVersion=0 CheckChecksum=1 — the version is NOT checked.
+- **The bins at the INI's offsets:** FW.012 (1,835,008 B) has `012` at 0xF800 and
+  `MAG 341CQ X28` at 0xF806 then `TPO340QH1-` (the QD-OLED panel). FW.009
+  (1,966,080 B) is 0xFF at 0xF800 — its record is at 0x2F7AA (16i), so the INI
+  describes FW.012, not every bin. Code at 0x002800 in both.
+- **The verb table, confirmed:** WinOperateCScaler!FUN_1000c9e0 builds a
+  16-byte {name,0,out,index} table, 1-based, 57 verbs (verify…bank). This is
+  what OperateScalerEx parses — the surface the Linux tool mirrors, per the
+  owner's standing ruling, now in hand. flashtype is index 11; readsr/writesr/
+  srstatus are 12/13/10, the status register where the busy and bank bits live.
+
+Facts: COMM_API (rebuilt), COMM_API_MEMBER_16M, FLASHDAT_FORMAT_16W,
+BIN_RECORD_16W, SCALER_VERBS/SCALER_VERBS_16W, INI_TIMING_16W.
+Gates: ruff clean, **353 unit tests OK** (+13). Notes: re/ghidra_isp_engine.md (16w).

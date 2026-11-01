@@ -95,6 +95,51 @@ class TestWriteLadder(unittest.TestCase):
             isp_write_packet(RecordingBus(), 0x9C, b"")
 
 
+class TestFlashDatLibrary(unittest.TestCase):
+    """16w: Flash.dat is a record library - parsed, not skimmed."""
+
+    def test_the_file_is_143_records_not_one_csv(self):
+        f = Facts.FLASHDAT_FORMAT_16W
+        self.assertEqual(f["records"], 150)
+        self.assertEqual(f["with_script"], 15)
+        self.assertIn("VARIABLE length", f["record"])
+        self.assertIn("ASCII CSV", f["supersedes"])
+
+    def test_the_grammar_is_an_index_data_pair(self):
+        self.assertIn("06,60,<reg> selects", Facts.FLASHDAT_FORMAT_16W["grammar"])
+        self.assertIn("poll", Facts.FLASHDAT_FORMAT_16W["grammar"])
+
+    def test_the_scripts_are_read_mode_ladders(self):
+        self.assertIn("READ-MODE ladder",
+                      Facts.FLASHDAT_FORMAT_16W["what_the_scripts_actually_are"])
+
+    def test_the_bank_base_is_not_cross_read(self):
+        self.assertIn("0x400000", Facts.FLASHDAT_FORMAT_16W["address_caveat"])
+
+    def test_the_version_is_not_checked(self):
+        self.assertIn("version is NOT", Facts.BIN_RECORD_16W["gate"])
+
+    def test_the_boot_vector_holds_code(self):
+        self.assertIn("0x002800", Facts.BIN_RECORD_16W["boot_vector"])
+
+    def test_fw009_keeps_its_record_elsewhere(self):
+        self.assertIn("0x2F7AA", Facts.BIN_RECORD_16W["fw009"])
+
+    def test_the_panel_class_parts_are_listed(self):
+        parts = Facts.FLASHDAT_FORMAT_16W["four_mib_parts"].split()
+        self.assertIn("W25Q32", parts)
+        self.assertIn("MX25L32XX", parts)
+
+    def test_the_verb_table_is_the_port_interface(self):
+        v = Facts.SCALER_VERBS_16W
+        self.assertGreater(v["verb_count"], 50)
+        self.assertEqual(v["flashtype_index"], Facts.SCALER_VERBS.index("flashtype") + 1)
+
+    def test_the_ini_names_an_untested_variable(self):
+        self.assertIn("200 ms", Facts.INI_TIMING_16W["ulTimeAfterCommand"])
+        self.assertIn("timing never was", Facts.INI_TIMING_16W["open_question"])
+
+
 class TestProgramAndErase(unittest.TestCase):
     def test_program_page_names_the_door_and_splits_the_address(self):
         bus = RecordingBus()

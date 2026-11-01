@@ -408,6 +408,38 @@ def _probe_registers(bus):
     return live
 
 
+def cmd_flashdat(args):
+    """Show the vendor's per-chip flash script (read-only, no panel needed)."""
+    from . import flashdat
+    recs = flashdat.parse(args.dat)
+    if args.chip:
+        rec = flashdat.find(args.chip, args.dat)
+        print(f"{rec.name}  ({rec.manufacturer})")
+        print(f"  capacity  : {rec.capacity_bytes // 1024} KiB, "
+              f"{rec.banks} x 2 MiB bank(s)")
+        print(f"  id opcode : {rec.id_opcode:#04x}   expect {rec.id_expect.hex(' ')}")
+        print(f"  modes     : A={rec.mode_a} B={rec.mode_b}  class {rec.class_id:#04x}")
+        if not rec.script:
+            print("  script    : (none - this part runs on the defaults)")
+            return 0
+        for i, phase in enumerate(rec.phases(), 1):
+            print(f"  phase {i}:")
+            for st in phase:
+                print(f"      {st}")
+        return 0
+    with_script = [r for r in recs if r.script]
+    print(f"{args.dat}: {len(recs)} chip records, {len(with_script)} with a script")
+    for r in recs:
+        star = "*" if r.script else " "
+        print(f"  {star} {r.name:<16} {r.manufacturer:<22} "
+              f"{r.capacity_bytes // 1024:>6} KiB  id {r.id_opcode:#04x}"
+              + (f"  {len(r.script)} stmts, {len(r.phases())} phases"
+                 if r.script else ""))
+    if not args.chip:
+        print("\n  (a * carries a script; --chip NAME prints one part's phases)")
+    return 0
+
+
 def cmd_probe(args):
     with _bus(args) as bus:
         if getattr(args, "lane", "i2c") == "native":
@@ -618,6 +650,11 @@ def cmd_tui(args):
             lane=getattr(args, "lane", "i2c"))
 
 
+def flashdat_default() -> str:
+    from . import flashdat
+    return flashdat.DEFAULT_PATH
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(prog="msi-isp", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -642,6 +679,10 @@ def main(argv=None):
     sub.add_parser("info", help="monitor + bin identity (safe)")
     sub.add_parser("verify", help="model-match check that error 0x45 does (safe)")
     sub.add_parser("probe", help="slave ACK scan incl. ISP addresses (safe)")
+    fd = sub.add_parser("flashdat", help="the vendor's per-chip flash script "
+                                         "library (safe, no panel needed)")
+    fd.add_argument("--chip", help="one part number, e.g. A25L020")
+    fd.add_argument("--dat", default=flashdat_default(), help="path to Flash.dat")
     sub.add_parser("slaves", help="the vendor's ISP-slave detection, re-run "
                                   "(Comm.dll AutoDetectSlaveAddr; safe)")
     ld = sub.add_parser("ladder", help="the vendor's mailbox ladder replayed "
@@ -691,7 +732,7 @@ def main(argv=None):
                    help="required and acknowledged: a bad flash can brick the scaler")
     args = p.parse_args(argv)
     {"info": cmd_info, "verify": cmd_verify, "probe": cmd_probe,
-     "slaves": cmd_slaves, "ladder": cmd_ladder,
+     "slaves": cmd_slaves, "ladder": cmd_ladder, "flashdat": cmd_flashdat,
      "record": cmd_record, "flashread": cmd_flashread,
      "pipeline": cmd_pipeline,
      "backup": cmd_backup, "write": cmd_write,

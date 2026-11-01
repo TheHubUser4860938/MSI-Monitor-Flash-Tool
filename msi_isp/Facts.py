@@ -1529,7 +1529,202 @@ MAILBOX_ECHO = {
 #   plausible 20/48 kHz pair.
 # The names below are measured; the slot mapping is arithmetic + the two checks
 # above, and is labelled as such wherever it is used.
-COMM_API = {   # name: (table index, byte offset the plugin calls it by)
+# ---- 16m, corrected by 16w: the comm interface, in all three coordinates ----
+# 16m read WinIspPlugIn!FUN_100057c0 - a loader that calls GetProcAddress 153
+# times - and recorded `name -> (index, byte)` with byte = 4 * index. That was
+# HALF right, and the half that was wrong is the half every call site in this
+# log uses. 16w settled it, from the binary:
+#   * FUN_100057c0 is a __thiscall on a plugin-local wrapper class; its xref is
+#     DATA at 0x1020d6d8, i.e. it is a VTABLE ENTRY, which is why it has no
+#     callers. The wrapper's vtable base is 0x1020d6d0 (0x1020d6d8 - 8, and the
+#     loader is called as slot +8 by its own body). 176 slots, 164 of them thunks.
+#   * The loader writes param_1[field] = GetProcAddress(handle, "Name") - the
+#     fields are 0x0e..0xae, SCATTERED, in name order (GetI2CPageLength->0x0e,
+#     GetNativePageLength->0x21, I2CWrite->0x0f). So `index` = the struct FIELD
+#     number, and 4*index = the MEMBER byte offset. Verified: 151 names, no
+#     field collisions.
+#   * Every vtable slot is a thunk `MOV EAX,[ECX+disp]; TEST; JMP EAX` - it
+#     calls the member pointer at its OWN disp. The delta slot->member is NOT
+#     constant: 0x28 for +0xf0, 0x40 for +0x1bc, 0x30 for +0x240, 0x20 for
+#     +0x26c, 0x34 for +0x4. The two arrays are independently ordered, so the
+#     only correct naming layer is the empirical one, read per slot:
+#     161 slots decoded from their encodings (8b 81 d32 / 8b 41 d8 / ff 91 / 83 b9).
+# CONSEQUENCE: the byte the plugin CALLS is the vtable slot; 4*index is where
+# the pointer LIVES. 149 of the 151 offsets 16m recorded were the member byte.
+# The slots in this log are therefore renamed (slot -> name, 16w verified):
+#     +0x14 GetCommCount     +0x54 GetNativePageLength  +0x74 I2CWordRead
+#     +0x78 I2CWriteEx       +0x94 AdjustOption         +0xa0 SetAuxMode
+#     +0xc0 WritePortRegBit  +0xc4 ReadRegEx            +0xf0 ScalerRun
+#     +0x124 ResetFirmware   +0x1bc Write32BitRegEx     +0x21c SetSpecialCommType
+#     +0x28c DebugMessageGetString
+# The GUI step labels keyed by slot get MORE coherent, not less: the step the
+# exe calls "Enter ISP mode" is slot +0x124 = ResetFirmware, and "settle delay"
+# (arg 200 ms) is slot +0x94 = AdjustOption.
+# NOT AFFECTED: every packet, ladder and window number measured on the panel -
+# those are wire bytes, not C++ layout.
+# COMM_API_MEMBER_16M below is 16m's table, kept as the member namespace.
+COMM_API = {   # name: (struct field, member byte, vtable slot the plugin calls)
+    "GetI2CPageLength": (0x00e, 0x038, 0x050),
+    "I2CWrite": (0x00f, 0x03c, 0x058),
+    "I2CRead": (0x010, 0x040, 0x05c),
+    "Initiallize": (0x011, 0x044, 0x004),
+    "GetCommCount": (0x012, 0x048, 0x014),
+    "GetAllCommName": (0x013, 0x04c, 0x020),
+    "GetCommID": (0x014, 0x050, 0x018),
+    "GetCommName": (0x015, 0x054, 0x01c),
+    "GetCommFile": (0x016, 0x058, 0x024),
+    "SetCommByIndex": (0x017, 0x05c, 0x028),
+    "SetCommByID": (0x018, 0x060, 0x02c),
+    "SetDebugSlave": (0x019, 0x064, 0x030),
+    "SetIspSlave": (0x01a, 0x068, 0x034),
+    "SetIspContinuousSlave": (0x01b, 0x06c, 0x038),
+    "GetDebugSlave": (0x01c, 0x070, 0x03c),
+    "GetIspSlave": (0x01d, 0x074, 0x040),
+    "GetIspContinuousSlave": (0x01e, 0x078, 0x044),
+    "SetDebugMode": (0x01f, 0x07c, 0x048),
+    "GetDebugMode": (0x020, 0x080, 0x04c),
+    "GetNativePageLength": (0x021, 0x084, 0x054),
+    "I2CWriteByte": (0x022, 0x088, 0x060),
+    "I2CCurrentRead": (0x023, 0x08c, 0x064),
+    "I2CWordWrite": (0x024, 0x090, 0x068),
+    "I2CWordRead": (0x026, 0x098, 0x074),
+    "I2CWriteEx": (0x028, 0x0a0, 0x078),
+    "I2CReadEx": (0x029, 0x0a4, 0x07c),
+    "I2CCurrentReadEx": (0x02a, 0x0a8, 0x080),
+    "I2CWordWriteEx": (0x02b, 0x0ac, 0x084),
+    "I2CWordReadEx": (0x02d, 0x0b4, 0x088),
+    "AdjustOption": (0x02f, 0x0bc, 0x094),
+    "SetI2CSpeed": (0x030, 0x0c0, 0x098),
+    "GetI2CSpeed": (0x031, 0x0c4, 0x09c),
+    "SetAuxMode": (0x032, 0x0c8, 0x0a0),
+    "SetWaitingMode": (0x033, 0x0cc, 0x0a4),
+    "GetWaitingMode": (0x034, 0x0d0, 0x0a8),
+    "ReadReg": (0x035, 0x0d4, 0x0ac),
+    "WriteReg": (0x036, 0x0d8, 0x0b0),
+    "ReadRegs": (0x037, 0x0dc, 0x0b4),
+    "WriteRegs": (0x038, 0x0e0, 0x0b8),
+    "WriteRegBit": (0x039, 0x0e4, 0x0bc),
+    "WritePortRegBit": (0x03a, 0x0e8, 0x0c0),
+    "ReadRegEx": (0x03b, 0x0ec, 0x0c4),
+    "WriteRegEx": (0x03c, 0x0f0, 0x0c8),
+    "ReadRegsEx": (0x03d, 0x0f4, 0x0cc),
+    "WriteRegsEx": (0x03e, 0x0f8, 0x0d0),
+    "WriteRegBitEx": (0x03f, 0x0fc, 0x0d4),
+    "WritePortRegBitEx": (0x040, 0x100, 0x0d8),
+    "ReadSysDevice": (0x041, 0x104, 0x0dc),
+    "WriteSysDevice": (0x042, 0x108, 0x0e0),
+    "ReadWordSysDevice": (0x043, 0x10c, 0x0e4),
+    "WriteWordSysDevice": (0x044, 0x110, 0x0e8),
+    "ScalerStop": (0x045, 0x114, 0x0ec),
+    "ScalerRun": (0x046, 0x118, 0x0f0),
+    "WriteMcuReg": (0x047, 0x11c, 0x0f4),
+    "WriteMcuRegs": (0x048, 0x120, 0x100),
+    "ReadMcuReg": (0x049, 0x124, 0x0fc),
+    "WriteMcuRegBit": (0x04a, 0x128, 0x0f8),
+    "ReadMcuRegs": (0x04b, 0x12c, 0x104),
+    "WriteContinuousMcuReg": (0x04c, 0x130, 0x108),
+    "ReadContinuousMcuReg": (0x04d, 0x134, 0x10c),
+    "ReleaseDev": (0x04e, 0x138, 0x110),
+    "NativeWrite": (0x04f, 0x13c, 0x114),
+    "NativeRead": (0x050, 0x140, 0x118),
+    "SetSettingFilePath": (0x051, 0x144, 0x11c),
+    "GetDeviceHandler": (0x052, 0x148, 0x120),
+    "ResetFirmware": (0x053, 0x14c, 0x124),
+    "EnterIspMode": (0x054, 0x150, 0x128),
+    "GetSMBUSDataType": (0x055, 0x154, 0x12c),
+    "SetSMBUSDataType": (0x056, 0x158, 0x130),
+    "GetDeviceCount": (0x057, 0x15c, 0x134),
+    "RemoveDevice": (0x058, 0x160, 0x138),
+    "AutoDetectSlaveAddr": (0x059, 0x164, 0x13c),
+    "DDCCIWrite": (0x05a, 0x168, 0x140),
+    "DDCCIRead": (0x05b, 0x16c, 0x144),
+    "SetFTDIGetAck": (0x05c, 0x170, 0x148),
+    "GetFTDIGetAckStatus": (0x05d, 0x174, 0x14c),
+    "I2CMasterInitial": (0x05e, 0x178, 0x15c),
+    "I2CMasterCurrentRead": (0x05f, 0x17c, 0x160),
+    "I2CMasterCurrentReadEx": (0x060, 0x180, None),
+    "I2CMasterRead": (0x061, 0x184, 0x168),
+    "I2CMasterReadEx": (0x062, 0x188, 0x16c),
+    "I2CMasterWordRead": (0x065, 0x194, 0x178),
+    "I2CMasterWordReadEx": (0x066, 0x198, 0x17c),
+    "I2CMasterCurrentWrite": (0x067, 0x19c, 0x180),
+    "I2CMasterCurrentWriteEx": (0x068, 0x1a0, 0x184),
+    "I2CMasterWrite": (0x069, 0x1a4, 0x188),
+    "I2CMasterWriteByte": (0x06a, 0x1a8, 0x18c),
+    "I2CMasterWriteEx": (0x06b, 0x1ac, 0x190),
+    "I2CMasterWordWrite": (0x06c, 0x1b0, 0x150),
+    "I2CMasterWordWriteEx": (0x06d, 0x1b4, 0x154),
+    "GetUsbDevicePath": (0x06e, 0x1b8, 0x158),
+    "SelectUsbByIndex": (0x06f, 0x1bc, 0x194),
+    "SelectUsbByDevicePath": (0x070, 0x1c0, 0x198),
+    "SetPortMode": (0x073, 0x1cc, 0x200),
+    "BBIdentifyDevice": (0x074, 0x1d0, 0x204),
+    "DebugMessageEventStart": (0x075, 0x1d4, 0x208),
+    "DebugMessageEventFinish": (0x076, 0x1d8, 0x20c),
+    "DebugMessageStart": (0x077, 0x1dc, 0x210),
+    "DebugMessageEnd": (0x078, 0x1e0, 0x214),
+    "ReadFlashData": (0x079, 0x1e4, 0x19c),
+    "AutoEnterIspMode": (0x07a, 0x1e8, 0x1a0),
+    "I2CReadSegmentEx": (0x07b, 0x1ec, 0x1a4),
+    "WriteFlashData": (0x07c, 0x1f0, 0x1a8),
+    "SetCmdLine": (0x07d, 0x1f4, 0x1b4),
+    "Read32BitRegEx": (0x07e, 0x1f8, 0x1b8),
+    "Write32BitRegEx": (0x07f, 0x1fc, 0x1bc),
+    "Read32BitRegsEx": (0x080, 0x200, 0x1c0),
+    "Write32BitRegsEx": (0x081, 0x204, 0x1c4),
+    "ReadDDRRegEx": (0x082, 0x208, 0x1c8),
+    "WriteDDRRegEx": (0x083, 0x20c, 0x1cc),
+    "ReadDDRRegsEx": (0x084, 0x210, 0x1d0),
+    "WriteDDRRegsEx": (0x085, 0x214, 0x1d4),
+    "ReadPWM2SPIReg": (0x086, 0x218, 0x1d8),
+    "WritePWM2SPIReg": (0x087, 0x21c, 0x1dc),
+    "ReadPWM2SPIDev": (0x088, 0x220, 0x1e0),
+    "WritePWM2SPIDev": (0x089, 0x224, 0x1e4),
+    "ReadPWM2SPIWordReg": (0x08a, 0x228, 0x1e8),
+    "WritePWM2SPIWordReg": (0x08b, 0x22c, 0x1ec),
+    "ReadPWM2SPIWordDev": (0x08c, 0x230, 0x1f0),
+    "WritePWM2SPIWordDev": (0x08d, 0x234, 0x1f4),
+    "I2CWriteSegment": (0x08e, 0x238, 0x1f8),
+    "I2CWriteSegmentEx": (0x08f, 0x23c, 0x1fc),
+    "I2CReadSegment": (0x090, 0x240, 0x218),
+    "SetSpecialCommType": (0x091, 0x244, 0x21c),
+    "GetSpecialCommType": (0x092, 0x248, 0x220),
+    "SetIDevInComm": (0x093, 0x24c, 0x224),
+    "SetI2CDebugPort": (0x094, 0x250, 0x254),
+    "SetI2coverAUXDebugPort": (0x095, 0x254, 0x258),
+    "ReadDDRCPURegEx": (0x096, 0x258, 0x25c),
+    "WriteDDRCPURegEx": (0x097, 0x25c, 0x260),
+    "SendUsbPacket": (0x098, 0x260, 0x230),
+    "ReceiveUsbPacket": (0x099, 0x264, 0x234),
+    "ConfigProgramFlash": (0x09a, 0x268, 0x238),
+    "ReadAuxSniffer": (0x09b, 0x26c, 0x23c),
+    "NeedSetMcuDefault": (0x09c, 0x270, 0x240),
+    "CompleteIspFlowInISPBoard": (0x09d, 0x274, 0x244),
+    "AuxSnifferStart": (0x09e, 0x278, 0x248),
+    "GetAuxSnifferConfigPara": (0x09f, 0x27c, 0x24c),
+    "SetNewRealtekUSBMode": (0x0a0, 0x280, 0x250),
+    "ReadDDRCPURegsEx": (0x0a1, 0x284, 0x264),
+    "WriteDDRCPURegsEx": (0x0a2, 0x288, 0x268),
+    "CheckSnifferBoardCustomerId": (0x0a3, 0x28c, 0x26c),
+    "I2CSlaveWrite": (0x0a4, 0x290, 0x1ac),
+    "I2CSlaveRead": (0x0a5, 0x294, 0x270),
+    "Read32BitReg1Byte": (0x0a6, 0x298, 0x1b0),
+    "I2CStretchRead": (0x0a7, 0x29c, 0x274),
+    "Write32BitReg1Byte": (0x0a8, 0x2a0, 0x278),
+    "I2CWordSlaveWrite": (0x0a9, 0x2a4, 0x27c),
+    "I2CWordSlaveRead": (0x0aa, 0x2a8, 0x280),
+    "I2CWordStretchRead": (0x0ab, 0x2ac, 0x284),
+    "DebugMessageGetValue": (0x0ac, 0x2b0, 0x288),
+    "DebugMessageGetString": (0x0ad, 0x2b4, 0x28c),
+    "GetDisplayCount": (0x0ae, 0x2b8, None),
+    "GetQCDisplaySetting": (None, None, None),   # not in this loader - the exe's own names
+    "SelectDisplayByIndex": (None, None, None),   # not in this loader - the exe's own names
+}
+
+# 16m's original reading, superseded in 16w: the second column is the MEMBER
+# byte (4 x field), not the slot. Kept because the member byte is a real
+# coordinate - it is where the loaded pointer lives in the wrapper object.
+COMM_API_MEMBER_16M = {   # name: (struct field, member byte)
     "GetI2CPageLength": (0x0e, 0x38),
     "I2CWrite": (0x0f, 0x3c),
     "I2CRead": (0x10, 0x40),
@@ -2145,4 +2340,138 @@ ISP_WINDOW_MAP = {
                     "panel answers c4 83 01 00 - register 2 is a stream offset",
     "consequence": "no per-transaction ack is observable from the DP side; the "
                    "ack must come from the flash side, i.e. the clip",
+}
+
+
+# ---- 16w: Flash.dat is a record library, not a CSV - and the scaler tool's
+#            command surface is a 60-verb table ------------------------------
+# Two things the front-page model had wrong, both from 16m's `strings`-level
+# reading, both fixed by opening the bytes.
+#
+# (a) FLASH.DAT. 16m recorded "ASCII CSV, A25L020 template = 18 statements /
+# 3 phases". It is 143 VARIABLE-length records behind a 12-byte header, each
+# with a manufacturer ID, a capacity in 64 KiB units, an ID opcode (9f RDID,
+# bf/ff/a0/bc/fc/9c/7f per vendor) and an optional CSV script. The plugin opens
+# it by the UTF-16 literal "PlugIn/Flash.dat" (VA 0x1020e4cc) from NINE inlined
+# sites (0x10001219..0x10002889) - one per flash entry point, so every flash
+# verb runs a script out of it. Parsed by msi_isp/flashdat.py.
+#
+# The script grammar is an INDEX/DATA pair, and it is the bridge's own register
+# file: 06,60,20 selects register 0x20, 06,61,06 writes 0x06 (WRITE ENABLE)
+# into it, 06,60,21 selects the strobe. Registers 0x20/0x21 are the
+# command-only transaction, 0x38/0x39 the command-with-address one, 0x64/65/66
+# the 24-bit address, and 0d,reg,n,mask,val,tries,delay is the poll. Read on
+# the native lane those numbers land in the window 16t mapped (offset 0x20
+# answers 07, 0x60 answers 05 21 00 04, 0x64 answers 2b 04 09 00) - the script's
+# register file and the window we can touch are ONE space.
+FLASHDAT_FORMAT_16W = {
+    "measured": "2026-11-01, vendor/PlugIn/Flash.dat read as bytes",
+    "size": 44211, "records": 150, "with_script": 15, "header": "09 05 02 07 02 00 96 00 00 00 00 00",
+    "record": "VARIABLE length: u8 manufacturer id, u8 class, u8 cap_hi, "
+              "u8 cap_lo, NUL-name, "
+              "u16 capacity in 64 KiB, u8 mode A, u8 mode B, u8 ID opcode, "
+              "expected ID bytes, optional CSV script tail",
+    "grammar": "06,60,<reg> selects; 06,61,<val> writes; 06,64/65/66 = 24-bit "
+               "address low/mid/high; 06,38,<cmd> + 06,39 = command+strobe; "
+               "0d,reg,n,mask,val,tries,delay = poll",
+    "supersedes": "16m's 'Flash.dat is ASCII CSV' - the CSV is the tail of a "
+                  "binary record, not the file",
+    "four_mib_parts": "A25L032M AT25SF321 BY25Q32CS EN25QE32A EN25QH32A "
+                      "GD25Q32C GT25Q32A MX25L3206E MX25L32XX MX25R3235F "
+                      "P25Q32H W25Q32 W25Q32JVSIM W25Q32JVSSIQ XM25QH32C",
+    "matters": "the panel's class is 4 MiB = two 2 MiB banks (16r), so the chip "
+               "is one of these fifteen; the clip identifies it by RDID",
+    "what_the_scripts_actually_are": "a READ-MODE ladder, not an erase/program "
+                                     "sequence: WREN (06) then the read command "
+                                     "the part supports - 0x90 serial read, "
+                                     "0x3b fast read 1-1-2, 0xc3 normal read, "
+                                     "0xa5 dual read - each phase ending in a "
+                                     "poll. 15 of 150 records carry one. That "
+                                     "is why the tool can set the read mode and "
+                                     "my erase/program packets are the other two "
+                                     "transaction shapes (0x20/0x21 command-only, "
+                                     "0x38/0x39 command+address)",
+    "address_caveat": "the A25L020 template probes 0x002800 and 0x402800, i.e. "
+                      "bank bases 0 and 0x400000 for a larger part; 16r's "
+                      "0x200000 for THIS panel is a measured GUI value, not a "
+                      "Flash.dat value. Both are true of their own chip; do not "
+                      "cross-read them",
+}
+
+# ---- 16w(b): the bins, read against the INI's own field offsets -----------
+# The INI names the record's place in the image: BinVersionAddress=0xF800 with
+# BinVersionLength=3, ulModelNamePosInBin=0xF806, CheckModelName=1,
+# CheckVersion=0, CheckChecksum=1. Reading the two shipped bins:
+#   FW.012 (1,835,008 B = 1.75 MiB)  0xF800 = '012\xff\x03\xff'
+#                                      0xF806 = 'MAG 341CQ X28' then 'TPO340QH1-'
+#   FW.009 (1,966,080 B = 1.88 MiB)  0xF800 = all FF - its record block is at
+#                                      0x2F7AA (16i), so the offsets are
+#                                      version-specific, read from the INI
+# Both bins have code at 0x002800, which is the boot vector the Flash.dat
+# templates probe - the first independent sign the address is real.
+# The PanelName 'TPO340QH1-' is the QD-OLED panel itself, which record.py
+# compares as the vendor's gate does.
+BIN_RECORD_16W = {
+    "measured": "2026-11-01, both bins read at the INI's offsets",
+    "fw012": "1,835,008 B; 0xF800 '012'; 0xF806 'MAG 341CQ X28'; then "
+             "'TPO340QH1-' (the panel)",
+    "fw009": "1,966,080 B; 0xF800 is 0xFF - its record is at 0x2F7AA (16i), so "
+             "the INI's offsets describe FW.012, not every bin",
+    "boot_vector": "0x002800 holds code in both bins - the address the Flash.dat "
+                   "read-mode templates probe",
+    "gate": "CheckModelName=1, CheckVersion=0, CheckChecksum=1 - version is NOT "
+            "checked, which is why FW.009-on-FW.012 hardware is allowed",
+}
+
+# (b) THE SCALER TOOL'S VERB TABLE. WinOperateCScaler.dll builds a 16-byte
+# option table at FUN_1000c9e0: entries {char *name, 0, out, index}, index
+# 1-based (the constructor writes = 1 before "verify", = 2 before "sign").
+# This is the command surface OperateScalerEx parses - the list a native port
+# implements, and the reason the port target is this DLL and not the plugin.
+# flashtype (index 11) is how the vendor asks the panel which part is fitted;
+# readsr/writesr/srstatus (12/13/10) are the status register, which is where
+# the busy bit and the bank bit live.
+SCALER_VERBS = [
+    "verify", "sign", "erase", "isp", "ispuser", "ispdiff", "ispcopy",
+    "factoryisp", "recordver", "srstatus", "flashtype", "readsr", "writesr",
+    "readsafeguard", "writesafeguard", "resetmcu", "dumpflash", "getstatus",
+    "userdefinedinfo", "edpisp", "enterispmode", "mergefwinfo",
+    "senduserdefinedinfo", "sendudi", "i2cwrite", "getscalertype", "bgupdatefw",
+    "fgupdatefw", "boot", "newboot", "ispchannel", "factory", "dsmode", "reg",
+    "ddcci", "flash", "fwbin", "cmd", "fwbincmd", "copydiffer", "userdefined",
+    "veraddr", "totalverlen", "majorverlen", "subverlen", "recordvermode",
+    "dumpaddr", "dumplen", "dumpname", "comm", "signfile", "keypair", "vkfile",
+    "skfile", "subcert", "nextvkfile", "bank",
+]
+SCALER_VERBS_16W = {
+    "source": "WinOperateCScaler.dll FUN_1000c9e0 (the option-table ctor), "
+              "strings at 0x101a6540..; 1-based index",
+    "verb_count": len(SCALER_VERBS),
+    "flashtype_index": SCALER_VERBS.index("flashtype") + 1,
+    "reading": "this is the interface to mirror natively; the verbs name what "
+               "the panel can be asked to do, and flashtype/readsr/writesr are "
+               "the three that answer the chip-identity question",
+}
+
+# (c) THE TIMING CONTRACT, read off the INI the tool writes for THIS panel.
+# Every number below is a vendor-settle time we have not honoured: my writes
+# were sent back-to-back with 50 ms sleeps.
+INI_TIMING_16W = {
+    "source": "IspSetting.ini as written by the tool (Wine prefix, "
+              "AppData/Local/Temp/ISPToolForMsi/), read 2026-11-01",
+    "ulTimeAfterCommand": "200 ms after EVERY command - untested by us",
+    "ulCommandRetryCount": "10 retries per command - untested",
+    "ulTimeAfterReset": "10000 ms after the reset (16r's 10 s, confirmed)",
+    "ulDelayTimeAfterDdcciWrite": "3000 ms after the DDCCI write",
+    "ulTimeWaitCopyBank": "8000 ms, bWaitCopyBank=0 so not waited",
+    "AUX_I2CPageLen": "32 - matches GetI2CPageLength()=32 (16n), two sources",
+    "enumIspMode": "1", "bSwitchFLag": "1 (the bank flag, 16r)",
+    "gate": "BinVersionAddress=0xF800 len 3, ulModelNamePosInBin=0xF806, "
+            "CheckModelName=1 CheckVersion=0 CheckChecksum=1",
+    "version_cmd": "0x6E,0x51,0x84,0x01,0xFE,0xE1,0xE6 with "
+                   "ucVersionStartIndex=6 ucVersionReadLength=20 - the frame we "
+                   "measured (6e 8a | 02 00 fe 00 'FW.009N', string at raw 6)",
+    "open_question": "the 200 ms per command is the last untested variable in "
+                     "the mute matrix (16t): packet shape was varied, timing "
+                     "never was",
 }

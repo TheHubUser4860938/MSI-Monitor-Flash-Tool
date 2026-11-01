@@ -1414,3 +1414,145 @@ So the honest shape of the model now:
   from the flash side, which is the clip's job: `CLIP-PLAYBOOK.md`.
 
 Facts: `ISP_WINDOW_MAP`.
+---
+
+# Session 16w — the naming layer redone from the binary, and Flash.dat is a chip library
+
+The owner's ruling for this session: most of what is built rests on the Windows
+tool read correctly in places and shallowly in others, so the decode is the
+source and the tool is a transcription of it. Two shallow reads got fixed.
+
+## (1) The comm interface has TWO arrays, and 16m named the wrong one
+
+`WinIspPlugIn!FUN_100057c0` calls `GetProcAddress` 153 times. 16m recorded
+`name -> (index, byte)` with `byte = 4 x index` and treated that byte as the
+slot the engine calls. Two facts settle it:
+
+- The function's only xref is **DATA** at `0x1020d6d8`, and its own body calls
+  `(**(code **)(*param_1 + 8))()`. It is a **vtable entry** of a plugin-local
+  wrapper class; the vtable base is `0x1020d6d0`, 176 slots, 164 of them thunks.
+  That is why `get_function_callers` found nothing.
+- The loader writes `param_1[field]`, and the fields are **scattered in name
+  order**: `GetI2CPageLength -> 0x0e`, `GetNativePageLength -> 0x21`,
+  `I2CWrite -> 0x0f`, `WriteFlashData -> 0x7c`. 153 names, no field collisions.
+  So `4 x index` is the **member byte** — where the loaded pointer *lives*.
+
+Every vtable slot is a thunk `MOV EAX,[ECX+disp]; TEST; JMP EAX` calling the
+member at its own `disp`, and the slot→member delta is **not constant** —
+`0x28` at `+0xf0`, `0x40` at `+0x1bc`, `0x30` at `+0x240`, `0x20` at `+0x26c`,
+`0x34` at `+0x4`. So there is no arithmetic rule and the only correct naming
+layer is the empirical one. I decoded 161 slots by reading each thunk's
+encoding (`8b 81 d32`, `8b 41 d8`, `ff 91`, `83 b9`) out of one chunked memory
+read — 151 of 153 names now carry a verified slot.
+
+**149 of the 151 offsets 16m recorded were the member byte, not the slot.** The
+slots this log cites, renamed:
+
+| slot | 16m said | the vtable says |
+|---|---|---|
+| `+0x14` | (device selector) | `GetCommCount` |
+| `+0x54` | mode set | `GetNativePageLength` |
+| `+0x74` | mailbox write | `I2CWordRead` |
+| `+0x78` | mailbox read | `I2CWriteEx` |
+| `+0x94` | settle delay | `AdjustOption` |
+| `+0xa0` | SetWaitingMode | `SetAuxMode` |
+| `+0xc0` | SetI2CSpeed | `WritePortRegBit` |
+| `+0xc4` | GetI2CSpeed | `ReadRegEx` |
+| `+0xf0` | WriteRegEx | `ScalerRun` |
+| `+0x124` | ReadMcuReg | `ResetFirmware` |
+| `+0x1bc` | WriteFlashData | `Write32BitRegEx` |
+| `+0x21c` | WritePWM2SPIDev | `SetSpecialCommType` |
+| `+0x28c` | I2CSlaveRead | `DebugMessageGetString` |
+
+The flash path's true slots: `ReadFlashData +0x19c`, `AutoEnterIspMode +0x1a0`,
+`WriteFlashData +0x1a8`, `I2CSlaveWrite +0x1ac`, `ReadPWM2SPIDev +0x1e0`,
+`WritePWM2SPIDev +0x1e4`, `ConfigProgramFlash +0x238`, `I2CSlaveRead +0x270`.
+
+The log gets **more** coherent, not less: the GUI step called "Enter ISP mode"
+is slot `+0x124` = `ResetFirmware`, and "settle delay (200 ms)" is `+0x94` =
+`AdjustOption`. Scorer check: the two namespaces coincide only at low slots,
+which is exactly why the 16m spot-checks "fit". `COMM_API_MEMBER_16M` is kept
+as the member namespace — the member byte is a real coordinate.
+
+**Unaffected:** every packet, ladder, window and bank number. Those are wire
+bytes read off the leaves' bodies and measured on the panel.
+
+## (2) Flash.dat is a 150-record chip library, and its scripts are read-mode ladders
+
+16m recorded "ASCII CSV". It is a 12-byte header plus **150 variable-length
+records**, 15 of which carry a CSV tail. The plugin opens it by the UTF-16
+literal `PlugIn/Flash.dat` (VA `0x1020e4cc`) from **nine** inlined sites
+(`0x10001219`..`0x10002889`) — one per flash entry point, so every flash verb
+runs a script out of it. Record layout, read from the bytes:
+
+```
+u8 manufacturer id   c2 Macronix  ef Winbond  1c ESMT  c8 GigaDevice  9d ISSI
+                     85 Puya  5e Zbit  20 Numonyx/XM  01 Spansion  0b XTX
+                     b3 Unitron  d5 Micron  1f Atmel  68 Bytech  8c Feature
+                     a1 Fujio  37 Adean  7f PM(extended)  c4 GT
+u8 class, u8 cap_hi, u8 cap_lo          (an (n+1, n) capacity-code pair)
+NUL-terminated part name
+u16 capacity in 64 KiB units            0x40 -> 4 MiB, 0x100 -> 16 MiB
+u8 mode A, u8 mode B
+u8 ID opcode                            9f RDID, and bf/ff/a0/bc/fc/9c/7f
+expected ID bytes, padding, then the CSV script
+```
+
+The grammar is an **index/data pair in the bridge's own register file**:
+`06,60,<reg>` selects, `06,61,<val>` writes, `06,64/65/66` is the 24-bit
+address low/mid/high, `06,38,<cmd>` + `06,39` is the command-with-address
+transaction, `06,20` + `06,21` the command-only one, and
+`0d,reg,n,mask,val,tries,d1,d2` is the poll — **seven** args, which is what
+16m's "18 statements / 3 phases" pins.
+
+And the scripts are **read-mode ladders**: WREN (`0x06`), then the read command
+the part supports — `0x90` serial read, `0x3b` fast read 1-1-2, `0xc3` normal
+read, `0xa5` dual read — each phase closed by a poll. Read on the native lane
+these register numbers land in the window 16t mapped (offset `0x20` answers
+`07`, `0x60` answers `05 21 00 04`, `0x64` answers `2b 04 09 00`), so the
+script's register file and the window we can touch are one space. Writing
+`0x60 <- 0x20` and `0x61 <- 0x06` moved no readback — the window is a latch
+(16v), so the cells are still unproven.
+
+The A25L020 template probes `0x002800` and `0x402800` (bank bases 0 and
+`0x400000` **for that template's chip**); 16r's `0x200000` for this panel is a
+measured GUI value. Both true of their own part — do not cross-read them.
+
+## (3) Two things the INI says that we have never honoured
+
+`IspSetting.ini`, as the tool writes it for this panel: **`ulTimeAfterCommand
+= 200`** (ms after every command) and **`ulCommandRetryCount = 10`**. My writes
+went out back-to-back with 50 ms sleeps. The 16t matrix varied address, bank,
+trailer and trigger; **timing is the last untested variable in the mute matrix.**
+The INI also confirms `AUX_I2CPageLen=32` (a second source for 16n's page
+length), `ulTimeAfterReset=10000` (16r's 10 s), `bSwitchFLag=1`, and the gate:
+`CheckModelName=1, CheckVersion=0, CheckChecksum=1` — **the version is not
+checked**, which is why FW.009 hardware takes FW.012.
+
+Reading the bins at the INI's offsets: FW.012 has `012` at `0xF800` and
+`MAG 341CQ X28` at `0xF806` followed by `TPO340QH1-` (the QD-OLED panel);
+FW.009 has `0xFF` at `0xF800` — its record is at `0x2F7AA` (16i), so the INI's
+offsets describe FW.012, not every bin. Both bins hold code at `0x002800`.
+
+## (4) The verb table — the native port's interface, confirmed
+
+`WinOperateCScaler!FUN_1000c9e0` builds a 16-byte-per-entry option table
+`{char *name, 0, out, index}`, 1-based. 57 verbs: `verify sign erase isp
+ispuser ispdiff ispcopy factoryisp recordver srstatus flashtype readsr writesr
+readsafeguard writesafeguard resetmcu dumpflash getstatus userdefinedinfo
+edpisp enterispmode mergefwinfo senduserdefinedinfo sendudi i2cwrite
+getscalertype bgupdatefw fgupdatefw boot newboot ispchannel factory dsmode reg
+ddcci flash fwbin cmd fwbincmd copydiffer userdefined veraddr totalverlen
+majorverlen subverlen recordvermode dumpaddr dumplen dumpname comm signfile
+keypair vkfile skfile subcert nextvkfile bank`.
+
+This is what `OperateScalerEx` parses, so it is the surface the Linux tool
+mirrors — the owner's standing ruling, now with the verb list in hand.
+`flashtype` (index 11) is how the vendor asks which part is fitted, and
+`readsr`/`writesr`/`srstatus` (12/13/10) are the status register — where the
+busy bit and the bank bit live.
+
+Shipped: `msi_isp/flashdat.py` (parser + grammar), the `flashdat` verb
+(`--chip A25L020` prints the phases), `Facts.FLASHDAT_FORMAT_16W`,
+`Facts.BIN_RECORD_16W`, `Facts.SCALER_VERBS(_16W)`, `Facts.INI_TIMING_16W`,
+and `Facts.COMM_API` rebuilt as `name -> (field, member byte, vtable slot)`.
