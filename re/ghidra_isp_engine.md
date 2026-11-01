@@ -984,3 +984,65 @@ byte `0x260`) — that is the last unconfirmed packet shape, and it has a name
 and an address in the binary now.
 
 Facts: `COMM_API`, `FLASH_ERASE_PACKET`, `FLASHDAT_SCRIPT`.
+---
+
+# Session 16n — the program packet, the erase packet, and what the control byte means
+
+The open problem since 2026-10-17 was the **program shape**. It is now read off
+the binary, and it turned out to share one primitive with the erase.
+
+## One primitive, four commands
+
+Comm.dll's flash ops all go through a comm-object method pointer
+(`_DAT_101dee88`) with the shape
+
+```
+primitive(control, arg1, arg2, length, buffer)
+```
+
+| command | control | arg1 | arg2 | length | buffer | site |
+|---|---|---|---|---|---|---|
+| program page | `0x40` | `addr >> 16` | `addr` | page | `buf+off` | `WriteFlashData` RVA `0x7cf0` |
+| sector erase | `0x42` | `addr & 0xff` | `bank & 0xff` | 0 | — | `SectorErase` RVA `0xc470` |
+| bank erase | (sibling) | | | | | `BankErase` RVA `0xc4e0` |
+| chip erase | `0xA0`→`0xA1` | — | — | — | — | 16m, plugin `FUN_1003e3a0` |
+
+`WriteFlashData` asks **`GetI2CPageLength()`** for the page — the INI's
+`AUX_I2CPageLen=32` (16b) — loops whole pages, then issues a **tail call** with
+`count % page`. And it pushes **both `addr >> 16` and the full dword**, so all
+24 bits reach the wire: 16d's note, confirmed from the other side.
+
+Device **type 8** (`GetCommID()==8`, our board, 16c) is what selects this
+primitive; other types use a 3-arg `(addr, len, buf)` primitive with no 24-bit
+split.
+
+## Two things that are *not* what they look like
+
+`ConfigProgramFlash` is a **dispatcher** — it calls a backend method pointer and
+returns its status. It has no wire form of its own, so the program shape is the
+table above, not a config call.
+
+In `Comm_Aux.dll` the names `ConfigProgramFlash`, `ReadFlashData` and
+`WriteFlashData` are **one 5-byte stub** — `mov eax,0x804; ret`. The AUX backend
+does not implement them. That is exactly why the plugin's own register ladder
+(16k's `flash_read_at`) is the real flash path on this box.
+
+## The control byte is a class byte
+
+Assembling all four sources (the Flash.dat template, chip erase, sector erase,
+program):
+
+```
+0x20/0x21   command-only          WREN              (no address phase)
+0x38/0x39   addressed read        RDID 0x90, Fast-Read 0x3B
+0x40        program a page        carries the buffer
+0x42        erase a sector        address in, no buffer
+0xa0/0xa1   chip erase            opcode 0xC7, no address
+bit 0       the arm/trigger write in the script grammar
+```
+
+So the class byte — not the opcode — says whether a command takes an address and
+whether it takes data. That is why the port can drive all of them with the same
+three register writes plus an optional data phase.
+
+Facts: `PROGRAM_PACKET`, `ISP_CTRL_GRAMMAR`.

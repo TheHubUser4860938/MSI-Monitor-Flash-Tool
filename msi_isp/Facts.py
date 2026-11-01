@@ -1736,3 +1736,63 @@ FLASHDAT_SCRIPT = {
                 "read script (06,60,68 / 61,01 / 64,02 / 60,69), BY25D40_Special "
                 "has 0xC3/0xA5 4-byte-mode statements",
 }
+
+
+# ---- 16n: the program packet, the erase packet, and the CTRL grammar ------
+# Comm.dll's transport-level flash ops, all on ONE primitive (a comm-object
+# method pointer, _DAT_101dee88) whose shape is
+#        primitive(control, arg1, arg2, length, buffer)
+#
+# WriteFlashData (RVA 0x7cf0): asks GetI2CPageLength() for the page (the INI's
+# AUX_I2CPageLen=32, 16b), splits the request into whole pages, and on
+# device type 8 (GetCommID()==8 - OUR board, 16c) issues
+#        (0x40, addr >> 16, addr, pageLen, buf+off)
+# then a tail call with (count % page) for the remainder. The generic path
+# (other device types) uses a 3-arg primitive (addr, len, buf) - no 24-bit
+# split. This is 16d's note confirmed: the vendor pushes BOTH addr>>16 and the
+# full dword, so all 24 bits reach the wire.
+#
+# SectorErase (RVA 0xc470): on device type 8,
+#        (0x42, addr & 0xff, bank & 0xff, 0, 0)      - address in, no data
+# BankErase (RVA 0xc4e0) is the sibling on the same primitive.
+#
+# ConfigProgramFlash (RVA 0xc6f0) is a DISPATCHER: it calls a backend method
+# pointer and returns its status. It carries no wire form of its own. And in
+# Comm_Aux.dll the three names ConfigProgramFlash / ReadFlashData /
+# WriteFlashData are ONE 5-byte stub (`mov eax,0x804; ret`) - the AUX backend
+# does not implement them, which is why the plugin's own register ladder (16k)
+# is the real flash path on this box.
+PROGRAM_PACKET = {
+    "primitive": "comm-object method, shape (control, arg1, arg2, length, buffer)",
+    "program": {"control": 0x40, "arg1": "addr >> 16", "arg2": "addr",
+                "length": "page (GetI2CPageLength = INI AUX_I2CPageLen = 32)",
+                "buffer": "buf + offset", "site": "Comm.dll RVA 0x7cf0",
+                "tail": "a second call with count % page for the remainder"},
+    "sector_erase": {"control": 0x42, "arg1": "addr & 0xff", "arg2": "bank & 0xff",
+                     "length": 0, "buffer": None, "site": "Comm.dll RVA 0xc470"},
+    "bank_erase": "Comm.dll RVA 0xc4e0, same primitive",
+    "device_type": "8 selects this primitive (GetCommID()==8, our board); other "
+                   "types use a 3-arg (addr, len, buf) primitive",
+    "config_is_a_dispatcher": True,
+    "aux_backend": "Comm_Aux exports ConfigProgramFlash/ReadFlashData/"
+                   "WriteFlashData as ONE stub returning 0x804 - unimplemented "
+                   "there; the plugin's register ladder is the flash path",
+}
+
+# The control byte, assembled from all four sources (the Flash.dat template
+# 16m, the chip erase 16m, sector erase + program 16n). It encodes the command
+# CLASS; bit 0 is the arm/trigger in the script grammar.
+ISP_CTRL_GRAMMAR = {
+    "0x20/0x21": "command-only class - WREN (no address phase)",
+    "0x38/0x39": "addressed read class - RDID 0x90, Fast-Read 0x3B (ADDR/MODE/LEN "
+                 "registers are written first; 16a's 'arm/trigger' pair)",
+    "0x40": "program a page - carries the buffer (16n)",
+    "0x42": "erase a sector - address in, no buffer (16n)",
+    "0xa0/0xa1": "chip erase - opcode 0xC7, no address (16m)",
+    "bit0": "the arm/trigger write in the script grammar (0x20 -> 0x21, "
+            "0x38 -> 0x39, 0xa0 -> 0xa1)",
+    "reading": "the class byte, not the opcode, says whether the command takes "
+               "an address and whether it takes data - which is why the port "
+               "can drive every one of these with the same three register "
+               "writes plus a data phase",
+}

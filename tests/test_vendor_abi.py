@@ -445,6 +445,48 @@ class TestCommApi(unittest.TestCase):
         self.assertIn("ConfigProgramFlash", Facts.COMM_API)
 
 
+class TestProgramPacket(unittest.TestCase):
+    """16n: the program and erase packets, and the control-byte grammar."""
+
+    def test_the_program_is_a_page_write_with_the_24bit_address_split(self):
+        pr = Facts.PROGRAM_PACKET["program"]
+        self.assertEqual(pr["control"], 0x40)
+        self.assertEqual(pr["arg1"], "addr >> 16")
+        self.assertEqual(pr["arg2"], "addr")
+
+    def test_the_page_size_comes_from_the_page_length_getter(self):
+        self.assertIn("AUX_I2CPageLen",
+                      Facts.PROGRAM_PACKET["program"]["length"])
+
+    def test_the_program_writes_a_tail_page(self):
+        self.assertIn("count % page", Facts.PROGRAM_PACKET["program"]["tail"])
+
+    def test_the_sector_erase_takes_an_address_and_no_data(self):
+        se = Facts.PROGRAM_PACKET["sector_erase"]
+        self.assertEqual(se["control"], 0x42)
+        self.assertEqual(se["length"], 0)
+        self.assertIsNone(se["buffer"])
+
+    def test_type_8_is_what_selects_the_primitive(self):
+        self.assertIn("8", Facts.PROGRAM_PACKET["device_type"])
+
+    def test_config_program_flash_is_a_dispatcher(self):
+        self.assertTrue(Facts.PROGRAM_PACKET["config_is_a_dispatcher"])
+
+    def test_the_aux_backend_stubs_the_flash_ops(self):
+        self.assertIn("0x804", Facts.PROGRAM_PACKET["aux_backend"])
+
+    def test_the_control_byte_encodes_the_class(self):
+        g = Facts.ISP_CTRL_GRAMMAR
+        for k in ("0x20/0x21", "0x38/0x39", "0x40", "0x42", "0xa0/0xa1"):
+            self.assertIn(k, g)
+
+    def test_bit_zero_is_the_trigger_in_every_class(self):
+        self.assertIn("0x21", Facts.ISP_CTRL_GRAMMAR["bit0"])
+        self.assertIn("0x39", Facts.ISP_CTRL_GRAMMAR["bit0"])
+        self.assertIn("0xa1", Facts.ISP_CTRL_GRAMMAR["bit0"])
+
+
 class TestFlashModes(unittest.TestCase):
     """IspFlash (0x10008520) only runs for these DAT_1024a2d4 values; 0x1a is
     the background bank (its own engine), 0x1b the foreground (log only)."""

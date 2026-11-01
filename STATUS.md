@@ -2623,3 +2623,39 @@ Three long-carried unknowns fell at once.
   binary.
 
 Gates: ruff clean, **277 unit tests OK** (+11). Notes: re/ghidra_isp_engine.md (16m).
+
+## Session 16n (2026-11-01) — the program packet is read off the binary, and it shares one primitive with erase
+
+The open problem since 2026-10-17 (the program shape) is closed at the transport
+level. Comm.dll's flash ops all go through one comm-object method
+(`_DAT_101dee88`) shaped `primitive(control, arg1, arg2, length, buffer)`:
+
+| command | control | arg1 | arg2 | length | buffer |
+|---|---|---|---|---|---|
+| program page | **0x40** | addr>>16 | addr | page | buf+off |
+| sector erase | **0x42** | addr&0xff | bank&0xff | 0 | — |
+| chip erase | 0xA0→0xA1 | — | — | — | — (16m) |
+
+`WriteFlashData` (RVA 0x7cf0) asks **GetI2CPageLength()** for the page — the
+INI's AUX_I2CPageLen=32 — loops whole pages and issues a **tail call** with
+`count % page`; it pushes **both addr>>16 and the full dword**, so all 24 bits
+reach the wire (16d's note, confirmed from the other side). **Device type 8**
+(our board) is what selects this primitive; other types use a 3-arg
+(addr, len, buf) primitive with no 24-bit split.
+
+Two things are not what they look like: **ConfigProgramFlash is a dispatcher**
+(calls a backend pointer, returns its status — no wire form of its own), and in
+Comm_Aux.dll the names ConfigProgramFlash/ReadFlashData/WriteFlashData are **one
+5-byte stub** `mov eax,0x804; ret` — the AUX backend does not implement them,
+which is why the plugin's register ladder (16k) is the real flash path here.
+
+Assembling all four sources, **the control byte is a class byte**: 0x20/0x21
+command-only (WREN), 0x38/0x39 addressed read (RDID, Fast-Read), 0x40 program
+page (carries data), 0x42 sector erase (address, no data), 0xa0/0xa1 chip erase
+(0xC7, no address), bit 0 = the arm/trigger. So the class — not the opcode —
+says whether a command takes an address and whether it takes data, which is why
+the port drives all of them with the same three register writes plus an optional
+data phase.
+
+Facts: PROGRAM_PACKET, ISP_CTRL_GRAMMAR.
+Gates: ruff clean, **286 unit tests OK** (+9). Notes: re/ghidra_isp_engine.md (16n).
