@@ -1730,3 +1730,60 @@ model traffic: 212 bus operations, flash clock 10,257 ms, 9 flash operations
 ```
 
 Facts: `WRITE_CHAIN_16Y`. Gates: ruff clean, **391 unit tests OK** (+7).
+---
+
+# Session 16z — the mute matrix is complete: timing is the sixth mute variable
+
+Two live probes, both read-mostly, both on the panel.
+
+## Timing: 200 ms vs nothing, per window transaction
+
+The INI's `ulTimeAfterCommand=200` and `ulCommandRetryCount=10` (16w) were the
+last untested variables — 16t varied address, bank, trailer and trigger; 16v
+varied the data phase and the command class. A 36-byte page program at
+`0x200000` in bank 1, with 200 ms between the three window transactions:
+
+```
+baseline                    00 84 00 02 02 02 02 00 01 00 00 00 00 00 00 00
+after settle=200ms (0.82 s) 00 84 00 02 02 02 02 00 01 00 00 00 00 00 00 00
+after settle=0ms   (0.22 s) 00 84 00 02 02 02 02 00 01 00 00 00 00 00 00 00
+```
+
+Identical. **Six variables now measured mute**, each with everything else fixed:
+
+| variable | values tried | session |
+|---|---|---|
+| address | modes 0/1/2 at `0x0`, `0x10000`, `0x200000` | 16t |
+| bank | port `0x58` = `0xE7` / `0xEF` | 16r |
+| trailer | packet checksum on / off (6 combinations) | 16t |
+| trigger | `2*(n+mode-1)-0x40`, mode-encoded | 16t |
+| data phase | 0, 4, 8, 12, 16 bytes | 16v |
+| command class | `0x20 0x38 0x40 0x42 0xA0` | 16v |
+| **timing** | **0 ms vs 200 ms per window** | **16z** |
+
+Shipped as `settle_ms=` on `isp_write_packet` / `program_page_at`, and `ms=200`
+on the write chain's erase and program steps, so the native tool honours the
+vendor's contract at the granularity its chain uses.
+
+## The page port is the one hypothesis the DP side cannot test
+
+16y's program call is `record[4] << 0x10` — a 64 KiB **block index**, which
+means the top bits ride page port `0xF2`. Testing it:
+
+```
+i2c-dev 0x37: write 0xF2 <- 0x00 / 0x01 / 0x20 / 0x40   -> readback 0x8a, 0x8a, 0x8a, 0x8a
+          reply at page<<16: 8a 02 00 fe 00 46 57 2e 30 30 39 4e   (all four)
+native 0x22: write to 0xF2 -> NACK
+```
+
+`0x8a` is the ring's head byte (16l), so every port read on `0x37` returns the
+ring, and the native lane's window doesn't reach `0xF2`. The block-index model
+is therefore **confirmed only in the decompile**, not on the wire — and that is
+the honest boundary of the DP route: six packet variables and one port are all
+masked by the same sticky answer.
+
+Which leaves the two things that can falsify it: the clip (RDID, the status
+register, a cell read-back) and `flashtype`/`readsr` — the scaler verbs 16w
+found, which ask the panel directly.
+
+Facts: `TIMING_PROBE_16Z`. Gates: ruff clean, **395 unit tests OK** (+4).

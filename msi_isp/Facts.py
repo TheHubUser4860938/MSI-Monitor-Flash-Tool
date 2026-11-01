@@ -2535,3 +2535,37 @@ WRITE_CHAIN_16Y = {
                           "' Fw update fw of background enumError :0x%X '); "
                           "0x1b -> foreground, no ISP call; else Isp_DoIsp",
 }
+
+
+# ---- 16z: the mute matrix is complete - timing is the sixth mute variable --
+# Six variables now, each varied on the panel with everything else fixed, each
+# producing the SAME reply from the answering slave (relay lane=native, slave
+# 0x22, and i2c-dev slave 0x37):
+#     address    modes 0, 1, 2 at 0x0 / 0x10000 / 0x200000        (16t)
+#     bank       port 0x58 = 0xE7 vs 0xEF                         (16r)
+#     trailer    packet checksum on / off, 6 combinations         (16t)
+#     trigger    2*(n+mode-1)-0x40, mode-encoded                  (16t)
+#     data phase 0, 4, 8, 12, 16 bytes                             (16v)
+#     command    0x20, 0x38, 0x40, 0x42, 0xA0                      (16v)
+#     timing     settle 0 ms vs the INI's 200 ms, per window       (16z)
+# The page port is the one hypothesis the DP side cannot test: 0xF2 answers the
+# sticky ring on 0x37 (readback 0x8a for every page written) and NACKs a write
+# on the native lane, so 16y's 64 KiB block-index model is unconfirmed from
+# here. It is confirmed only in the decompile (record[4] << 0x10).
+# Shipped: settle_ms= on isp_write_packet / program_page_at, and ms=200 on the
+# write chain's erase and program steps, so the native tool honours
+# ulTimeAfterCommand at the granularity the vendor's chain uses.
+TIMING_PROBE_16Z = {
+    "measured": "2026-11-01, relay lane=native slave 0x22; i2c-dev slave 0x37",
+    "settle": "36-byte page program, 200 ms between windows: 0.82 s, block "
+              "00 84 00 02 02 02 02 00 01 00... - identical to the 0.22 s "
+              "no-settle run",
+    "page_port": "0xF2 readback is 0x8a for pages 0x00, 0x01, 0x20, 0x40 on "
+                 "0x37 (the ring, 16l); a native-lane write to 0xF2 NACKs",
+    "ini_key": "ulTimeAfterCommand=200, now shipped as settle_ms= on "
+               "isp_write_packet / program_page_at and ms=200 on the write "
+               "chain's erase and program steps",
+    "conclusion": "six variables mute: the wall is the slave, and the block at "
+                  "0x0100 is DP-branch state, not flash state",
+    "untested": "the clip: RDID, the status register, and a cell read-back",
+}

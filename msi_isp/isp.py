@@ -486,7 +486,7 @@ def flash_read_at(bus, addr: int, n: int, slave7: int = 0x37,
 
 def isp_write_packet(bus, reg: int, payload: bytes, slave7: int = 0x37,
                      bank: int = 0, mode: int = 1, page: int | None = None,
-                     verbose: bool = False) -> None:
+                     settle_ms: int = 0, verbose: bool = False) -> None:
     """Write a packet through the ISP data window (16p).
 
     The write ladder is Comm.dll FUN_10003c80, the twin of the read ladder
@@ -549,6 +549,11 @@ def isp_write_packet(bus, reg: int, payload: bytes, slave7: int = 0x37,
     # The trigger is length- AND mode-encoded: FUN_10003c80's cVar10 is
     # chunk-1 (mode 0), chunk (mode 1), chunk+1 (mode 2) - 16t, Grok item 4.
     w(regs["cmd_port"], (2 * (n + mode - 1) - 0x40) & 0xFF)
+    if settle_ms:
+        # 16z: the INI's ulTimeAfterCommand = 200 ms. Measured mute on the
+        # panel (0 vs 200 ms gives the same transaction block), kept because
+        # the vendor's contract names it and the clip run should match it.
+        time.sleep(settle_ms / 1000.0)
 
 
 def packet_bytes(control: int, arg1: int, arg2: int,
@@ -564,7 +569,8 @@ def packet_bytes(control: int, arg1: int, arg2: int,
 
 def program_page_at(bus, addr: int, data: bytes, slave7: int = 0x37,
                     page: int = 32, bank: int = 0, mode: int = 1,
-                    trailer: bool = False, verbose: bool = False) -> int:
+                    trailer: bool = False, settle_ms: int = 0,
+                    verbose: bool = False) -> int:
     """Program one page the way WriteFlashData does (16n, 16p).
 
     Packet [0x40, addr>>16, addr, sum] to the write door 0x9C, then the page
@@ -590,7 +596,8 @@ def program_page_at(bus, addr: int, data: bytes, slave7: int = 0x37,
     sent = 0
     for chunk in _chunks(body, 16):
         isp_write_packet(bus, 0x9C, chunk, slave7=slave7, bank=bank,
-                         mode=mode, page=(addr >> 16) & 0x7F, verbose=verbose)
+                         mode=mode, page=(addr >> 16) & 0x7F,
+                         settle_ms=settle_ms, verbose=verbose)
         sent += len(chunk)
     return sent
 

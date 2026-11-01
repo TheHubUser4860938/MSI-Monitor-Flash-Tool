@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import unittest
 
-from msi_isp import Facts
+from msi_isp import Facts, pipeline
 from msi_isp.isp import (
     IspError,
     isp_write_packet,
@@ -216,6 +216,25 @@ class TestProgramAndErase(unittest.TestCase):
 
     def test_the_ack_must_come_from_the_flash_side(self):
         self.assertIn("clip", Facts.ISP_WINDOW_MAP["consequence"])
+
+    def test_the_settle_knob_is_the_ini_contract(self):
+        bus = RecordingBus()
+        program_page_at(bus, 0, bytes(4), settle_ms=0)     # knob exists
+        self.assertIn("ulTimeAfterCommand", Facts.TIMING_PROBE_16Z["ini_key"])
+
+    def test_six_variables_are_mute(self):
+        m = Facts.TIMING_PROBE_16Z["measured"]
+        self.assertIn("native", m)
+        self.assertIn("six variables mute",
+                      Facts.TIMING_PROBE_16Z["conclusion"])
+
+    def test_the_page_port_is_unconfirmed_from_the_dp_side(self):
+        self.assertIn("0x8a", Facts.TIMING_PROBE_16Z["page_port"])
+
+    def test_the_write_chain_settles_at_the_vendor_rate(self):
+        for name in ("erase sector", "program page"):
+            st = next(s for s in pipeline.PIPELINE_WRITE if s.name == name)
+            self.assertEqual(st.ms, 200, name)
 
     def test_the_write_chain_fact_names_the_block_index(self):
         w = Facts.WRITE_CHAIN_16Y

@@ -3052,3 +3052,32 @@ operations, flash clock 10,257 ms.
 
 Facts: WRITE_CHAIN_16Y. Gates: ruff clean, **391 unit tests OK** (+7).
 Notes: re/ghidra_isp_engine.md (16y).
+
+## Session 16z (2026-11-01) — timing is the sixth mute variable; the page port is untestable from the DP side
+
+Two live probes, closing the variable list.
+
+- **Timing.** The INI's ulTimeAfterCommand=200 / ulCommandRetryCount=10 (16w)
+  were the last untested variables. A 36-byte page program at 0x200000 in bank 1
+  with 200 ms between the three window transactions (0.82 s) and with none
+  (0.22 s) leaves the transaction block identical:
+  00 84 00 02 02 02 02 00 01 00 00 00 00 00 00 00. Shipped as settle_ms= on
+  isp_write_packet / program_page_at, and ms=200 on the write chain's erase and
+  program steps.
+- **The mute matrix is now six deep**, each varied with everything else fixed:
+  address (modes 0/1/2 x 3 addresses, 16t), bank (0xE7/0xEF, 16r), trailer
+  (6 combinations, 16t), trigger (mode-encoded, 16t), data phase (0/4/8/12/16,
+  16v), command class (0x20/0x38/0x40/0x42/0xA0, 16v), timing (0 vs 200 ms, 16z).
+- **The page port is the one hypothesis the DP side cannot test.** 16y's program
+  call is record[4] << 0x10 - a 64 KiB block index, so the top bits ride 0xF2.
+  On i2c-dev 0x37 every write to 0xF2 reads back 0x8a (the ring's head, 16l) and
+  the reply never moves; on the native lane a write to 0xF2 NACKs. So the
+  block-index model is confirmed in the decompile only, not on the wire - the
+  honest boundary of the DP route: six packet variables and one port, all masked
+  by the same sticky answer.
+- Next falsifiers: the clip (RDID, the status register, a cell read-back) and the
+  scaler verbs 16w found - flashtype (index 11) and readsr/writesr (12/13),
+  which ask the panel directly.
+
+Facts: TIMING_PROBE_16Z. Gates: ruff clean, **395 unit tests OK** (+4).
+Notes: re/ghidra_isp_engine.md (16z).

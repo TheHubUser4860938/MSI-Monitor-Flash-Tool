@@ -120,10 +120,10 @@ PIPELINE_WRITE: tuple[Step, ...] = (
     Step("chip identity", "read", MCU, count=3,
          why="Flash_GetInfo in the chain: name + capacity in 64 KiB units "
              "(16a, 16y) - the vendor's own chip gate"),
-    Step("erase sector", "erase", DDCI, count=1,
+    Step("erase sector", "erase", DDCI, count=1, ms=200,
          why="FUN_1003e610, looped SectorEraseCount times by the plan "
              "(16y); a count of 0 takes FUN_1003e9c0, the chip erase"),
-    Step("program page", "program", DDCI, count=32,
+    Step("program page", "program", DDCI, count=32, ms=200,
          why="FUN_1003e2a0(record[4] << 0x10, len) (16y) - the address is a "
              "64 KiB block index, so the top bits ride the page port"),
     Step("verify", "read", FLASH, count=32,
@@ -210,8 +210,9 @@ def run_pipeline(bus, addr=0, size=32, verbose=False, sleep=None,
                 res.reply = st.payload
             elif st.op == "erase":
                 from .isp import sector_erase_at
-                sector_erase_at(bus, addr, slave7=st.slave7,
-                                verbose=verbose)
+                sector_erase_at(bus, addr, slave7=st.slave7, verbose=verbose)
+                if st.ms:
+                    nap(st.ms / 1000.0)          # ulTimeAfterCommand (16z)
                 res.reply = b"\x00" * 4
             elif st.op == "program":
                 from .isp import program_page_at
@@ -220,6 +221,8 @@ def run_pipeline(bus, addr=0, size=32, verbose=False, sleep=None,
                     data = b"\x00" * st.count
                 program_page_at(bus, addr, data, slave7=st.slave7,
                                 verbose=verbose)
+                if st.ms:
+                    nap(st.ms / 1000.0)          # ulTimeAfterCommand (16z)
                 res.reply = data
             elif st.op == "write":
                 sb.word_write(I2CTarget(st.name, st.slave7),
