@@ -225,6 +225,12 @@ static bool bulk_write_gated(u32 addr, u32 bwrite, u32 size)
         return false;
     if (addr >= ISP_SLAVE_MIN && addr <= ISP_SLAVE_MAX)
         return ktime_after(ktime_get(), unlock_deadline);
+    /* Both forms, on purpose (16f). RM's bulk control takes the DP-spec
+     * address field, so the 8-bit form of the ISP set (0x30..0x45) is a
+     * second name for the same slaves - the relay test writes 0x44 and
+     * measures EPERM. Consequence for userspace: on the bulk lane a write
+     * to 7-bit 0x37 (DDC/CI) IS gated, because 0x37 is also the 8-bit form
+     * of 7-bit 0x1B. Call bus.unlock() before the ladder, not after. */
     if (addr >= (ISP_SLAVE_MIN << 1) && addr <= ((ISP_SLAVE_MAX << 1) | 1))
         return ktime_after(ktime_get(), unlock_deadline);
     return false;

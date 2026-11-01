@@ -384,6 +384,10 @@ def cmd_ladder(args):
               (0x22, "scaler MCU window"), (0x20, "flash read burst"),
               (0x4A, "cand0 ISP slave"), (0x37, "DDC/CI")]
     with _bus(args) as bus:
+        # The relay gates ISP-slave writes for 5 s at a time; the bulk lane
+        # addresses 0x37 in the same band, so arm it before writing.
+        if hasattr(bus, "unlock"):
+            bus.unlock("ladder")
         for mode in (["plain", "isp"] if args.isp else ["plain"]):
             if mode == "isp":
                 try:

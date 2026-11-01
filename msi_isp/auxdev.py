@@ -22,12 +22,14 @@ from .lane import (
     LANE_DEFAULT,
     MAX_DATA,
     chunks,
+    req_name,
     split_register,
     use_native,
 )
 
 NODE = "/dev/msi-auxch"
 AUX_REQ_MOT, AUX_REQ_WRITE, AUX_REQ_READ = 0x4, 0, 1
+BULK_MAX_DATA = 256            # NV0073_CTRL_DP_AUXCH_I2C_TRANSFER_MAX_DATA_SIZE
 REPLY = {0: "ACK", 1: "NACK", 2: "DEFER", 3: "TIMEOUT",
          4: "I2CNACK", 8: "I2CDEFER", 0xFFFFFFFF: "INVALID_ARG"}
 
@@ -51,7 +53,22 @@ def _iowr(nr: int, struct) -> int:
     return (3 << 30) | (ctypes.sizeof(struct) << 16) | (ord("M") << 8) | nr
 
 
+class _Bulk(ctypes.Structure):
+    """mirror of struct auxch_bulk (kernel/msi_auxch.c) - NV0073_CTRL_CMD_
+    DP_AUXCH_I2C_TRANSFER (0x73137C): 256 bytes per transaction, no replyType
+    (NV_OK means the message completed), addr passed through VERBATIM and in
+    practice plain 7-bit (the 8-bit form 0xa1 returns 0xffff)."""
+    _fields_ = [
+        ("addr", ctypes.c_uint32),
+        ("bWrite", ctypes.c_uint32),
+        ("size", ctypes.c_uint32),          # IN: requested, OUT: done
+        ("data", ctypes.c_ubyte * BULK_MAX_DATA),
+        ("rmStatus", ctypes.c_uint32),      # [OUT] 0xffff = TIMEOUT
+    ]
+
+
 MSI_AUXCH_XFER = _iowr(0x41, _Xfer)
+MSI_AUXCH_BULK = _iowr(0x43, _Bulk)
 MSI_AUXCH_UNLOCK = (ord("M") << 8) | 0x42          # _IO: no size/dir bits
 
 
@@ -110,7 +127,16 @@ class AuxDevBus:
         except OSError:
             return False
 
+    def probe_bulk(self, addr7) -> bool:
+        """1-byte bulk read: the relay's cheapest probe (reads are ungated)."""
+        try:
+            return bool(self.bulk_read(addr7, 1))
+        except OSError:
+            return False
+
     def probe(self, addr7):
+        if self.lane == "bulk":
+            return self.probe_bulk(addr7)
         try:
             name, _ = self._txn(addr7, AUX_REQ_WRITE, data=b"", mot=True,
                                 addr_only=True)
@@ -202,9 +228,47 @@ class AuxDevBus:
             buf += got[:want]
         return bytes(buf[:n])
 
+    # ---- bulk lane (0x73137C, 256 B/transaction) ------------------------
+    def _bulk(self, addr7, wr, data=b"", size=None):
+        b = _Bulk(addr=addr7 & 0x1FF, bWrite=int(wr),
+                  size=len(data) if size is None else size)
+        for i, by in enumerate(bytes(data)[:BULK_MAX_DATA]):
+            b.data[i] = by
+        try:
+            self._fcntl.ioctl(self.fd, MSI_AUXCH_BULK, b)
+        except OSError as e:
+            if e.errno == 1:
+                raise OSError(
+                    f"relay: bulk writes to ISP slave {addr7:#04x} are gated; "
+                    f"call bus.unlock() first (5 s window, logged)") from None
+            raise
+        if b.rmStatus:
+            name = "TIMEOUT" if b.rmStatus == 0xFFFF else f"RM-ERR {b.rmStatus:#06x}"
+            raise OSError(f"bulk {addr7:#04x} {req_name(1 if not wr else 0)}: {name}")
+        return b.size, bytes(b.data[:b.size])
+
+    def bulk_write(self, addr7, data) -> None:
+        """One bulk write message, up to 256 bytes in a single transaction."""
+        self._bulk(addr7, True, data)
+
+    def bulk_read(self, addr7, n) -> bytes:
+        """One bulk read, up to 256 bytes. Reads are never gated in the
+        kernel, so this is the cheapest probe the relay has."""
+        _done, got = self._bulk(addr7, False, size=min(n, BULK_MAX_DATA))
+        return got[:n]
+
+    def read_register(self, addr7, reg: int, n: int) -> bytes:
+        """The bulk read shape the relay test proved on EDID: write the
+        pointer byte, then read n bytes."""
+        self._bulk(addr7, True, bytes([reg & 0xFF]))
+        return self.bulk_read(addr7, n)
+
     def write(self, addr7, data, warmup=False):
         """One complete I2C write message: [addr][data...][STOP]."""
         data = bytes(data)
+        if self.lane == "bulk":
+            self.bulk_write(addr7, data)
+            return
         if use_native(self.lane, addr7):
             self._native_write(addr7, data)
             return
@@ -227,6 +291,8 @@ class AuxDevBus:
         """One complete I2C read message, 16 B chunks with MOT chained."""
         if delay:
             time.sleep(delay)
+        if self.lane == "bulk":
+            return self.bulk_read(addr7, n)
         if use_native(self.lane, addr7):
             return self._native_read(n)
         buf = bytearray()

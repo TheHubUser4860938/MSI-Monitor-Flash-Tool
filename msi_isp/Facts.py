@@ -1006,3 +1006,46 @@ DDCI_LANE = {
                    "mailbox beside it.",
     "measured": "2026-11-01 /dev/i2c-4, 256-register sweep in three grammars",
 }
+
+
+# ---- The lane matrix (16f): four transports, one answer ------------------
+# The bulk control (NV0073 0x73137C, 256 B/txn, relayed by msi_auxch.ko) was
+# the last NVIDIA path that is NOT the i2c-dev shim, so it was the best chance
+# of reaching the ISP slaves without a second GPU. It does not:
+#
+#   lane                      0x30 0x37 0x50   0x4A/0x4B   0x18-0x1B 0x20 0x22
+#   i2c-dev (DRM AUX)          ACK  ACK  ACK    ACK          EIO
+#   RM AUXCH 0x731341 I2C      ACK  ACK  ACK    ACK          EIO
+#   RM AUXCH native            ACK(DPCD/MTPMT byte space)    EIO
+#   RM bulk 0x73137C 256B      ACK  ACK  ACK    ACK          TIMEOUT
+#
+# So the six-slave set is a property of THE SINK's DP branch, not of the
+# driver. The ISP register file lives behind that branch's I2C-over-AUX tunnel
+# and answers on no NVIDIA path.
+#
+# Two extras the bulk lane gave:
+#   * Its reply starts INSIDE the shared MCCS buffer (reading 0x37 returns
+#     0x02 - the reply header's third byte, 16e's model, not the 0x8a a
+#     tunnel read gives).
+#   * The winning ISP magic byte is TRANSPORT-dependent: candidate 3 on
+#     i2c-dev (status 0x8a), candidate 5 on bulk (status 0xe1). The magic is
+#     an MCCS write payload, and each lane's first write lands at a different
+#     offset of the shared buffer - so "which magic works" is not a monitor
+#     fact. Facts.AUTOENTER_CANDIDATES stays as the vendor's list.
+BULK_LANE = {
+    "control": "NV0073_CTRL_CMD_DP_AUXCH_I2C_TRANSFER (0x73137C), 256 B/txn, "
+               "no replyType (rmStatus 0xffff = TIMEOUT); relayed by "
+               "MSI_AUXCH_BULK in kernel/msi_auxch.c",
+    "gate_note": "the kernel gates writes on BOTH address forms, so on the "
+                 "bulk lane a write to 7-bit 0x37 is gated too (0x37 is also "
+                 "the 8-bit form of 7-bit 0x1B) - call bus.unlock() first",
+    "measured": "2026-11-01, kernel 7.3.1-1, driver 615.78.08: 0x30/0x37/0x50 "
+                "ACK, 0x4A answers 00, 0x18-0x1B/0x20/0x22 TIMEOUT",
+    "verdict": "the six-slave set belongs to the sink's DP branch, not the "
+               "NVIDIA driver - the ISP register file is behind the branch "
+               "tunnel on every NVIDIA lane we have",
+    "magic_varies": "candidate 3 (status 0x8a) on i2c-dev vs candidate 5 "
+                    "(status 0xe1) on bulk: the ISP magic is an MCCS write "
+                    "payload into the shared buffer, so the winner is a "
+                    "property of the lane",
+}

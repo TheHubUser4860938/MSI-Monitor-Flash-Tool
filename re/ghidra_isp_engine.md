@@ -454,3 +454,43 @@ has one window and it is the version reply. The flash lane is **0x22**, with
 behind the NVIDIA i2c-dev allow-list. That is the cleanest statement of what
 an Intel/AMD box has to prove: the same two slaves, on a bridge that will send
 them.
+
+---
+
+# Session 16f — the bulk lane (0x73137C): the last NVIDIA path, measured
+
+`AuxDevBus` now speaks the relay's bulk control (`MSI_AUXCH_BULK`, 272-byte
+`struct auxch_bulk`, 256 B/transaction, `rmStatus 0xffff` = TIMEOUT) as
+`--lane bulk`, with `bulk_write` / `bulk_read` / `read_register` /
+`probe_bulk`. This was the best remaining chance at the ISP slaves without a
+second GPU, because the 6-slave allow-list is a property of the kernel
+**i2c-dev** bridge, not of the RM control we drive from kernel context.
+
+```
+lane                       0x30 0x37 0x50   0x4A/0x4B   0x18-0x1B 0x20 0x22
+i2c-dev (DRM AUX)           ACK  ACK  ACK    ACK          EIO
+RM AUXCH 0x731341 I2C       ACK  ACK  ACK    ACK          EIO
+RM AUXCH native             DPCD/MTPMT byte space         EIO
+RM bulk 0x73137C (256 B)    ACK  ACK  ACK    ACK          TIMEOUT
+```
+
+**Verdict: the six-slave set belongs to the sink's DP branch, not to the
+driver.** The ISP register file lives behind that branch's I2C-over-AUX tunnel
+and answers on no NVIDIA lane. `Facts.BULK_LANE`.
+
+Two extras:
+
+1. **The bulk lane reads from inside the shared MCCS buffer.** A read of
+   `0x37` returns `02` - the reply header's *third* byte (16e's model) - where
+   the tunnel lane returns `8a`. Same buffer, different starting offset.
+2. **The ISP magic byte is transport-dependent.** Magic candidate 3 wins on
+   i2c-dev (status `0x8a`), candidate 5 on bulk (status `0xe1`). The magic is
+   an MCCS write payload landing in that shared buffer, so "which candidate
+   enters ISP mode" is a property of the lane, not of the monitor.
+
+Kernel note found while using the lane: `bulk_write_gated` gates **both**
+address forms, and `0x30..0x45` is simultaneously "7-bit 0x18..0x22" and the
+8-bit form of that set - so on the bulk lane a write to 7-bit `0x37` (DDC/CI)
+IS gated, because `0x37` is also the 8-bit form of 7-bit `0x1B`. Userspace
+arms it (`bus.unlock()` before the ladder). The module was rebuilt for
+7.3.1-1-cachyos with that comment attached; relay acceptance re-run: PASS.

@@ -2351,3 +2351,34 @@ holds the version reply. The flash lane is 0x22 with 0x35 beside it, both
 behind NVIDIA's allow-list — so the Intel/AMD box now has an exact question:
 do 0x22 and 0x35 answer there, and does 0x35 answer the 0xCA ladder with
 content. `msi-isp ladder --isp` is that experiment in one command.
+
+## Session 16f (2026-11-01) — the bulk lane: four NVIDIA transports measured, and the six slaves belong to the SINK
+
+`--lane bulk` (new) drives the relay's `MSI_AUXCH_BULK` (0x73137C, 256 B/txn,
+272-byte struct, no replyType, rmStatus 0xffff = TIMEOUT): `bulk_write`,
+`bulk_read`, `read_register`, `probe_bulk`. It was the last NVIDIA path that is
+not the i2c-dev shim.
+
+- Result: 0x30/0x37/0x50 ACK, 0x4A answers 00, and **0x18-0x1B / 0x20 / 0x22
+  TIMEOUT**. Same six slaves as every other lane. So the slave set is a
+  property of the sink's DP branch, not of the driver — the ISP register file
+  is behind the branch tunnel on all four lanes (i2c-dev, AUXCH I2C, AUXCH
+  native, bulk). `Facts.BULK_LANE` + the matrix.
+- The bulk lane reads from INSIDE the shared MCCS buffer: 0x37 returns `02`
+  (the reply header's third byte) where the tunnel returns `8a`.
+- **The ISP magic byte is lane-dependent**: candidate 3 (status 0x8a) on
+  i2c-dev, candidate 5 (status 0xe1) on bulk. Which candidate "enters ISP"
+  is a property of the transport, not of the monitor.
+- Kernel: `bulk_write_gated` gates both address forms and 0x30..0x45 is both
+  "7-bit 0x18..0x22" and the 8-bit form of it, so bulk writes to 7-bit 0x37
+  are gated (0x37 == 8-bit 0x1B). Userspace arms with `bus.unlock()` before
+  the ladder; the comment now says so. Module rebuilt for 7.3.1-1, relay
+  acceptance PASS unprivileged.
+
+Gates: ruff clean, **187 unit tests OK** (+18: the 272-byte ABI, the ioctl
+number, write/read/probe shapes, gated-write EPERM hint, lane routing, the
+verdict). Notes: re/ghidra_isp_engine.md (16f).
+
+NEXT: the software side on NVIDIA is now measured to its ceiling — the six
+branch slaves. The flash lane needs a sink-side tunnel: Intel/AMD (`ladder
+--isp`, where 0x35 should answer) or the CH341A clip (CLIP-PLAYBOOK.md).

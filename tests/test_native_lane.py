@@ -151,7 +151,7 @@ class TestLaneIsSelectable(unittest.TestCase):
         self.assertEqual(nvbus.LANE_DEFAULT, "i2c")
 
     def test_lanes_are_named(self):
-        self.assertEqual(set(nvbus.LANES), {"i2c", "native"})
+        self.assertEqual(set(nvbus.LANES), {"i2c", "native", "bulk"})
 
 
 if __name__ == "__main__":

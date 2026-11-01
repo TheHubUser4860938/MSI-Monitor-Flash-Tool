@@ -30,7 +30,7 @@ Evidence: re/ghidra_isp_engine.md (16b).
 """
 from __future__ import annotations
 
-LANES = ("i2c", "native")
+LANES = ("i2c", "native", "bulk")
 LANE_DEFAULT = "i2c"
 
 MAX_DATA = 16              # NV0073_CTRL_DP_AUXCH_MAX_DATA_SIZE, both lanes
