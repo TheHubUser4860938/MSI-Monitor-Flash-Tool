@@ -14,6 +14,8 @@ select = ["E4", "E7", "E9", "F", "I", "UP", "SIM", "PIE", "RUF", "BLE",
 "msi_isp/console.py" = ["BLE001", "N802"]   # error boundary; OK/BAD/WARN/DIM
                                       # style helpers + cmd's required do_EOF
 "msi_isp/isp.py" = ["BLE001"]      # read-only probes: any bus error == "absent"
+"msi_isp/pipeline.py" = ["BLE001"] # the vendor-pipeline walk: a silent lane IS
+                                   # the diagnosis, so every step reports it
 "msi_isp/nvbus.py" = ["BLE001"]    # discovery logs every exception instead
 "msi_isp/tui.py" = ["BLE001"]     # UI boundaries: show the error, keep the UI alive
 "msi_isp/Facts.py" = ["N999"]      # intentional name: this module IS a fact registry

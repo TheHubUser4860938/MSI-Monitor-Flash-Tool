@@ -171,6 +171,70 @@ class TestLaneReadback(unittest.TestCase):
         self.assertIn("2026-11-01", Facts.LANE_READBACK_AT)
 
 
+class TestVendorIni(unittest.TestCase):
+    """16g: the shipped INI is ground truth; 16b's defaults were right except
+    where MSI overrides them."""
+
+    def test_the_two_overrides_are_recorded(self):
+        self.assertEqual(Facts.VENDOR_INI["comm_aux_overrides"],
+                         {"AUX_CheckDpcdTable": 0, "AUX_EnableDebugLog": 0})
+
+    def test_the_debug_log_override_explains_the_missing_log(self):
+        """15g: 'window-4 result: NO nvapi.log'. The vendor asks for no log."""
+        self.assertEqual(Facts.VENDOR_INI["comm_aux_overrides"]
+                         ["AUX_EnableDebugLog"], 0)
+
+    def test_the_version_extraction_rule(self):
+        v = Facts.VENDOR_INI["version_read"]
+        self.assertEqual(v["start_index"], 6)
+        self.assertEqual(v["read_length"], 20)
+        # the INI carries the 8-bit slave byte too: 6E + our packet
+        self.assertEqual(bytes(v["cmd"]),
+                         bytes([0x6E]) + Facts.VENDOR_FW_VERSION_CMD)
+
+    def test_the_dual_bank_constants_the_write_driver_needs(self):
+        d = Facts.VENDOR_INI["dual_bank"]
+        self.assertEqual(d["command_retry_count"], 10)
+        self.assertEqual(d["time_after_command_ms"], 200)
+        self.assertEqual(d["time_after_reset_ms"], 10000)
+        self.assertEqual(d["copy_bank_wait_ms"], 8000)
+        self.assertEqual(d["bSwitchFLag"], 1)      # the boot-flag switch
+
+    def test_graphics_type_is_inert_under_auto(self):
+        self.assertIn("INERT", Facts.VENDOR_INI["graphics_type_note"])
+
+    def test_the_md5_matches_the_filed_one(self):
+        self.assertEqual(Facts.VENDOR_INI["md5"],
+                         Facts.VENDOR_CONFIG["ini_md5"])
+
+
+class TestVtableIsNotTheExportTable(unittest.TestCase):
+    """16g falsified the cheap theory: Comm_Aux exports 61 names, the plugin
+    calls slot index 163 - so the table is the core's C++ vtable."""
+
+    def test_the_note_records_the_falsification(self):
+        self.assertIn("61 exports", Facts.COMM_VTABLE_NOTE)
+        self.assertIn("163", Facts.COMM_VTABLE_NOTE)
+
+    def test_the_high_slots_exist_beyond_the_export_count(self):
+        self.assertGreater(max(Facts.COMM_VTABLE), 61 * 4)
+
+
+class TestPluginSettingsStruct(unittest.TestCase):
+    """16g: the plugin's whole configuration arrives as one struct copy."""
+
+    def test_the_mode_and_boot_type_fields(self):
+        st = Facts.PLUGIN_SETTINGS_STRUCT
+        self.assertIn("DAT_1024a2d4", st["0x0000"])
+        self.assertIn("0xd21", st["0x0011"])
+
+    def test_the_flashdat_record_field(self):
+        self.assertIn("Flash.dat", Facts.PLUGIN_SETTINGS_STRUCT["0x10b50"])
+
+    def test_the_writer_is_named(self):
+        self.assertIn("FUN_10007670", Facts.PLUGIN_SETTINGS_STRUCT["caller"])
+
+
 class TestFlashModes(unittest.TestCase):
     """IspFlash (0x10008520) only runs for these DAT_1024a2d4 values; 0x1a is
     the background bank (its own engine), 0x1b the foreground (log only)."""

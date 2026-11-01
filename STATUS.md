@@ -2382,3 +2382,35 @@ verdict). Notes: re/ghidra_isp_engine.md (16f).
 NEXT: the software side on NVIDIA is now measured to its ceiling — the six
 branch slaves. The flash lane needs a sink-side tunnel: Intel/AMD (`ladder
 --isp`, where 0x35 should answer) or the CH341A clip (CLIP-PLAYBOOK.md).
+
+## Session 16g (2026-11-01) — the audit: vtable theory falsified, the INI as ground truth, the plugin's engine ABI, and the native-port spine
+
+- **Falsified:** the comm object is not an ordinal-ordered Comm_Aux export
+  table (61 exports; the plugin calls index 163). `Facts.COMM_VTABLE` names
+  stay log-string-tagged; the authoritative slot→export map is open.
+- **Ground truth:** the shipped `IspSetting.ini` corrects 16b on two keys
+  (`AUX_CheckDpcdTable=0`, `AUX_EnableDebugLog=0` — the second explains 15g's
+  missing nvapi.log, and setting both to 1 is the borrowed-Windows lever),
+  pins the version rule (skip 6, take 20 — the vendor's own rule matches
+  `vendor_fw_version`), records the dual-bank constants (`bSwitchFLag=1`,
+  200/10/8000/10000 ms), and notes `AUX_GraphicsType=1` is INERT under AUTO.
+  `Facts.VENDOR_INI`.
+- **The missing piece:** `FUN_10007670` shows the plugin is configured by one
+  copy of the engine's settings struct — mode at +0x0000, the 0xd21 boot type
+  at +0x0011, and **the 528-byte Flash.dat record at +0x10b50** (16a found the
+  plugin copying it; this is its source). `Facts.PLUGIN_SETTINGS_STRUCT`.
+  Conclusion: a native port needs three config fields + the wire sequence, not
+  the plugin.
+- **Built:** `msi_isp/pipeline.py` — the decoded order as data, each step
+  carrying its evidence, two steps honestly marked `pending` — and
+  `msi-isp pipeline`. LIVE on i2c-dev and on the sudoless bulk lane: enter →
+  settle → slot 0x21c → slot 0x124 ok, **STOP at "get flash type" (0x22 EIO)**.
+  Four of eight, on both transports.
+
+Gates: ruff clean, **208 unit tests OK** (+21: INI ground truth, the
+falsification, the struct fields, the pipeline order/delays/gap list).
+Notes: re/ghidra_isp_engine.md (16g).
+
+NEXT RE target, named: the vtable the exe hands the plugin's
+`SetCommInterface` (ordinal 16) — decoding slots `+0x21c` and `+0x124` is the
+whole remaining gap between "the pipeline walks" and "the pipeline reads flash".

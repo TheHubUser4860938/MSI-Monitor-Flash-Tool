@@ -1049,3 +1049,86 @@ BULK_LANE = {
                     "payload into the shared buffer, so the winner is a "
                     "property of the lane",
 }
+
+
+# ---- 16g audit: ground truth from the shipped INI -------------------------
+# Source: IspSetting.ini md5 d1be1f3a... (three copies on this box, identical;
+# the file the vendor's own run used). 16b's claim "the defaults ARE the
+# shipped behaviour" was right for MOST keys and WRONG for two - MSI overrides
+# them, and one of those overrides is the reason a vendor run leaves no log:
+#   AUX_CheckDpcdTable   default 1 -> shipped 0
+#   AUX_EnableDebugLog   default 1 -> shipped 0   (=> 15g's "NO nvapi.log")
+# Runbook lever for the borrowed-Windows day: set both to 1 and bSaveDebugLog=1
+# and the vendor writes its own trace - the witness we have never had.
+VENDOR_INI = {
+    "path": "C:\\...\\Temp\\ISPToolForMsi\\IspSetting.ini",
+    "md5": "d1be1f3a9a43fd44e510eb94272f5a1c",
+    "communication": {"enumCommID": 1},                    # Comm_Aux.dll
+    "scaler": {"BinVersionAddress": 0xF800, "BinVersionLength": 3,
+               "ulModelNamePosInBin": 0xF806, "CheckModelName": 1,
+               "CheckVersion": 0, "CheckChecksum": 1},
+    "version_read": {"cmd": [0x6E, 0x51, 0x84, 0x01, 0xFE, 0xE1, 0xE6],
+                     "start_index": 6, "read_length": 20, "record_mode": 2,
+                     "delay_after_write_ms": 3000,
+                     "note": "the vendor's OWN extraction rule: skip 6 reply "
+                             "bytes, take 20 - what vendor_fw_version does"},
+    "dual_bank": {"enumIspMode": 1, "enumBootCodeType": 1, "bSwitchFLag": 1,
+                  "bWaitCopyBank": 0, "copy_bank_wait_ms": 8000,
+                  "time_after_command_ms": 200, "command_retry_count": 10,
+                  "time_after_reset_ms": 10000,
+                  "release_device_after_reset": 1,
+                  "isp_finish_before_reset": 0,
+                  "get_fp_setting_from_ic": 0,
+                  "digital_signature": 0, "sw_signature_mode": 0},
+    "comm_aux_overrides": {"AUX_CheckDpcdTable": 0, "AUX_EnableDebugLog": 0},
+    "comm_aux_as_shipped": {"AUX_DetctType": 1, "AUX_GraphicsType": 1,
+                            "AUX_I2CPageLen": 32, "AUX_RetryLimit": 10},
+    "graphics_type_note": "AUX_GraphicsType=1 (Intel) is INERT at startup: "
+                          "AUX_DetctType=1 means AUTO, and AUTO probes AMD -> "
+                          "Intel -> NVIDIA and overwrites the backend. The "
+                          "value only binds in MANUAL (DetctType=2).",
+}
+
+# ---- 16g audit: the vtable is the CORE's object, not Comm_Aux's exports ---
+# Hypothesis tested and FALSIFIED: if the comm object were an ordinal-ordered
+# thunk table over Comm_Aux.dll's exports, slot +0x28c (index 163) would name
+# GetQCDisplaySetting - and the plugin's log string at that slot says exactly
+# that. It does not: Comm_Aux exports 61 names (max ordinal 61), so indices
+# 67, 73, 79, 133, 135, 163 cannot exist. Two ordinal coincidences (0x74 ->
+# I2CWordRead, 0x78 -> I2CWordWrite, adjacent like 14i's read/write pair) are
+# suggestive, not conclusive.
+# => the slot table is a C++ vtable in WinISPTool (the exe), and the
+#    authoritative slot -> export map still needs the exe's vtable. The names
+#    in COMM_VTABLE stay evidence-tagged by their log strings.
+COMM_VTABLE_NOTE = "core C++ vtable (Comm_Aux has 61 exports; slots reach index 163)"
+
+# ---- 16g: the plugin's engine ABI (WinIspPlugIn FUN_10007670) -------------
+# The plugin is configured by ONE call that copies a huge settings struct
+# (the engine's ISP settings block, ~0x10e64 dwords) into its globals. The
+# fields that matter to a native port, by dword index in that struct:
+PLUGIN_SETTINGS_STRUCT = {
+    "caller": "WinIspPlugIn FUN_10007670 (the only writer of DAT_1024a2d4)",
+    "0x0000": "ISP mode -> DAT_1024a2d4 (the IspFlash gate: 4,5,6,7,0x11,0x1a,0x1b)",
+    "0x0001": "DAT_1024a2d8", "0x0002": "DAT_1024a2dc", "0x0003": "DAT_1024a2e0",
+    "0x0004": "DAT_1024a2e4", "0x000b": "DAT_1024a2e8", "0x000c": "DAT_1024a34c "
+                    "(+0x0d feeds DAT_1024a350 when it is 0 - the enter-ladder "
+                    "selector the ISP-entry path reads)",
+    "0x0010": "DAT_1024a380 (the 'is configured' gate the handshake tests)",
+    "0x0011": "boot type -> DAT_1024a2f0 (== 1 is what makes the handshake "
+              "return 0xd21)",
+    "0x0012": "DAT_1024a2f4", "0x0013": "DAT_1024e460",
+    "0x10a16": "1232-byte table -> DAT_1024a654 (0x134 dwords)",
+    "0x10b50": "528-byte block -> DAT_1024a430 (0x84 dwords) - the parsed "
+               "Flash.dat chip record, handed to the plugin by the engine "
+               "(16a found the plugin copying it in DumpFlash; this is where "
+               "it came from)",
+    "0x10c98": "UTF-16 string at struct+0x43262 (a path; the plugin scans for "
+               "the wchar terminator)",
+    "0x10b4a": "..0x10b4e five dwords -> DAT_1024bec4..bed4 (signature/"
+               "bank params)",
+    "0x10e5f": "byte -> DAT_1024e464; 0x10e60..0x10e63 -> DAT_1024e4a4..e4b0",
+    "meaning_for_us": "a native port does not need the plugin: it needs this "
+                      "struct's few fields that change the wire sequence - "
+                      "mode (0x00), boot type (0x11), the Flash.dat record "
+                      "(0x10b50) - and the INI that fills them.",
+}

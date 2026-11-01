@@ -494,3 +494,88 @@ address forms, and `0x30..0x45` is simultaneously "7-bit 0x18..0x22" and the
 IS gated, because `0x37` is also the 8-bit form of 7-bit `0x1B`. Userspace
 arms it (`bus.unlock()` before the ladder). The module was rebuilt for
 7.3.1-1-cachyos with that comment attached; relay acceptance re-run: PASS.
+
+---
+
+# Session 16g — the audit: one theory falsified, the INI read as ground truth, and the plugin's engine ABI
+
+## Falsified: the vtable is NOT Comm_Aux's export table
+
+Tested cheaply, because it predicted itself: 16a named slot `+0x28c`
+"GetQCDisplaySetting" from a log string, and `GetQCDisplaySetting` is a
+**named export of Comm_Aux.dll at ordinal 3** — index 163 = ordinal 164 under
+an ordinal-ordered-thunk theory. It fails: Comm_Aux exports **61** names, so
+indices 67, 73, 79, 133, 135, 163 cannot exist. Two adjacent hits (0x74 →
+I2CWordRead, 0x78 → I2CWordWrite, and 14i's read/write pair is adjacent) are
+suggestive, not conclusive.
+
+**Consequence, stated plainly:** the slot table is a C++ vtable in the core
+(`WinISPTool`), and the authoritative slot → export map is still **open**.
+`Facts.COMM_VTABLE` names stay evidence-tagged by their log strings.
+
+## The shipped INI, read as ground truth (`Facts.VENDOR_INI`)
+
+Three corrections/claims, and one lever:
+
+- **16b said "the defaults ARE the shipped behaviour". True for most keys,
+  false for two**: MSI ships `AUX_CheckDpcdTable=0` (default 1) and
+  `AUX_EnableDebugLog=0` (default 1). The second is the explanation for 15g's
+  "NO nvapi.log": the vendor was asked not to write one.
+- **Lever for the borrowed-Windows day:** set `AUX_EnableDebugLog=1` and
+  `bSaveDebugLog=1` and the vendor produces its own trace — the witness this
+  project has never had, from the tool itself.
+- **`AUX_GraphicsType=1` (Intel) is inert.** `AUX_DetctType=1` means AUTO, and
+  AUTO probes AMD → Intel → NVIDIA and overwrites the backend; the key only
+  binds in MANUAL (`DetctType=2`). 16b's "1=Intel, 2=AMD, 3=NVIDIA" is right;
+  "so MSI asks for Intel here" would not be.
+- **The version extraction rule, in the vendor's own words:**
+  `ucVersionStartIndex=6`, `ucVersionReadLength=20`, `enumVersionRecordMode=2`
+  with `strVersionDdcciCmd=0x6E,0x51,0x84,0x01,0xFE,0xE1,0xE6` — skip 6 reply
+  bytes, take 20. That is exactly what `vendor_fw_version` does, so our packet
+  and the vendor's rule agree by construction, not by luck.
+- **The dual-bank constants the write driver needs**, all in one place:
+  `enumIspMode=1`, `bSwitchFLag=1` (the boot-flag switch),
+  `ulTimeAfterCommand=200`, `ulCommandRetryCount=10`,
+  `ulTimeWaitCopyBank=8000`, `ulTimeAfterReset=10000`,
+  `bReleaseDeviceAfterReset=1`.
+
+## The plugin's engine ABI (`FUN_10007670`) — the piece that was missing
+
+The plugin is configured by **one call that copies a huge settings struct**
+(the engine's ISP settings block, ~0x10e64 dwords) into its globals. It is the
+only writer of the ISP-mode selector, which settles where the mode comes from:
+
+| struct offset | becomes | meaning |
+|---|---|---|
+| `0x0000` | `DAT_1024a2d4` | **the ISP mode** — the `IspFlash` gate {4,5,6,7,0x11,0x1a,0x1b} |
+| `0x0011` | `DAT_1024a2f0` | **the boot type** — `== 1` is what makes the handshake return `0xd21` |
+| `0x000c`/`0x000d` | `DAT_1024a34c/a350` | the enter-ladder selector |
+| `0x0010` | `DAT_1024a380` | the "is configured" gate |
+| `0x10a16` | `DAT_1024a654` | a 1232-byte table (0x134 dwords) |
+| **`0x10b50`** | **`DAT_1024a430`** | **the 528-byte block — the parsed Flash.dat chip record**, handed over by the engine (16a found the plugin *copying* it in `DumpFlash`; this is where it came from) |
+| `0x10c98` | (wchar string at +0x43262) | a path |
+
+So the architecture of a native port is now visible: **the port does not need
+the plugin.** It needs three config fields (mode, boot type, the chip record)
+plus the wire sequence, and the INI that fills them.
+
+## The pipeline spine, walked live
+
+`msi_isp/pipeline.py` encodes the decoded order as data (each step carries its
+evidence), and `msi-isp pipeline` walks it on any transport:
+
+```
+  ok    enter ISP                                   (i2c-dev: status 0xe1)
+  ok    settle                            200 ms
+  ok    set background flash write time   45 0c     (wire form pending)
+  ok    enter ISP mode (type 8)           01        (wire form pending)
+  STOP  get flash type                    EIO on 0x22
+```
+
+Identical on i2c-dev and on the sudoless bulk lane: **four steps answered, the
+fifth (the `0x22` register file) is the wall.** The gap list is exactly two
+steps, and both are the same unknown: the wire form of the core's vtable slots
+`+0x21c` and `+0x124`. That is the next RE target, and it has a name now —
+find the vtable the exe passes to the plugin's `SetCommInterface` (ordinal 16;
+the exe's own strings show only `IspSetting` and `WinISPTool`, so the plugin
+and comm names arrive from the INI at run time).

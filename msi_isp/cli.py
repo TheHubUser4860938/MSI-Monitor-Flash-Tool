@@ -406,6 +406,30 @@ def cmd_ladder(args):
                 exit_isp(bus)
 
 
+def cmd_pipeline(args):
+    """Walk the vendor's decoded pipeline on this transport, step by step."""
+    from .pipeline import PIPELINE, run_pipeline
+    with _bus(args) as bus:
+        if hasattr(bus, "unlock"):
+            bus.unlock("pipeline")
+        print(f"# vendor pipeline on {_busname(bus, args)}")
+        rep = run_pipeline(bus, size=args.size, verbose=True)
+        for r in rep.results:
+            state = "ok" if r.ok else "STOP"
+            detail = ((r.reply.hex(" ")[:48] + ("…" if len(r.reply) > 48 else ""))
+                      if r.reply is not None else (r.error or ""))
+            print(f"  {state:<5} {r.step.label}")
+            if detail:
+                print(f"        {detail}")
+        if rep.reached is None:
+            print("\nwhole pipeline answered")
+        if rep.pending:
+            print("wire form still pending for: " + ", ".join(rep.pending))
+        n = len(rep.results)
+        if n < len(PIPELINE):
+            print(f"reached step {n} of {len(PIPELINE)}")
+
+
 def cmd_backup(args):
     from .buslock import BusBusyError, bus_lock
     try:
@@ -546,6 +570,10 @@ def main(argv=None):
                                        "with Flash.dat's commands (safe)")
     ld.add_argument("--isp", action="store_true",
                     help="also run the ladder inside ISP mode (enter/exit)")
+    pl = sub.add_parser("pipeline", help="walk MSI's decoded flash pipeline "
+                                         "(enter ISP -> ID -> read -> exit)")
+    pl.add_argument("--size", type=lambda s: int(s, 0), default=32,
+                    help="bytes to read in the flash-page step (default 32)")
     b = sub.add_parser("backup", help="dump scaler SPI flash (read-only)")
     b.add_argument("--out", required=True)
     b.add_argument("--size", type=lambda s: int(s, 0),
@@ -564,6 +592,7 @@ def main(argv=None):
     args = p.parse_args(argv)
     {"info": cmd_info, "verify": cmd_verify, "probe": cmd_probe,
      "slaves": cmd_slaves, "ladder": cmd_ladder,
+     "pipeline": cmd_pipeline,
      "backup": cmd_backup, "write": cmd_write,
      "shell": cmd_shell, "tui": cmd_tui}[args.cmd](args)
 
