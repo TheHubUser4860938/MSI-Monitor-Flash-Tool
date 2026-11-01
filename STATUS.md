@@ -2755,3 +2755,40 @@ is a 0x22 read — the non-NVIDIA-box lever.
 
 Facts: ISP_WINDOW_RING.
 Gates: ruff clean, **313 unit tests OK** (+4). Notes: re/ghidra_isp_engine.md (16q).
+
+## Session 16r (2026-11-01) — the two banks are decoded, and the first pilot page went into the inactive one
+
+The owner's model is right, and three independent places in the binaries say so.
+
+- **The selector is one bit**: the board record's `width_values` pair differs in
+  bit 3 (`0xe7 ^ 0xef = 0x08`, and `bank_bit` is 8) on port **0x58**: bank 0 =
+  0xE7, bank 1 = 0xEF. 16a's `DAT_1024a2d4` is the plugin-level bank code, where
+  **0x1a = background (writing), 0x1b = foreground (running)**.
+- **The layout follows from the sizes**: A25L032M = 4 MiB, FW.009 = 1.875 MiB,
+  FW.012 = 1.75 MiB → two 2 MiB banks, **the inactive block's base is 0x200000**.
+- **The flag is the vendor's own key**, typo included, in [ISP_DualBank]:
+  `bSwitchFLag=1`, `time_after_reset_ms=10000`, `copy_bank_wait_ms=8000`,
+  `release_device_after_reset=1` — program one bank, set the flag, reset, wait
+  ten seconds. Exactly the boot-from-the-other-block the owner described.
+
+Wired the knob (`isp_write_packet(..., bank=0|1)`, `program_page_at`,
+`sector_erase_at(..., bank_select=)`) and ran the pilot: packet
+[0x40, 0x02, 0x00, sum] to door 0x9C, then the 32-byte marker c0feee12×8 in
+16-byte window transactions, bank port 0xEF — **36 bytes on the wire, no
+error** — then a sector erase in bank 1, then reads.
+
+| lane | read-back, at 0x0 and 0x200000, bank 0 and bank 1 |
+|---|---|
+| 0x37 | the sticky 32-byte ring (16q) — identical everywhere |
+| native 0x22 | `00 00 05 21 00 04 2b 04 09 00 80 0f…` the DPCD space — identical |
+
+The bank bit moves nothing observable, and the panel is healthy afterwards
+(FW.009, MAG 341CQ X28). Score: the program packet is **proven at the packet
+level** (the transport takes the full 36-byte page transaction, the erase goes
+out, the panel keeps running) and **unproven at the cell level**, because the
+ISP register file is behind the branch tunnel on the NVIDIA lanes. Next: the
+same three commands where 0x22 answers as the ISP register file — erase,
+program, read the marker back.
+
+Facts: DUAL_BANK, PILOT_WRITE.
+Gates: ruff clean, **324 unit tests OK** (+11). Notes: re/ghidra_isp_engine.md (16r).

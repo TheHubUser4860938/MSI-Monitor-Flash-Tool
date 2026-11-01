@@ -1197,3 +1197,59 @@ Net: 16p's write ladder is **decode-correct and code-tested**; its wire
 confirmation is a `0x22` read, which is the non-NVIDIA-box lever.
 
 Facts: `ISP_WINDOW_RING`.
+---
+
+# Session 16r — the two banks, and the first pilot write into the inactive one
+
+The owner's model of the panel is right, and the binaries say so in three
+independent places.
+
+**The selector is one bit.** The board record's `width_values` pair differs in
+exactly bit 3 — `0xe7 ^ 0xef = 0x08`, and the record's `bank_bit` is 8 — and it
+lands on port `0x58`:
+
+```
+bank 0  ->  0x58 = 0xE7          bank 1  ->  0x58 = 0xEF
+```
+
+16a's `DAT_1024a2d4 ∈ {4,5,6,7,0x11,0x1a,0x1b}` is the plugin-level bank code,
+where **`0x1a` is the background (writing) bank and `0x1b` the foreground
+(running) one** — the same two-bank story one level up.
+
+**The layout follows from the sizes.** Chip = A25L032M = 4 MiB; FW.009 = 1.875
+MiB; FW.012 = 1.75 MiB. Two 2 MiB banks, so **the inactive block's base is
+`0x200000`**.
+
+**The flag is the vendor's own key**, typo included, in `[ISP_DualBank]`:
+
+```ini
+bSwitchFLag=1   enumIspMode=1   enumBootCodeType=1   bWaitCopyBank=0
+copy_bank_wait_ms=8000          time_after_reset_ms=10000
+release_device_after_reset=1
+```
+
+Program one bank, set the switch flag, reset, give it ten seconds. That is the
+"trip a flag so it boots from that block" the owner described, in the vendor's
+spelling.
+
+## The pilot
+
+`program_page_at` with the bank knob wired: packet `[0x40, 0x02, 0x00, sum]` to
+door `0x9C`, then the 32-byte marker `c0feee12 ×8` in 16-byte window
+transactions, bank port `0xEF`. **36 bytes on the wire, no error**, on both
+lanes; then `sector_erase_at(0x00, bank_select=1)`; then read.
+
+| lane | read-back at `0x0` and `0x200000`, bank 0 and bank 1 |
+|---|---|
+| `0x37` | the sticky 32-byte ring (16q) — identical everywhere |
+| native `0x22` | `00 00 05 21 00 04 2b 04 09 00 80 0f …` — the DPCD byte space, identical at every address and every bank |
+
+The bank bit moves nothing observable. The panel is healthy afterwards:
+**FW.009, model `MAG 341CQ X28`**.
+
+So the honest score: the program packet is **proven at the packet level** — the
+transport takes the whole 36-byte page transaction, the erase packet goes out,
+and the panel keeps running — and **unproven at the cell level**, because the
+ISP register file is behind the branch tunnel on the NVIDIA lanes.
+
+Facts: `DUAL_BANK`, `PILOT_WRITE`.

@@ -1906,3 +1906,63 @@ ISP_WINDOW_RING = {
     "consequence": "16p's write ladder is decode-correct and code-tested; its "
                    "wire confirmation is a 0x22 read, i.e. the non-NVIDIA box",
 }
+
+
+# ---- 16r: the two banks, and the first pilot write into the inactive one --
+# The owner's model of the panel is right, and the binaries say so in three
+# places.
+#
+# THE SELECTOR is one bit. The board record's width_values pair differs in
+# exactly bit 3 (0xe7 ^ 0xef = 0x08, and bank_bit == 8), on port 0x58:
+#     bank 0 -> 0x58 = 0xE7        bank 1 -> 0x58 = 0xEF
+# 16a's DAT_1024a2d4 set {4,5,6,7,0x11,0x1a,0x1b} is the plugin-level bank
+# code, where 0x1a is the BACKGROUND (writing) bank and 0x1b the FOREGROUND
+# (running) one.
+#
+# THE LAYOUT follows from the sizes: the chip is an A25L032M = 4 MiB, FW.009
+# is 1.875 MiB and FW.012 is 1.75 MiB, so the split is two 2 MiB banks and the
+# inactive block's base is 0x200000.
+#
+# THE FLAG is the vendor's own INI key, typo included, in [ISP_DualBank]:
+#     bSwitchFLag=1  enumIspMode=1  enumBootCodeType=1  bWaitCopyBank=0
+#     copy_bank_wait_ms=8000  time_after_reset_ms=10000
+#     release_device_after_reset=1
+# i.e. program one bank, set the switch flag, reset, and give the panel ten
+# seconds - which is the boot-from-the-other-block the owner described.
+DUAL_BANK = {
+    "selector": "port 0x58: 0xE7 = bank 0, 0xEF = bank 1 (they differ in bit 3; "
+                "the board record's bank_bit is 8)",
+    "plugin_codes": "DAT_1024a2d4 in {4,5,6,7,0x11,0x1a,0x1b}; 0x1a background "
+                    "(write), 0x1b foreground (running) - 16a",
+    "chip": "A25L032M, 4 MiB",
+    "layout": "two 2 MiB banks; FW.009 is 1.875 MiB and lives in bank 0, so the "
+              "inactive block starts at 0x200000",
+    "flag": "bSwitchFLag=1 in [ISP_DualBank] (the vendor's own spelling) + a "
+            "reset; time_after_reset_ms=10000, copy_bank_wait_ms=8000",
+    "measured": "2026-11-01, msi-isp, read-only reads plus one pilot page",
+}
+
+# THE PILOT (16r): write a 32-byte marker page into the inactive bank, read it
+# back. The write path ran end to end - packet [0x40, 0x02, 0x00, sum] to door
+# 0x9C, then the page in 16-byte window transactions, 36 bytes total, bank port
+# 0xEF - with no error on either lane. The reads are mute to all of it:
+#   0x37      the sticky 32-byte ring (16q), at 0x0, 0x200000, bank 0 and bank 1
+#   native 0x22 00 00 05 21 00 04 2b 04 09 00 80 0f... - the DPCD byte space,
+#             identical at every address and every bank
+# A sector erase in bank 1 changed nothing readable. The panel is healthy
+# afterwards: FW.009, model MAG 341CQ X28 (msi-isp info).
+PILOT_WRITE = {
+    "wrote": "32-byte marker c0feee12 x 8 at 0x200000, bank 1, via "
+             "program_page_at (36 bytes on the wire through door 0x9C)",
+    "then": "sector_erase_at(0x00, bank_select=1), then read",
+    "read_back": "unchanged - the ring on 0x37, the DPCD space on native 0x22",
+    "bank_bit_effect": "none observable on any lane",
+    "panel_after": "FW.009, model MAG 341CQ X28 - alive and unbothered",
+    "reading": "the transport accepts the full program packet; the flash side "
+               "is mute on the NVIDIA lanes, so the ISP register file is "
+               "behind the branch tunnel. Writing the inactive bank is proven "
+               "at the packet level and unproven at the cell level.",
+    "next": "the same three commands on a box where 0x22 answers as the ISP "
+            "register file (Intel/AMD, no allow-list) - erase, program, read "
+            "back the marker",
+}

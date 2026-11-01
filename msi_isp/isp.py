@@ -485,7 +485,7 @@ def flash_read_at(bus, addr: int, n: int, slave7: int = 0x37,
 
 
 def isp_write_packet(bus, reg: int, payload: bytes, slave7: int = 0x37,
-                     verbose: bool = False) -> None:
+                     bank: int = 0, verbose: bool = False) -> None:
     """Write a packet through the ISP data window (16p).
 
     The write ladder is Comm.dll FUN_10003c80, the twin of the read ladder
@@ -530,7 +530,9 @@ def isp_write_packet(bus, reg: int, payload: bytes, slave7: int = 0x37,
     w(regs["cmd_port"], r1(regs["cmd_port"]) | 0x80)
     time.sleep(0.032)
     w(regs["width_port"], r1(regs["width_port"]) & 0xFC)
-    w(regs["bank_port"], 0xE7)
+    # The bank port IS the bank select: width_values' pair differs in one bit
+    # (0xe7 vs 0xef, bank_bit 0x08) - 16a's board record, 16r's reading.
+    w(regs["bank_port"], 0xE7 if bank == 0 else 0xEF)
     time.sleep(0.032)
     w(regs["data_port"], reg)                       # the window names its register
     w(regs["cmd_port"], 0xC1)                        # write command
@@ -551,7 +553,7 @@ def packet_bytes(control: int, arg1: int, arg2: int,
 
 
 def program_page_at(bus, addr: int, data: bytes, slave7: int = 0x37,
-                    page: int = 32, verbose: bool = False) -> int:
+                    page: int = 32, bank: int = 0, verbose: bool = False) -> int:
     """Program one page the way WriteFlashData does (16n, 16p).
 
     Packet [0x40, addr>>16, addr, sum] to the write door 0x9C, then the page
@@ -565,17 +567,23 @@ def program_page_at(bus, addr: int, data: bytes, slave7: int = 0x37,
     head = packet_bytes(0x40, (addr >> 16) & 0xFF, addr & 0xFF)
     sent = 0
     for chunk in _chunks(head + bytes(data), 16):
-        isp_write_packet(bus, 0x9C, chunk, slave7=slave7, verbose=verbose)
+        isp_write_packet(bus, 0x9C, chunk, slave7=slave7, bank=bank,
+                         verbose=verbose)
         sent += len(chunk)
     return sent
 
 
 def sector_erase_at(bus, addr: int, bank: int = 0, slave7: int = 0x37,
-                    verbose: bool = False) -> None:
-    """Erase one sector: packet [0x42, addr&0xff, bank&0xff, sum], no data."""
+                    bank_select: int = 0, verbose: bool = False) -> None:
+    """Erase one sector: packet [0x42, addr&0xff, bank&0xff, sum], no data.
+
+    Two different "banks" live in this call and the names must not blur: the
+    packet's arg2 is the vendor's sector-bank byte (16n), while `bank_select`
+    picks the SPI chip's 2 MiB half through the bank port (16r).
+    """
     isp_write_packet(bus, 0x9C,
                      packet_bytes(0x42, addr & 0xFF, bank & 0xFF),
-                     slave7=slave7, verbose=verbose)
+                     slave7=slave7, bank=bank_select, verbose=verbose)
 
 
 def _chunks(buf: bytes, size: int):

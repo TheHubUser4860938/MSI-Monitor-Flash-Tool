@@ -161,5 +161,51 @@ class TestBulkVerdict(unittest.TestCase):
         self.assertIn("candidate 3", Facts.BULK_LANE["magic_varies"])
 
 
+class TestDualBank(unittest.TestCase):
+    """16r: the bank selector is one bit, and the pilot write ran end to end."""
+
+    def test_the_two_bank_port_values_differ_in_bit_three(self):
+        self.assertEqual(0xE7 ^ 0xEF, Facts.ISP_BOARD_REGS["bank_bit"])
+
+    def test_the_selector_is_the_width_values_pair(self):
+        w = Facts.ISP_BOARD_REGS["width_values"]
+        self.assertEqual(w[0][1], 0xE7)
+        self.assertEqual(w[1][1], 0xEF)
+
+    def test_the_inactive_bank_base_is_two_mebibytes(self):
+        self.assertIn("0x200000", Facts.DUAL_BANK["layout"])
+        self.assertLess(Facts.BIN_RECORD["sizes"]["fw009"], 2 * 1024 * 1024)
+
+    def test_the_chip_is_four_mebibytes(self):
+        self.assertEqual(Facts.FLASH_SIZE, 4 * 1024 * 1024)
+
+    def test_the_vendor_flag_is_the_typo_key(self):
+        self.assertIn("bSwitchFLag", Facts.DUAL_BANK["flag"])
+
+    def test_the_reset_is_ten_seconds(self):
+        self.assertEqual(Facts.VENDOR_INI["dual_bank"]["time_after_reset_ms"],
+                         10000)
+
+    def test_the_pilot_sent_a_full_page_packet(self):
+        self.assertIn("36 bytes", Facts.PILOT_WRITE["wrote"])
+
+    def test_the_pilot_is_muted_by_the_device(self):
+        self.assertIn("unchanged", Facts.PILOT_WRITE["read_back"])
+
+    def test_the_panel_survived_the_pilot(self):
+        self.assertIn("FW.009", Facts.PILOT_WRITE["panel_after"])
+
+    def test_the_open_part_is_stated_as_cell_level(self):
+        self.assertIn("unproven at the cell level", Facts.PILOT_WRITE["reading"])
+
+    def test_the_bank_knob_reaches_the_port(self):
+        from msi_isp.isp import isp_write_packet
+        from tests.test_write_ladder import RecordingBus
+        for bank, want in ((0, 0xE7), (1, 0xEF)):
+            bus = RecordingBus()
+            isp_write_packet(bus, 0x9C, b"\x40\x00\x00\x40", bank=bank)
+            self.assertIn((Facts.ISP_BOARD_REGS["bank_port"], want), bus.pairs)
+
+
 if __name__ == "__main__":
     unittest.main()
