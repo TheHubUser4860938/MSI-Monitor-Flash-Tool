@@ -602,6 +602,38 @@ def program_page_at(bus, addr: int, data: bytes, slave7: int = 0x37,
     return sent
 
 
+def read_status(bus, slave7: int = 0x37, bank: int = 0, mode: int = 1,
+                page: int = 0, verbose: bool = False) -> int:
+    """Read the flash status register: packet [0x05, 0, 0, sum], then 1 byte.
+
+    Bit 0 is busy, bit 1 the write-enable latch - the shape the Flash.dat poll
+    masks on (`0d,reg,n,MASK,val,...`, 16w), and the only per-transaction
+    acknowledgement the flash side can give.
+
+    16w's verb table gives the vendor's own name for this - `readsr` (index
+    12), with `writesr` (13) and `srstatus` (10) beside it. The status byte is
+    where the busy bit lives, so this is the only per-transaction
+    acknowledgement the flash side can give; 16v found no ack on the DP side.
+    """
+    from . import Facts
+    isp_write_packet(bus, 0x9C, packet_bytes(0x05, 0x00, 0x00), slave7=slave7,
+                     bank=bank, mode=mode, page=page, verbose=verbose)
+    # RDSR is a one-byte transaction: commit, point at the data port, take the
+    # byte. The full read ladder is for addressing flash, not the status byte.
+    bus.write(slave7, bytes([Facts.ISP_BOARD_REGS["data_port"]]))
+    d = bus.read(slave7, 1)
+    return d[0] if d else 0
+
+
+def write_status(bus, value: int, slave7: int = 0x37, bank: int = 0,
+                 mode: int = 1, page: int = 0, verbose: bool = False) -> None:
+    """Write the flash status register: packet [0x01, 0, 0, sum] + the byte."""
+    isp_write_packet(bus, 0x9C, packet_bytes(0x01, 0x00, 0x00,
+                                             bytes([value & 0xFF])),
+                     slave7=slave7, bank=bank, mode=mode, page=page,
+                     verbose=verbose)
+
+
 def sector_erase_at(bus, addr: int, slave7: int = 0x37, bank_select: int = 0,
                     sector: int = 0xD8, verbose: bool = False) -> None:
     """Erase one sector: packet [0x42, addr_mid, addr_lo, sum], no data.

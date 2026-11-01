@@ -17,7 +17,9 @@ from msi_isp.isp import (
     isp_write_packet,
     packet_bytes,
     program_page_at,
+    read_status,
     sector_erase_at,
+    write_status,
 )
 
 
@@ -235,6 +237,23 @@ class TestProgramAndErase(unittest.TestCase):
         for name in ("erase sector", "program page"):
             st = next(s for s in pipeline.PIPELINE_WRITE if s.name == name)
             self.assertEqual(st.ms, 200, name)
+
+    def test_the_status_register_is_the_seventh_mute_variable(self):
+        f = Facts.STATUS_REGISTER_16Z
+        self.assertIn("0x00 idle", f["native"])
+        self.assertIn("seventh mute variable", f["reading"])
+
+    def test_the_status_helpers_exist_on_the_wire(self):
+        bus = RecordingBus()
+        read_status(bus, slave7=0x37)
+        body = [v for (p, v) in bus.pairs
+                if p == Facts.ISP_BOARD_REGS["data_port"]]
+        self.assertEqual(body[:5], [0x9C, 0x05, 0x00, 0x00, 0x05])  # sum 0x05
+        bus = RecordingBus()
+        write_status(bus, 0x02, slave7=0x37)
+        body = [v for (p, v) in bus.pairs
+                if p == Facts.ISP_BOARD_REGS["data_port"]]
+        self.assertEqual(body[:6], [0x9C, 0x01, 0x00, 0x00, 0x01, 0x02])
 
     def test_the_write_chain_fact_names_the_block_index(self):
         w = Facts.WRITE_CHAIN_16Y

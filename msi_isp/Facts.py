@@ -2605,3 +2605,37 @@ WRITE_CHAIN_LIVE_16Z = {
     "same_spine": "the identical 9-step list runs on msi_isp/emul.py and flips "
                   "the emulated version to 012",
 }
+
+
+# ---- 16z(b): the status register is the seventh mute variable --------------
+# 16w's verb table names the two operations the flash side can be asked for
+# directly: `readsr` (index 12) and `writesr` (13), with `srstatus` (10).
+# Shipped as read_status() / write_status() - packet [0x05,0,0,sum] then one
+# byte, and [0x01,0,0,sum] + the byte - and modelled in emul.py, where the
+# busy bit behaves: idle 0x00, a sector erase sets bit 0, 40 ms clears it, and
+# WRSR latches the write-enable bit.
+#
+# On the panel (relay lane=native, slave 0x22):
+#     idle 0x00 | +0 ms 0x00 | +5 ms 0x00 | +50 ms 0x00 | +200 ms 0x00
+# after a page program at 0x200000 in bank 1; on i2c-dev slave 0x37 the answer
+# is 0x8a, the ring's head byte (16l).
+#
+# So the status read is indistinguishable from a window read from the DP side:
+# 0x00 is a plausible status byte AND the window's own byte at the armed
+# offset, and nothing varies. Seven variables mute (address, bank, trailer,
+# trigger, data phase, command class, timing) and now the one register the
+# flash owns. The clip remains the falsifier: it reads RDSR and RDID with no
+# DP branch in between.
+STATUS_REGISTER_16Z = {
+    "measured": "2026-11-01, relay lane=native slave 0x22; i2c-dev slave 0x37",
+    "native": "0x00 idle, and 0x00 at +0/+5/+50/+200 ms after a page program "
+              "at 0x200000 bank 1 - no busy bit, no WEL",
+    "tunnel": "0x8a - the ring's head byte (16l), so this lane answers the "
+              "status opcode with the same byte it answers everything with",
+    "model": "emul.py behaves: idle 0x00, sector erase sets bit 0, 40 ms "
+             "clears, WRSR 0x02 latches bit 1 (tests/test_emul.py)",
+    "reading": "the status register is the seventh mute variable; it is the "
+               "clip's first read, because RDID answers there with no branch "
+               "in between",
+    "verbs": "readsr 12, writesr 13, srstatus 10 (SCALER_VERBS, 16w)",
+}

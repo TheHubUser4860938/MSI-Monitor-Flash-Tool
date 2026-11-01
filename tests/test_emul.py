@@ -21,7 +21,9 @@ from msi_isp.isp import (
     isp_write_packet,
     packet_bytes,
     program_page_at,
+    read_status,
     sector_erase_at,
+    write_status,
 )
 
 FW012 = pathlib.Path("vendor/MSI_MAG_341CQP_QD-OLED_X28_FW.012_4023.bin")
@@ -293,6 +295,39 @@ class TestFirmwareCycle(unittest.TestCase):
         isp_write_packet(m, 0x9C, packet_bytes(CMD_PP, 0x00, 0x00, b"\x5a" * 8),
                          slave7=m.slave)
         self.assertGreater(m.flash.clock_ms, t0)   # every op advances the clock
+
+
+class TestStatusRegister(unittest.TestCase):
+    """16w's `readsr` / `writesr` verbs, and the busy bit they expose."""
+
+    def setUp(self):
+        self.m = EmulatedMonitor()
+
+    def test_the_rdsr_packet_is_a_bare_opcode(self):
+        self.assertEqual(self.m.status(), read_status(self.m,
+                                                       slave7=self.m.slave))
+        isp_write_packet(self.m, 0x9C, packet_bytes(0x05, 0, 0),
+                         slave7=self.m.slave)
+        self.assertEqual(self.m.bridge.log[-1][1], 0x05)
+
+    def test_a_sector_erase_sets_the_busy_bit_and_it_clears(self):
+        sector_erase_at(self.m, 0x1000, slave7=self.m.slave)
+        self.assertEqual(self.m.status() & 1, 1)          # busy
+        self.m.flash.tick(40)
+        self.assertEqual(self.m.status(), 0x00)           # settled
+
+    def test_wrsr_latches_the_write_enable_bit(self):
+        write_status(self.m, 0x02, slave7=self.m.slave)
+        self.assertEqual(self.m.status() & 2, 2)
+
+    def test_the_page_program_busy_window_is_sub_tick(self):
+        """PP takes 0.7 ms and the model ticks 1 ms per bus op, so a 36-byte
+        program has settled before the next read - which is why the Flash.dat
+        poll masks the busy bit rather than sleeping a fixed time."""
+        program_page_at(self.m, 0x100, b"\xa5" * 8, slave7=self.m.slave,
+                        mode=0)
+        self.assertLess(self.m.flash.busy_pp_ms, self.m.tick_ms)
+        self.assertEqual(self.m.flash_bank(0, 0x100, 1), b"\xa5")
 
 
 class TestWritePipeline(unittest.TestCase):

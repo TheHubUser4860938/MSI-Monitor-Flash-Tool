@@ -64,8 +64,11 @@ CMD_PP = 0x40                      # page program: [0x40, addr_hi, addr_lo, sum]
 CMD_SE = 0x42                      # sector erase: [0x42, sector_lo, sector_bank, sum]
 CMD_CE = 0xA0                      # chip erase
 CMD_RDID = 0x9F
+CMD_RDSR = 0x05                    # the status register (16w's `readsr` verb)
+CMD_WRSR = 0x01                    # and its write side (`writesr`)
 CMD_CONTROL = 0x45                 # control plane: enter ISP, background write time
-FLASH_COMMANDS = {CMD_WREN, CMD_PP, CMD_SE, CMD_CE, CMD_RDID}
+FLASH_COMMANDS = {CMD_WREN, CMD_PP, CMD_SE, CMD_CE, CMD_RDID, CMD_RDSR,
+                  CMD_WRSR}
 
 
 class MonitorError(IspError):
@@ -261,6 +264,12 @@ class IspBridge:
             self.flash.erase_chip()
         elif control == CMD_RDID:
             self.reply = bytearray(self.flash.jedec)
+        elif control == CMD_RDSR:
+            # The status byte answers the NEXT read, the same way RDID does.
+            self.reply = bytearray([self.flash.status])
+        elif control == CMD_WRSR:
+            if body:
+                self.flash.write_enabled = bool(body[0] & 2)
         elif control == CMD_CONTROL:
             self.isp_mode = True                      # enter ISP / bg write time
         else:
@@ -315,6 +324,11 @@ class EmulatedMonitor:
     slave: int = 0x37
     tick_ms: float = 1.0
     ops: int = 0
+
+    def status(self) -> int:
+        """The RDSR byte the bridge will answer with next (16w's readsr)."""
+        from .isp import read_status
+        return read_status(self, slave7=self.slave)
 
     def __init__(self, image: bytes | None = None, chip: str = "MX25L32XX",
                  tick_ms: float = 1.0):

@@ -3096,3 +3096,25 @@ packet pair (0x00, 0x00) — 16y's 64 KiB block index on the wire for the first
 time; and slave 0x20 NACKs on the native lane, so the verify step reads the
 ladder on 0x37 (verify is now op "verify" = flash_read_at, the lane that took
 the packet). Facts.WRITE_CHAIN_LIVE_16Z. Gates: ruff clean, 396 tests OK.
+
+### 16z(b) — the status register is the seventh mute variable
+
+16w's verb table names readsr (12) / writesr (13) / srstatus (10) — the two
+operations the flash side answers directly. Shipped as read_status() /
+write_status(): RDSR is [0x05,0,0,0x05] then one byte from the data port; WRSR
+is [0x01,0,0,0x01] + the byte. The data-port stream is
+door, control, arg1, arg2, SUM — now pinned by a test.
+
+emul.py behaves like the part: idle 0x00, a sector erase sets bit 0, 40 ms
+clears it, WRSR 0x02 latches write-enable. A page program's 0.7 ms busy window
+is shorter than the model's 1 ms per-op tick — which is why the Flash.dat script
+POLLS the masked busy bit instead of sleeping a fixed time.
+
+On the panel: native lane slave 0x22 answers 0x00 idle and 0x00 at +0/+5/+50/+200
+ms after a page program at 0x200000 bank 1; i2c-dev slave 0x37 answers 0x8a, the
+ring's head byte (16l). So the status read is indistinguishable from a window
+read from the DP side — the SEVENTH mute variable (address, bank, trailer,
+trigger, data phase, command class, timing, status), and the clip's first read,
+because RDID and RDSR answer there with no DP branch in between.
+
+Facts: STATUS_REGISTER_16Z. Gates: ruff clean, **402 unit tests OK** (+6).
