@@ -1410,3 +1410,63 @@ VTABLE_SCAN = "16j: 38 runs >=164 slots in Comm_Aux.dll and in Comm.dll, 19 " \
               "distinct shapes, all MFC families - the comm vtable is not a " \
               "shape-match in these two modules; hunt it from the object's " \
               "constructor (the export the host calls), not from pointer runs"
+
+
+# ---- 16k: the flash-read ladder, in wire order, and the lane matrix -------
+# Comm.dll FUN_10003990 (the read path) is a port-by-port ladder on the byte-
+# index ports of ISP_BOARD_REGS. Transcribed to the wire, mode 1 (the 16-bit
+# offset path):
+#   b = rd(0xF2); wr(0xF2, b & 0x7f)      # clear bit 7; the high byte/page is
+#                                          # INHERITED, the vendor does not set it
+#   b = rd(0x55); wr(0x55, b | 0x80)      # set bit 7 of the command port
+#   delay 0x20                             # the decompile's 32 ms settle
+#   wr(0x57, 0xfc); wr(0x58, 0xef)        # width, bank  (mode 0: 0xfc/0xe7)
+#   wr(0x5E, addr_lo)                      # the 16-bit offset, low byte
+#   wr(0x5E, addr_hi)                      # ... high byte (mode 1; mode 2
+#                                          # writes lo, hi>>8, hi - 24-bit)
+#   wr(0x5E, addr_lo | 1)                  # bit 0 = read_flag: this write ARMS
+#   wr(0x55, 0xc1); wr(0x55, 0xbf)         # read command, then trigger
+#   delay 2
+#   data = rd(0x5E, n)                     # the flash bytes come off the DATA port
+#   wr(0x5D, 0xf8)                          # reset
+# Implemented as msi_isp.isp.flash_read_at and the `msi-isp flashread` verb
+# (--slave, --isp, --addr a,b,c, --count).
+FLASH_READ_LADDER = {
+    "site": "Comm.dll RVA 0x3990 (read) / 0x3c80 (write), 16d",
+    "ports": {"addr": 0xF2, "cmd": 0x55, "width": 0x57, "bank": 0x58,
+              "data": 0x5E, "reset": 0x5D},
+    "arm": "wr(0x5E, addr_lo | 1) - bit 0 is the read flag, then 0xC1 + 0xBF "
+           "on the command port",
+    "inherited": "the address HIGH byte is read from 0xF2 and written back "
+                 "with bit 7 cleared: the page is inherited, not set",
+    "code": "msi_isp/isp.py flash_read_at",
+}
+
+# The lane matrix for that ladder, measured 2026-11-01 (read-only). The reply
+# is ADDRESS-INDEPENDENT everywhere the lane answers at all: every address
+# returns the same bytes.
+#   i2c-dev  0x37  8a 02 00 fe 00 "FW.009N" 00*20 bf  (twice = the 48 B read)
+#   i2c-dev  0x22 / 0x35                     EIO
+#   relay native 0x22  00 00 05 21 00 04 2b 04 09 00 80 0f 0e 11 08 00 (x2)
+#                    = the DPCD byte space (0x60=05, 0x61=21, 0x64=2b, 16f)
+#   relay bulk   0x37  the same MCCS window;  0x22 / 0x35  TIMEOUT
+#   inside ISP mode (magic 0, status 0x8a) 0x37 unchanged; 0x22 EIO
+FLASH_LANE_MATRIX = {
+    "measured": "2026-11-01, msi-isp flashread, read-only",
+    "address_dependent": False,
+    "rows": {
+        ("i2c-dev", 0x37): "the 32-byte MCCS window, twice, at every address",
+        ("i2c-dev", 0x22): "EIO", ("i2c-dev", 0x35): "EIO",
+        ("native", 0x22): "DPCD byte space 00 00 05 21 00 04 2b 04 09 00 80 0f…",
+        ("bulk", 0x37): "the MCCS window (256 B/txn lane, same content)",
+        ("bulk", 0x22): "TIMEOUT", ("bulk", 0x35): "TIMEOUT",
+    },
+    "isp_mode": "entering ISP (magic 0, status 0x8a) changes nothing on 0x37",
+    "reading": "the ports are a separate I2C surface on the ISP slave; on 0x37 "
+               "the writes land in the shared 32-byte MCCS reply window (16e), "
+               "so the address is invisible there. The flash lane is 0x22 with "
+               "0x35 beside it, and neither answers on any NVIDIA lane today.",
+    "consequence": "the 0x45 compare can be reproduced natively in CONTENT "
+                   "(msi-isp record) but its flash side needs 0x22/0x35 to "
+                   "answer - that is the one blocking step",
+}

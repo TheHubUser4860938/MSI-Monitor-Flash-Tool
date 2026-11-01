@@ -327,6 +327,40 @@ def cmd_record(args):
         sys.exit(1)
 
 
+def cmd_flashread(args):
+    """One flash read at an address, through the vendor's ISP port ladder (16k).
+
+    The record block is the target the vendor's own compare reads: FW.009's
+    copy sits at 0x2F7AA and FW.012's at 0xF806 in the .bin files, so those
+    two addresses are the defaults to try.
+    """
+    from .isp import flash_read_at
+    addrs = [int(a, 0) for a in args.addr.split(",")]
+    with _bus(args) as bus:
+        if hasattr(bus, "unlock"):
+            bus.unlock("flashread")     # the bulk lane gates ISP-slave writes
+        idx = status = None
+        if args.isp:
+            from .isp import enter_isp
+            idx, status = enter_isp(bus, verbose=args.verbose)
+            print(f"# inside ISP mode (magic candidate {idx}, status "
+                  f"{status:#04x})")
+        for a in addrs:
+            try:
+                d = flash_read_at(bus, a, args.count, slave7=args.slave,
+                                  verbose=args.verbose)
+            except Exception as exc:
+                print(f"  {a:#08x}: {exc}")
+                continue
+            txt = "".join(chr(b) for b in d if 32 <= b < 127)
+            print(f"  {a:#08x}: {d.hex(' ') if d else '(no reply)'}")
+            if txt:
+                print(f"           as text: {txt!r}")
+        if args.isp:
+            from .isp import exit_isp
+            exit_isp(bus)
+
+
 def _probe_registers(bus):
     """Native-lane probe: native DP AUX has NO slave addressing, so the
     register index IS the address field. Reading the register file directly
@@ -610,6 +644,20 @@ def main(argv=None):
                                        "with Flash.dat's commands (safe)")
     ld.add_argument("--isp", action="store_true",
                     help="also run the ladder inside ISP mode (enter/exit)")
+    fr = sub.add_parser("flashread", help="one flash read at an address via "
+                                          "the vendor's ISP port ladder (16k)")
+    fr.add_argument("--addr", default="0x2f7aa",
+                    help="24-bit flash address, or a comma list (default "
+                         "0x2f7aa = where FW.009 keeps its record block)")
+    fr.add_argument("--slave", type=lambda s: int(s, 0), default=0x37,
+                    help="7-bit slave that speaks the ISP port grammar "
+                         "(default 0x37 = the INI's 0x6F; 0x22 is the other "
+                         "candidate, 16f)")
+    fr.add_argument("--isp", action="store_true",
+                    help="enter ISP mode first (the vendor reaches the port "
+                         "file from inside ISP mode; 16f)")
+    fr.add_argument("--count", type=lambda s: int(s, 0), default=32,
+                    help="bytes to read back (default 32)")
     rg = sub.add_parser("record", help="the vendor's model-name gate replayed "
                                        "(the 12% step of 16i; safe)")
     rg.add_argument("--ignore", default="",
@@ -637,7 +685,8 @@ def main(argv=None):
     args = p.parse_args(argv)
     {"info": cmd_info, "verify": cmd_verify, "probe": cmd_probe,
      "slaves": cmd_slaves, "ladder": cmd_ladder,
-     "record": cmd_record, "pipeline": cmd_pipeline,
+     "record": cmd_record, "flashread": cmd_flashread,
+     "pipeline": cmd_pipeline,
      "backup": cmd_backup, "write": cmd_write,
      "shell": cmd_shell, "tui": cmd_tui}[args.cmd](args)
 

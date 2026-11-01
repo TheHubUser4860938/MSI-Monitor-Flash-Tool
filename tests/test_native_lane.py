@@ -19,6 +19,7 @@ These tests fake the RM layer; no /dev access, safe in CI.
 import unittest
 
 import msi_isp.nvbus as nvbus
+from msi_isp import Facts
 from msi_isp.isp import I2CTarget, ScalerBus
 
 
@@ -156,3 +157,36 @@ class TestLaneIsSelectable(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFlashReadLadder(unittest.TestCase):
+    """16k: the decoded ladder and the lane matrix it was measured on."""
+
+    def test_the_ladder_ports_are_the_board_grammar(self):
+        ports = Facts.FLASH_READ_LADDER["ports"]
+        self.assertEqual(ports, {"addr": 0xF2, "cmd": 0x55, "width": 0x57,
+                                 "bank": 0x58, "data": 0x5E, "reset": 0x5D})
+
+    def test_the_read_is_armed_by_bit_zero_of_the_data_port(self):
+        self.assertIn("addr_lo | 1", Facts.FLASH_READ_LADDER["arm"])
+
+    def test_the_high_address_byte_is_inherited(self):
+        self.assertIn("inherited", Facts.FLASH_READ_LADDER["inherited"])
+
+    def test_the_reply_is_address_independent(self):
+        self.assertFalse(Facts.FLASH_LANE_MATRIX["address_dependent"])
+
+    def test_the_matrix_covers_every_lane_we_have(self):
+        rows = Facts.FLASH_LANE_MATRIX["rows"]
+        for lane in ("i2c-dev", "native", "bulk"):
+            self.assertTrue(any(k[0] == lane for k in rows), lane)
+
+    def test_isp_mode_changes_nothing_on_the_answering_slave(self):
+        self.assertIn("changes nothing", Facts.FLASH_LANE_MATRIX["isp_mode"])
+
+    def test_the_blocking_step_is_named(self):
+        self.assertIn("0x22", Facts.FLASH_LANE_MATRIX["consequence"])
+
+    def test_the_ladder_is_wired_to_code(self):
+        from msi_isp.isp import flash_read_at
+        self.assertTrue(callable(flash_read_at))

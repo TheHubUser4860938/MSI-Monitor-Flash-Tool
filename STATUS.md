@@ -2523,3 +2523,32 @@ Two measurements, both read-only:
 
 Facts: WINE_OVERRIDE_RUN, ID_CODE_LANE, VTABLE_SCAN.
 Gates: ruff clean, **253 unit tests OK** (+6). Notes: re/ghidra_isp_engine.md (16j).
+
+## Session 16k (2026-11-01) — the flash-read ladder, transcribed to the wire; the reply is address-independent on every lane
+
+The owner approved "read the record block out of flash". Decoded the read path
+(Comm.dll FUN_10003990) as a **port** ladder on ISP_BOARD_REGS' byte-index
+ports and shipped it: `msi_isp.isp.flash_read_at` + `msi-isp flashread
+[--slave] [--isp] [--addr a,b,c] [--count n]`.
+
+The ladder: read-modify-write `0xF2` (clear bit 7 — the address HIGH byte and
+the page are **inherited**, not set), read-modify-write `0x55` (set bit 7), 32 ms
+settle, `0x57`=0xfc / `0x58`=0xef (width/bank; mode 0 is 0xe7), then the 16-bit
+offset onto the **data** port `0x5E` as low, high, and low|1 — bit 0 is the read
+flag, so the third write **arms** — then `0x55` ← 0xC1 (read) and 0xBF
+(trigger), 2 ms, `rd(0x5E, n)` returns the flash bytes, `0x5D` ← 0xF8 resets.
+
+Measured (read-only), the reply is **address-independent** on every lane that
+answers: i2c-dev 0x37 gives the 32-byte MCCS window twice at 0x2f7aa, 0xf806 and
+0x0; i2c-dev 0x22/0x35 EIO; relay native 0x22 gives the DPCD byte space (05 21
+00 04 2b…); relay bulk 0x37 the same window at 256 B/txn, 0x22/0x35 TIMEOUT;
+entering ISP mode (magic 0, status 0x8a) changes nothing on 0x37.
+
+Reading: the ports are a separate I2C surface on the ISP slave; on 0x37 the
+writes land in the shared 32-byte MCCS reply window (16e, confirmed a third
+time). So `msi-isp record` reproduces the 0x45 gate in content today, and the
+gate's flash side needs 0x22 (with 0x35 beside it) to answer on some lane —
+that is the one blocking step, named.
+
+Facts: FLASH_READ_LADDER, FLASH_LANE_MATRIX.
+Gates: ruff clean, **261 unit tests OK** (+8). Notes: re/ghidra_isp_engine.md (16k).

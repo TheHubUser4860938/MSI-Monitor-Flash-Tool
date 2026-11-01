@@ -808,3 +808,55 @@ these modules — reach it from the constructor the host's `SetCommInterface`
 installs.
 
 Facts: `WINE_OVERRIDE_RUN`, `ID_CODE_LANE`, `VTABLE_SCAN`.
+---
+
+# Session 16k — the flash-read ladder, transcribed to the wire, and the lane matrix
+
+The owner approved "read the record block out of flash". The ladder is Comm.dll
+`FUN_10003990` (the read path 16d named), and it is a **port** ladder on
+`ISP_BOARD_REGS`' byte-index ports:
+
+```
+b = rd(0xF2); wr(0xF2, b & 0x7f)     # clear bit 7. The address HIGH byte is
+                                     # INHERITED from the port - the vendor
+                                     # reads it and writes it back, it does
+                                     # not set it. The page comes with it.
+b = rd(0x55); wr(0x55, b | 0x80)     # set bit 7 of the command port
+delay 0x20                           # 32 ms settle, straight from the IL
+wr(0x57, 0xfc); wr(0x58, 0xef)       # width, bank   (mode 0 is 0xfc / 0xe7)
+wr(0x5E, addr_lo)                    # the 16-bit offset, low byte
+wr(0x5E, addr_hi)                    # ... high byte   (mode 2 writes lo,
+                                     #                   hi>>8, hi = 24-bit)
+wr(0x5E, addr_lo | 1)                # bit 0 is the read flag: THIS arms
+wr(0x55, 0xc1); wr(0x55, 0xbf)       # read command, then trigger
+delay 2
+data = rd(0x5E, n)                   # the flash bytes come off the DATA port
+wr(0x5D, 0xf8)                       # reset
+```
+
+Ports: `0xF2` addr, `0x55` cmd, `0x57` width, `0x58` bank, `0x5E` data, `0x5D`
+reset. Implemented as `msi_isp.isp.flash_read_at` + `msi-isp flashread
+[--slave] [--isp] [--addr a,b,c] [--count n]`.
+
+## The matrix, measured (read-only, 2026-11-01)
+
+| lane | slave | reply |
+|---|---|---|
+| i2c-dev | 0x37 | `8a 02 00 fe 00 "FW.009N" 00×20 bf` — the 32-byte MCCS window, twice, **at every address** |
+| i2c-dev | 0x22, 0x35 | EIO |
+| relay native | 0x22 | `00 00 05 21 00 04 2b 04 09 00 80 0f 0e 11 08 00` — the DPCD byte space (16f) |
+| relay bulk | 0x37 | the same MCCS window on the 256 B/txn lane |
+| relay bulk | 0x22, 0x35 | TIMEOUT |
+| inside ISP (magic 0, status 0x8a) | 0x37 | unchanged; 0x22 EIO |
+
+**The reply is address-independent everywhere the lane answers.** So the port
+grammar is a separate I2C surface that lives on the ISP slave; on `0x37` the
+writes land in the shared 32-byte MCCS reply window (16e's model, confirmed a
+third time), which is why the address is invisible there.
+
+The reading for the port: `msi-isp record` reproduces the vendor's gate in
+**content** (model `MAG 341CQ X28` == model `MAG 341CQ X28`), and the gate's
+flash side needs `0x22` (with `0x35` beside it) to answer on some lane. That is
+the one blocking step, named.
+
+Facts: `FLASH_READ_LADDER`, `FLASH_LANE_MATRIX`.

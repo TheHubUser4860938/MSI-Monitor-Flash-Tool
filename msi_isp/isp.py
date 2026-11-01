@@ -427,3 +427,58 @@ def mailbox_ladder(bus, slave7: int | None = None, token: int | None = None,
                   f"{step.reply.hex(' ') if step.reply else (step.error or 'no reply')}")
         out.append(step)
     return out
+
+
+def flash_read_at(bus, addr: int, n: int, slave7: int = 0x37,
+                  mode: int = 1, verbose: bool = False) -> bytes:
+    """One flash read through the vendor's ISP port grammar (16d, 16k).
+
+    The ladder is Comm.dll FUN_10003990 verbatim, on the byte-index ports of
+    Facts.ISP_BOARD_REGS - 0xF2 address, 0x55 command, 0x57 width, 0x58 bank,
+    0x5E data, 0x5D reset. The board's ISP slave is 7-bit 0x37 (the INI's
+    0x6F, 16c), so this runs on the lane that answers today.
+
+    Address shape, from the decompile: the HIGH byte is read out of 0xF2 and
+    written back with bit 7 cleared (the vendor does not set it - it inherits
+    the page the port holds); the 16-bit offset goes to the DATA port as the
+    low byte, then the high byte, then the low byte | 1 - the last write is
+    the read arm (read_flag = bit 0). Then 0x55 gets 0xC1 (the read command)
+    and 0xBF (the trigger), and the bytes come back off the data port.
+
+    Read-only: every write here addresses or arms a read; the flash content
+    changes only under a program command.
+    """
+    from . import Facts
+    regs = Facts.ISP_BOARD_REGS
+
+    def w(port: int, val: int) -> None:
+        if verbose:
+            print(f"  TX  {port:#04x} <- {val & 0xFF:#04x}")
+        bus.write(slave7, bytes([port & 0xFF, val & 0xFF]), warmup=False)
+
+    def r1(port: int) -> int:
+        bus.write(slave7, bytes([port & 0xFF]), warmup=False)
+        d = bus.read(slave7, 1, warmup=False)
+        return d[0] if d else 0
+
+    addr &= 0xFFFFFF
+    hi = r1(regs["addr_port"])
+    w(regs["addr_port"], hi & 0x7F)                 # clear bit 7, keep the page
+    w(regs["cmd_port"], r1(regs["cmd_port"]) | 0x80)   # set bit 7 of the command port
+    time.sleep(0.032)                             # the decompile's 0x20 delay
+    width, bank = regs["width_values"][mode]
+    w(regs["width_port"], width)
+    w(regs["bank_port"], bank)
+    w(regs["data_port"], addr & 0xFF)                # offset, low byte
+    if mode:
+        w(regs["data_port"], (addr >> 8) & 0xFF)     # offset, high byte
+    w(regs["data_port"], (addr & 0xFF) | regs["read_flag"])   # arm the read
+    w(regs["cmd_port"], 0xC1)
+    w(regs["cmd_port"], 0xBF)
+    time.sleep(0.002)
+    bus.write(slave7, bytes([regs["data_port"]]), warmup=False)
+    data = bus.read(slave7, n, warmup=False)
+    w(0x5D, 0xF8)                                 # the decompile's reset
+    if verbose:
+        print(f"  RX  {data.hex(' ') if data else '(no reply)'}")
+    return data
