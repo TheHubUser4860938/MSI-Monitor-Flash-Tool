@@ -485,7 +485,7 @@ def flash_read_at(bus, addr: int, n: int, slave7: int = 0x37,
 
 
 def isp_write_packet(bus, reg: int, payload: bytes, slave7: int = 0x37,
-                     bank: int = 0, mode: int = 1,
+                     bank: int = 0, mode: int = 1, page: int | None = None,
                      verbose: bool = False) -> None:
     """Write a packet through the ISP data window (16p).
 
@@ -527,7 +527,14 @@ def isp_write_packet(bus, reg: int, payload: bytes, slave7: int = 0x37,
         d = bus.read(slave7, 1, warmup=False)
         return d[0] if d else 0
 
-    w(regs["addr_port"], r1(regs["addr_port"]) & 0x7F)
+    if page is None:
+        w(regs["addr_port"], r1(regs["addr_port"]) & 0x7F)
+    else:
+        # 16w, found by the emulator: the packet header carries only
+        # (addr>>16, addr&0xff), so bits 8-15 ride the PAGE port - 7 bits at
+        # 64 KiB each, 8 MiB of reach. The read ladder has always done this
+        # (16k); the write path did not.
+        w(regs["addr_port"], page & 0x7F)
     w(regs["cmd_port"], r1(regs["cmd_port"]) | 0x80)
     time.sleep(0.032)
     w(regs["width_port"], r1(regs["width_port"]) & 0xFC)
@@ -568,7 +575,10 @@ def program_page_at(bus, addr: int, data: bytes, slave7: int = 0x37,
     if len(data) > page:
         raise IspError(f"a page is {page} bytes, got {len(data)}")
     addr &= 0xFFFFFF
-    head = packet_bytes(0x40, (addr >> 16) & 0xFF, addr & 0xFF)
+    # 24-bit address, three places: the page port takes bits 22-16, the packet
+    # header bits 15-8 and 7-0 (16w - the vendor's WriteFlashData pushes
+    # (addr>>16) AND the address dword; the header alone loses bits 8-15).
+    head = packet_bytes(0x40, (addr >> 8) & 0xFF, addr & 0xFF)
     body = head + bytes(data)
     if trailer:
         # 16t, Grok's item 2: the PWM2SPI leaves accumulate over 32-byte
@@ -580,7 +590,7 @@ def program_page_at(bus, addr: int, data: bytes, slave7: int = 0x37,
     sent = 0
     for chunk in _chunks(body, 16):
         isp_write_packet(bus, 0x9C, chunk, slave7=slave7, bank=bank,
-                         mode=mode, verbose=verbose)
+                         mode=mode, page=(addr >> 16) & 0x7F, verbose=verbose)
         sent += len(chunk)
     return sent
 
@@ -595,7 +605,8 @@ def sector_erase_at(bus, addr: int, bank: int = 0, slave7: int = 0x37,
     """
     isp_write_packet(bus, 0x9C,
                      packet_bytes(0x42, addr & 0xFF, bank & 0xFF),
-                     slave7=slave7, bank=bank_select, verbose=verbose)
+                     slave7=slave7, bank=bank_select,
+                     page=(addr >> 16) & 0x7F, verbose=verbose)
 
 
 def _chunks(buf: bytes, size: int):

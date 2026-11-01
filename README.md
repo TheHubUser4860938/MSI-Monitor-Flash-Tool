@@ -16,8 +16,27 @@ the dev lab has never received a flash-cell write.
 
 ## Verbs
 
+`simulate` (16x) runs the whole flash cycle against an emulated monitor - the
+real FW.012 image, the shipped pipeline, a SPI NOR model with the Flash.dat
+command set, and a virtual clock so the vendor's 200 ms/10 s timings are
+exercised without waiting:
+
+```
+$ msi-isp simulate                      # FW.012 -> MX25L32XX, record block
+1. enter ISP        status 0x8a
+2. vendor pipeline  8 steps, all answered
+3. sector erase     bank 1 @0x00f800 -> ff ff ff ff
+4. program page     bank 1, 36 B sent, read-back match
+6. reset + switch   active bank 1, version '012'
+```
+
+It proves the protocol model is self-consistent; the panel's cells are still
+unproven (16v). `--chip W25Q32 --addr 0x2f7aa` picks another part and place.
+
+## Verbs
+
 `info`, `verify`, `record`, `probe`, `slaves`, `ladder`, `flashread`, `pipeline`,
-`backup`, `write`, `shell`, `tui`, and **`flashdat`** (16w) — the vendor's per-chip
+`backup`, `write`, `shell`, `tui`, **`simulate`** (16x) and **`flashdat`** (16w) — the vendor's per-chip
 flash library, read offline: `msi-isp flashdat --chip A25L020` prints one part's
 phases (WREN, then the read command the part supports, then the poll). 150 records,
 15 with scripts.

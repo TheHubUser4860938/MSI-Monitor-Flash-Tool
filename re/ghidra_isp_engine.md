@@ -1556,3 +1556,87 @@ Shipped: `msi_isp/flashdat.py` (parser + grammar), the `flashdat` verb
 (`--chip A25L020` prints the phases), `Facts.FLASHDAT_FORMAT_16W`,
 `Facts.BIN_RECORD_16W`, `Facts.SCALER_VERBS(_16W)`, `Facts.INI_TIMING_16W`,
 and `Facts.COMM_API` rebuilt as `name -> (field, member byte, vtable slot)`.
+---
+
+# Session 16x — an emulated monitor: the whole flash cycle, in a test
+
+The owner asked for a simulated firmware flash — the real image, the real
+pipeline, an emulated monitor — and asked whether the code has to be finished
+first. Measured answer: the emulator is what finishes it. Four gaps surfaced
+the first time the pipeline ran end to end.
+
+## What the model is
+
+`msi_isp/emul.py` speaks the same `write(addr7, buf)` / `read(addr7, n)` surface
+as the real transports, in three layers, each labelled with the session that
+measured it:
+
+| layer | model | source |
+|---|---|---|
+| slave `0x37` | the handshake byte (`0x8a`), the ladder's ports, door `0x9C`, the packet `[control, arg1, arg2, SUM]` | 16e/16k/16o/16p/16q |
+| slave `0x22` | ONE byte-addressable window, seeded with the measured head block `12 14 c4 83 01 00 01 c0` and the transaction block `00 84 00 02 02 02 02 00` | 16t/16u/16v |
+| slave `0x20` | the burst engine: a 3-byte `[hi, mid, lo]` header seeks, the next read returns flash bytes | 16n |
+| behind the bridge | a SPI NOR part: 4 MiB in two 2 MiB banks, 256-byte pages, 4 KiB sectors, `0x06` WREN, `0x40` program, `0x42` sector erase, `0xA0` chip erase, `0x9F` RDID, a busy bit on a **virtual clock** | Flash.dat's own command set (16w), `SpiFlash` |
+
+The chip is chosen by Flash.dat record: `EmulatedMonitor(chip="MX25L32XX")`
+takes its capacity (`4096 KiB`) and identity bytes (`c2 20 16`) from the
+vendor's 150-record library, so the part is one MSI ships a template for.
+
+## The four things it caught
+
+1. **The program packet loses bits 8-15.** `program_page_at` sent
+   `packet_bytes(0x40, addr>>16, addr&0xff)`: for `0xF800` that is
+   `(0x00, 0xF8)`... and the model put it at the wrong cell. The vendor's
+   `WriteFlashData` pushes `(addr>>16)` **and** the address dword, and the
+   read ladder has always put the top byte on page port `0xF2` (16k). Fixed:
+   the header carries bits 15-8 and 7-0, `isp_write_packet(..., page=)` arms
+   `0xF2` with bits 22-16 — 7 bits × 64 KiB = 8 MiB of reach. Pinned by
+   `test_the_packet_needs_the_page_port_for_the_top_bits`.
+2. **The mode byte carries the bank.** `width_values` is
+   `{0: (0xFC, 0xE7), 1: (0xFC, 0xEF), 2: (0xFC, 0xEF)}` (16a) — the pair
+   differs in the bank bit, so mode 0 reads bank 0 and modes 1-2 read bank 1.
+   That is *why* the 16t matrix looked mode-independent in one sense and why
+   mode is not a free variable. Now asserted per mode.
+3. **Address width is mode-dependent.** Mode 0 arms an 8-bit offset (writes
+   low, then low|1), modes 1-2 a 16-bit one, and the high byte rides `0xF2` —
+   so with page 0 every address aliases into 64 KiB. The emulator reproduces
+   16k/16t's flat replies *mechanically*, which is the strongest statement we
+   have made about that measurement.
+4. **A 32-byte page is three flash operations.** The 36-byte program is three
+   16-byte window transactions, each re-naming door `0x9C`; only the first
+   carries the packet header, so the bridge needs a continuation path (16o's
+   12-data-byte transactions over a 24-byte stride). Modelled; asserted as
+   `PP @0x100 (12) → @0x10C (16) → @0x11C (4)`.
+
+## The cycle that now runs
+
+`msi-isp simulate` (defaults: FW.012, `MX25L32XX`, the record block at
+`0xF800`):
+
+```
+1. enter ISP        status 0x8a
+2. vendor pipeline  8 steps, all answered
+3. sector erase     bank 1 @0x00f800 -> ff ff ff ff
+4. program page     bank 1, 36 B sent, read-back match
+5. version now      '' (bank 0 active, blank)
+6. reset + switch   active bank 1, version '012'
+7. leave ISP        ring 8a
+model traffic: 147 bus operations, flash clock 10,192 ms, 4 flash operations
+```
+
+`tests/test_emul.py` (31 tests): NOR semantics (program ANDs, erase sets), the
+busy bit on the virtual clock, the packet checksum rejection (the leaf's `0x15`),
+the RDID from the Flash.dat record, the bank bit, the sticky ring (which makes
+`exit_isp`'s bool an artifact, 16q), the 8-step pipeline, and the full
+FW.012 cycle — erase, program the inactive bank, reset, version reads `012`.
+
+## Honest limits
+
+The emulator proves our protocol model is self-consistent and that the pipeline
+drives it. It does not prove the panel agrees: the cells are unproven (16v), and
+the layers carry their measurement dates for exactly that reason. Two model
+choices are labelled as such — the sector index in the `0x42` packet's
+`(arg1, arg2)` pair (16n reads them as `addr&0xff, bank`), and the `0x22`
+window's flash-type bytes at `0x23`.
+
+Gates: ruff clean, **384 unit tests OK** (+31). Facts: unchanged this session.

@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import pathlib
 import re
 import sys
 import time
@@ -440,6 +441,53 @@ def cmd_flashdat(args):
     return 0
 
 
+def cmd_simulate(args):
+    """Run the whole flash cycle against the emulated monitor (no hardware)."""
+    from . import pipeline
+    from .emul import EmulatedMonitor
+    from .isp import (
+        enter_isp,
+        exit_isp,
+        flash_read_at,
+        program_page_at,
+        sector_erase_at,
+    )
+    binpath = pathlib.Path(args.bin)
+    img = binpath.read_bytes() if binpath.exists() else b"\x00" * 4096
+    m = EmulatedMonitor(image=b"\xff" * len(img), chip=args.chip)
+    print(f"emulated monitor: {args.chip}, {m.flash.capacity // 1024} KiB, "
+          f"{m.flash.banks} banks")
+    print(f"image           : {binpath.name} ({len(img):,} B)\n")
+    _idx, status = enter_isp(m)
+    print(f"1. enter ISP        status {status:#04x}")
+    rep = pipeline.run_pipeline(m, addr=args.addr, size=32, sleep=lambda _ms: None)
+    print(f"2. vendor pipeline  {len(rep.results)} steps, "
+          f"{'all answered' if rep.reached is None else 'stalled at ' + rep.reached}")
+    # The dual-bank flow (16r): erase and program the INACTIVE bank, then let
+    # the reset switch the boot flag. mode 1 -> bank port 0xEF -> bank 1.
+    head = img[args.addr:args.addr + 32]
+    sector_erase_at(m, args.addr, bank_select=1, slave7=m.slave)
+    m.flash.tick(40)
+    print(f"3. sector erase     bank 1 @{args.addr:#08x} -> "
+          f"{m.flash_bank(1, args.addr, 4).hex(' ')}")
+    n = program_page_at(m, args.addr, head, slave7=m.slave, bank=1)
+    m.flash.tick(5)
+    back = flash_read_at(m, args.addr, len(head), slave7=m.slave, mode=1)
+    ok = "match" if back[:len(head)] == head else "MISMATCH"
+    print(f"4. program page     bank 1, {n} B sent, read-back {ok}")
+    print(f"5. version now      {m.version!r} (bank 0 active, blank)")
+    m.reset()
+    print(f"6. reset + switch   active bank {m.active_bank}, version {m.version!r}")
+    exit_isp(m)
+    print(f"7. leave ISP        ring {m.read(m.slave, 1).hex(' ')}")
+    print(f"\nmodel traffic: {m.ops} bus operations, "
+          f"flash clock {m.flash.clock_ms:,.0f} ms, "
+          f"{len(m.flash.log)} flash operations")
+    print("note: this is our protocol model (16k/16p/16w), not a wire capture;")
+    print("      the panel's flash cells are still unproven (16v).")
+    return 0
+
+
 def cmd_probe(args):
     with _bus(args) as bus:
         if getattr(args, "lane", "i2c") == "native":
@@ -679,6 +727,14 @@ def main(argv=None):
     sub.add_parser("info", help="monitor + bin identity (safe)")
     sub.add_parser("verify", help="model-match check that error 0x45 does (safe)")
     sub.add_parser("probe", help="slave ACK scan incl. ISP addresses (safe)")
+    sim = sub.add_parser("simulate", help="run the whole flash cycle against "
+                                          "an emulated monitor (no hardware)")
+    sim.add_argument("--bin", default="vendor/MSI_MAG_341CQP_QD-OLED_X28_FW.012_4023.bin",
+                     help="the firmware image to flash")
+    sim.add_argument("--chip", default="MX25L32XX",
+                     help="a Flash.dat part number (sets capacity + identity)")
+    sim.add_argument("--addr", type=lambda x: int(x, 0), default=0xF800,
+                     help="where to erase/program (default: the record block)")
     fd = sub.add_parser("flashdat", help="the vendor's per-chip flash script "
                                          "library (safe, no panel needed)")
     fd.add_argument("--chip", help="one part number, e.g. A25L020")
@@ -733,6 +789,7 @@ def main(argv=None):
     args = p.parse_args(argv)
     {"info": cmd_info, "verify": cmd_verify, "probe": cmd_probe,
      "slaves": cmd_slaves, "ladder": cmd_ladder, "flashdat": cmd_flashdat,
+     "simulate": cmd_simulate,
      "record": cmd_record, "flashread": cmd_flashread,
      "pipeline": cmd_pipeline,
      "backup": cmd_backup, "write": cmd_write,

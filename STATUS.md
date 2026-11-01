@@ -2960,3 +2960,45 @@ the naming layer needed redoing (done), and the wire layer stands.
 Facts: COMM_API (rebuilt), COMM_API_MEMBER_16M, FLASHDAT_FORMAT_16W,
 BIN_RECORD_16W, SCALER_VERBS/SCALER_VERBS_16W, INI_TIMING_16W.
 Gates: ruff clean, **353 unit tests OK** (+13). Notes: re/ghidra_isp_engine.md (16w).
+
+## Session 16x (2026-11-01) — an emulated monitor: the whole flash cycle runs in a test
+
+The owner asked for a simulated flash, and whether the code has to be finished
+first. Answer, measured: the emulator is the instrument that finishes it. Four
+gaps surfaced the first time the pipeline ran end to end.
+
+- **msi_isp/emul.py**: three layers behind the real transports'
+  write/read surface — slave 0x37 (handshake 0x8a, the ladder's ports, door
+  0x9C, the [control, arg1, arg2, SUM] packet), slave 0x22 (ONE
+  byte-addressable window, seeded with 16t/16u's measured blocks), slave 0x20
+  (read_burst's 3-byte [hi, mid, lo] seek). Behind the bridge, SpiFlash: 4 MiB
+  in two 2 MiB banks, 256-byte pages, 4 KiB sectors, 0x06 WREN / 0x40 program /
+  0x42 sector erase / 0xA0 chip erase / 0x9F RDID, and a busy bit on a VIRTUAL
+  clock, so the vendor's timing contract is exercised without sleeping.
+- **The chip comes from Flash.dat**: EmulatedMonitor(chip="MX25L32XX") takes
+  capacity 4096 KiB and identity c2 20 16 from the vendor's record, so the part
+  is one MSI ships a template for (16w).
+- **Four catches.** (1) The program packet loses bits 8-15: program_page_at
+  sent (addr>>16, addr&0xff); the top byte rides page port 0xF2 as the read
+  ladder has always done (16k) — isp_write_packet(..., page=) added, 8 MiB of
+  reach. (2) The mode byte carries the bank: width_values {0:(0xFC,0xE7),
+  1:(0xFC,0xEF), 2:(0xFC,0xEF)} (16a) differ in the bank bit, so mode 0 = bank
+  0, modes 1-2 = bank 1. (3) Address width is mode-dependent: mode 0 arms an
+  8-bit offset, modes 1-2 a 16-bit one, and with page 0 every address aliases
+  into 64 KiB — the emulator reproduces 16k/16t's flat replies mechanically.
+  (4) A 32-byte page is THREE flash operations: the 36-byte program is three
+  16-byte windows, each re-naming door 0x9C, only the first headed — a
+  continuation path (16o's 12-byte transactions over a 24-byte stride).
+- **msi-isp simulate** runs the cycle and prints it: enter ISP (0x8a), the 8
+  vendor steps, sector erase in bank 1, program the record block (read-back
+  match), reset + boot-flag switch, version now '012'. 147 bus operations, the
+  flash clock at 10,192 ms (the INI's ulTimeAfterReset), 4 flash operations.
+- **tests/test_emul.py, 31 tests**: NOR semantics (program ANDs, erase sets),
+  the busy bit, packet-checksum rejection (the leaf's 0x15), RDID from the
+  Flash.dat record, the bank bit, the sticky ring (exit_isp's bool is an
+  artifact, 16q), the 8-step pipeline, the full FW.012 cycle.
+- Honest limits: the emulator proves the model is self-consistent, not that the
+  panel agrees. Two choices are labelled as model, not measurement — the sector
+  index inside the 0x42 packet, and the flash-type bytes at window offset 0x23.
+
+Gates: ruff clean, **384 unit tests OK** (+31). Notes: re/ghidra_isp_engine.md (16x).

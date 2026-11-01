@@ -149,7 +149,10 @@ class TestProgramAndErase(unittest.TestCase):
         self.assertEqual(first, (regs["data_port"], 0x9C))
         self.assertEqual(n, 4 + 32)              # header + page, all sent
         body = [v for (p, v) in bus.pairs if p == regs["data_port"]][1:]
-        self.assertEqual(body[:4], [0x40, 0x02, 0x06, 0x48])   # 0x40+0x02+0x06
+        # 16w: the header carries bits 15-8 and 7-0 (0xF8, 0x06); bits 22-16
+        # (0x02) ride the page port 0xF2, as the read ladder has always done.
+        self.assertEqual(body[:4], [0x40, 0xF8, 0x06, 0x3E])   # 0x40+0xF8+0x06
+        self.assertEqual(bus.pairs[0], (regs["addr_port"], 0x02))
 
     def test_program_splits_into_sixteen_byte_transactions(self):
         bus = RecordingBus()
