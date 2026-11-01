@@ -18,6 +18,9 @@ def _bare_auxdev(ioctl_fn):
     b = auxdev.AuxDevBus.__new__(auxdev.AuxDevBus)
     b.fd = 3                            # never actually used
     b._slave = None
+    b.lane = "i2c"                      # the lane the relay defaults to
+    b._reg = None
+    b._posed = False
     b._fcntl = types.SimpleNamespace(ioctl=ioctl_fn)
     return b
 

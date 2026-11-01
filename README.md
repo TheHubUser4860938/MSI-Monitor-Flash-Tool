@@ -23,6 +23,7 @@ Pure-stdlib Python 3 — no pip installs for the tool itself.
 ./msi-isp tui                                         # the menu directly (same thing, no auto-fallback)
 sudo ./msi-isp --nvrm probe                           # NVIDIA RM DP-AUX transport instead (root)
 ./msi-isp --auxdev probe                              # ...same, but sudoless via kernel/msi_auxch.ko
+./msi-isp --auxdev --lane native probe                # native AUX lane (register index, not slave)
 python3 scratch/spec_0x22.py                          # the decisive 0x22 contact experiment
 ```
 

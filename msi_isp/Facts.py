@@ -645,3 +645,194 @@ ISP_PIPELINE = [
 # index-data grammar (0x22-slave byte protocol) is a DIFFERENT, earlier
 # register surface; which one RTD2711 traffic actually uses will be settled
 # by the first live 0x22 transaction (Intel/AMD box).
+
+# ---- Vendor comm contract, decoded with Ghidra (session 16b) -------------
+# Evidence: re/ghidra_isp_engine.md (every address). This is the contract the
+# write driver must satisfy, and it settles the 14i open question at the top of
+# ISP_PIPELINE's comment: the two register grammars are not competing views of
+# one surface, they are the two LANES - the byte-index grammar (0x60/0x61/
+# 0x64-0x66, Flash.dat) rides native DP AUX, the 16-bit window (0x841/0x842/
+# 0x845) rides the I2C-over-AUX tunnel. `nvbus.LANES` implements both.
+#
+# COMM_AUX_INI is the whole `Comm_AUX` section as Comm_Aux.dll reads it
+# (FUN_1003b7e0 @ 0x1003b7e0): MSI ships a subset, so every default listed
+# here is a value the tool runs on that the INI never mentions.
+COMM_AUX_INI = {
+    "AUX_DetctType": dict(default=1, slot="DAT_1021ae18",
+                          where="comm InitialDev",
+                          what="display detect: 1=AUTO, 2=MANUAL"),
+    "AUX_GraphicsType": dict(default=1, slot="DAT_1021ae1c",
+                             where="comm InitialDev",
+                             what="backend: 1=Intel, 2=AMD, 3=NVIDIA"),
+    "AUX_NeedRetry": dict(default=1, slot="DAT_1021ae20",
+                          where="comm (I2CWrite/I2CRead wrappers)",
+                          what="retry enabled in the COMM layer"),
+    "AUX_RetryLimit": dict(default=10, slot="DAT_1021ae24",
+                           where="comm (I2CWrite/I2CRead wrappers)",
+                           what="retry count - the '10 retries' is comm's, "
+                                "not the core's (proves 15d reading)"),
+    "AUX_DelayTime": dict(default=5, slot="DAT_1021ae28",
+                          where="comm",
+                          what="inter-transaction delay (ms)"),
+    "AUX_MutiMonitorSelect": dict(default=1, slot="DAT_1021ae2c",
+                                  where="comm InitialDev",
+                                  what="multi-display pick (clamped <=2)"),
+    "AUX_MutiRTMonitorSelect": dict(default=0, slot="DAT_1021ae30",
+                                    where="comm InitialDev",
+                                    what="multi-realtek-display pick"),
+    "AUX_SelectDeviceInfo": dict(default="", slot="funnel 0x100351f0",
+                                 where="comm InitialDev",
+                                 what="select the display BY NAME string - "
+                                      "how MSI pins this monitor"),
+    "AUX_RecordSelectDevice": dict(default=1, slot="DAT_1021ae38",
+                                   where="comm", what="log the chosen device"),
+    "AUX_CheckDpcdTable": dict(default=1, slot="DAT_1021ae3c",
+                               where="comm InitialDev",
+                               what="validate a DPCD table on the sink "
+                                    "(the 0x00D0 tunnel-bit gate)"),
+    "AUX_I2CPageLen": dict(default=32, slot="DAT_1021ae40",
+                           where="comm (GetI2CPageLength + write limit)",
+                           what="tunnel page; ALSO the max bytes per "
+                                "I2CWrite (len > it -> 0x807)"),
+    "AUX_CheckSlaveAddress": dict(default=1, slot="DAT_1021ae44",
+                                  where="comm", what="probe the slave before use"),
+    "AUX_CheckExtarSlaveAddress": dict(default=0, slot="DAT_1021ae48",
+                                       where="comm",
+                                       what="also check an EXTRA slave"),
+    "AUX_OnlyUseExtarSlaveAddress": dict(default=0, slot="DAT_1021ae4c",
+                                         where="comm",
+                                         what="use ONLY the extra slave - the "
+                                              "knob for a non-standard ISP lane"),
+    "AUX_ExtarSlaveAddress": dict(default=0, slot="DAT_1021ae50",
+                                  where="comm",
+                                  what="the extra slave address (vendor's "
+                                       "spelling 'Extar')"),
+    "AUX_EnableDebugLog": dict(default=1, slot="DAT_1021ae54",
+                               where="comm",
+                               what="AUX DETECT AUTO/MANUAL, AMD AUX!!!, "
+                                    "not find Intel graphics!!! - the log "
+                                    "lines are this flag (on by default)"),
+    "AUX_StopIsp": dict(default=0, slot="DAT_1021ae5c",
+                        where="comm InitialDev tail",
+                        what="stop-ISP gate; drives the 0x1d multi-candidate "
+                             "returns"),
+    "AUX_RecordI2CData": dict(default=0, slot="DAT_1021ae58",
+                              where="comm (every write path)",
+                              what="record the I2C bytes (the per-retry log)"),
+    "AUX_WaitDelayTimeAfterSendData": dict(default=0, slot="DAT_1021ae60",
+                                           where="comm native write",
+                                           what="Sleep after a native write"),
+    "AUX_bAutoDetectIntelSDK": dict(default=1, slot="DAT_1021ae64",
+                                    where="comm InitialDev",
+                                    what="auto-detect the Intel SDK"),
+    "AUX_IntelSDKType": dict(default=1, slot="DAT_1021ae68",
+                             where="comm InitialDev",
+                             what="which Intel SDK"),
+    "AUX_CheckBranchOUIOnly": dict(default=0, slot="DAT_1021ae6c",
+                                   where="comm InitialDev",
+                                   what="match the DP branch by OUI only "
+                                        "(our 0x4a/0x4b branch)"),
+    "AUX_CheckSpecificDPCD": dict(default=0, slot="DAT_1021ae70",
+                                  where="comm InitialDev",
+                                  what="require specific DPCD bytes"),
+    "AUX_SPDPCDStartAddr": dict(default=0, slot="DAT_1021ae8c",
+                                where="comm InitialDev",
+                                what="start address of that DPCD check"),
+    "AUX_SPDPCDData": dict(default="", slot="funnel 0x100351f0",
+                           where="comm InitialDev",
+                           what="the expected DPCD bytes (string)"),
+    "AUX_CheckOnBoardDevice": dict(default=0, slot="DAT_1021ae74",
+                                   where="comm InitialDev",
+                                   what="require an on-board device"),
+    "AUX_SendCmdToFirstBranchForAMD": dict(default=1, slot="DAT_1021ae78",
+                                           where="comm (AMD backend)",
+                                           what="AMD: send a command to the "
+                                                "first branch device"),
+    "AUX_UseNameLoadIntelDriverControlDll": dict(
+        default=0, slot="DAT_1021ae7c", where="comm (Intel backend)",
+        what="load IntelControlAPI by name (the shipped dll folder)"),
+    "AUX_IncompleteWriteNeedRetry": dict(default=1, slot="DAT_1021ae80",
+                                         where="comm",
+                                         what="retry a short write"),
+    "AUX_NvidiaMSTSupport": dict(default=0, slot="DAT_1021ae84",
+                                 where="comm (NVIDIA backend)",
+                                 what="MST support off"),
+}
+
+# AUXInitialDev (FUN_10039e50): AUTO tries AMD first, then Intel, then NVIDIA;
+# MANUAL honours AUX_GraphicsType. Proven by the detect calls and the
+# "AMD AUX!!!" / "not find Intel graphics!!!" log strings on each branch.
+COMM_BACKENDS = {1: "Intel", 2: "AMD", 3: "NVIDIA"}
+COMM_AUTO_DETECT_ORDER = ("AMD", "Intel", "NVIDIA")
+COMM_BACKEND_DLLS = {
+    "Intel": "vendor/Comm/IntelControlAPI/ (AUX_UseNameLoadIntelDriverControlDll)",
+    "AMD": "ADL (atidxx64) - the backend AUTO picks first",
+    "NVIDIA": "nvapi.dll - NvAPI_I2CWrite/Read (NV_I2C_INFO_V3 0x3002c) "
+              "plus legacy NvAPI_Disp_DpAuxChannelControl (0x20068, 104 B)",
+}
+
+# AuxI2CWrite (FUN_1003a3e0) / AuxI2CRead (FUN_1003a630) limits, proven:
+PAGE_NATIVE = 16            # GetNativePageLength (0x1003b050) -> 0x10
+PAGE_I2C = 32               # GetI2CPageLength   (0x1003b030) -> INI, def 0x20
+COMM_MAX_TRANSFER = PAGE_I2C
+COMM_SIZE_IS_ZERO_BASED = True   # every size field is n-1 (also our RM lane)
+COMM_ERRORS = {
+    0x800: "no display/device found (AUXInitialDev)",
+    0x801: "length given with no buffer",
+    0x802: "I2C read failed (backend returned 0)",
+    0x803: "I2C write failed (backend returned 0)",
+    0x804: "unknown backend (AUX_GraphicsType outside 1..3)",
+    0x807: "transfer longer than AUX_I2CPageLen",
+    0x1d: "more than one candidate display/branch (AUX_StopIsp path)",
+}
+
+# The comm object vtable the plugin speaks (SetCommInterface @ 0x10008700 ->
+# DAT_10249d10). Slots proven by call site in WinIspPlugIn.dll this session;
+# +0x74/+0x78 are the 15g mailbox pair, kept. 'site' = the calling function.
+COMM_VTABLE = {
+    0x14: dict(what="device type", site="0x100239b0",
+               note="returns a COMM_SCALER_TYPES family code"),
+    0x30: dict(what="pose/point the bus", site="0x1001bbd0",
+               note="arg from DAT_1024a350 (config)"),
+    0x44: dict(what="mode set", site="0x1001bbd0", note="arg 2 on the "
+               "RealtekUSB families, before SetWaitingMode"),
+    0x54: dict(what="I2C write (mailbox args)", site="0x10008ec0",
+               note="I2CWriteExport's fast path: 3 bytes from obj+0x42f50..52 "
+                    "+ buffer at +0x42f53"),
+    0x74: dict(what="ISP mailbox WRITE", site="0x1001ba20",
+               note="15g: args (0x6A, 0xCA, count, &buf)"),
+    0x78: dict(what="ISP mailbox READ", site="0x1001ba20",
+               note="15g: same pair"),
+    0x94: dict(what="settle delay", site="0x1001bbd0", note="arg 200 (ms)"),
+    0xa0: dict(what="SetWaitingMode", site="0x100239b0",
+               note="(2,100) on USB families in DumpFlash, (0,0) on enter"),
+    0x10c: dict(what="teardown", site="0x10008700",
+                note="called by SetCommInterface on the old object"),
+    0x124: dict(what="Enter ISP mode", site="0x1001bbd0",
+                note="arg 1; failure logs 'Enter ISP mode fail! Error code:0x%X.'"),
+    0x13c: dict(what="I2C write (alt path)", site="0x10008ec0",
+                note="taken when obj+0x43054 != 0"),
+    0x214: dict(what="ISP-side selector", site="0x1001bbd0",
+                note="arg 1; unresolved - the enter ladder's third shape"),
+    0x21c: dict(what="Set Background Flash Write Time", site="0x1001bbd0",
+                note="args (0x45, 0xc, DAT_1024a3b4, 0, 0) - a REGISTER, not "
+                     "the 0x45 error code"),
+    0x28c: dict(what="GetQCDisplaySetting", site="0x1001ba20",
+                note="(&int, &int); failure logs 'GetQCDisplaySetting fail, "
+                     "error code:0x%x'"),
+}
+COMM_SCALER_TYPES = [3, 8, 0xe, 0x13]   # values compared against slot +0x14
+
+# IspFlash (0x10008520) runs only for these DAT_1024a2d4 values; the bank map
+# is the dual-bank ISP stage that produced the 12% 0xd21 under Proton.
+ISP_MODES = {4, 5, 6, 7, 0x11, 0x1a, 0x1b}
+ISP_BANKS = {0x1a: "background", 0x1b: "foreground"}
+
+# 0xd21 named: Isp_HandShakeByBootType (0x1001ba20) returns it when the
+# boot-type selector DAT_1024a2f0 == 1. An ENGINE verdict about the boot
+# type, not a wire NACK - the wire is untouched at that point.
+ISP_HANDSHAKE_ERROR = {
+    "code": 0xD21, "fn": "Isp_HandShakeByBootType", "rva": 0x1BA20,
+    "gate": "DAT_1024a2f0 == 1", "module": "WinIspPlugIn.dll",
+    "log": "HandShakeBeforeEnterIspModeByBootType fail, error code:0x%x",
+}

@@ -24,6 +24,7 @@ import time
 from . import Facts
 from .ddc import SLAVE_DDC, RTBus, ddc_packet, ddc_parse_reply
 from .isp import I2CTarget, IspError, ScalerBus
+from .lane import LANE_DEFAULT, LANES
 from .progress import Bar
 
 # ISP-relevant slaves the Windows tool uses; 8-bit forms kept in Facts.SLAVES
@@ -42,13 +43,15 @@ TARGETS = [
 
 def _bus(args) -> RTBus:
     """Transport selector: --auxdev -> kernel relay (rootless NVIDIA),
-    --nvrm -> NVIDIA RM DP-AUX (root), else i2c-dev."""
+    --nvrm -> NVIDIA RM DP-AUX (root), else i2c-dev. --lane picks which of
+    the vendor's two register lanes the NVIDIA transports speak (lane.py)."""
+    lane = getattr(args, "lane", "i2c")
     if getattr(args, "auxdev", False):
         from .auxdev import AuxDevBus
-        return AuxDevBus()
+        return AuxDevBus(lane=lane)
     if getattr(args, "nvrm", False):
         from .nvbus import NvRMAuxBus
-        return NvRMAuxBus()
+        return NvRMAuxBus(lane=lane)
     return RTBus(args.bus)
 
 
@@ -284,8 +287,54 @@ def cmd_verify(args):
         sys.exit(1)
 
 
+def _probe_registers(bus):
+    """Native-lane probe: native DP AUX has NO slave addressing, so the
+    register index IS the address field. Reading the register file directly
+    is the experiment the tunnel lane cannot run, and it is read-only: a pose
+    write of a register index changes no scaler state (kernel/msi_auxch.c
+    says native writes land in host-owned DPCD/MTPMT space).
+
+    Two grammars, one per surface: Flash.dat's byte-index registers
+    (0x60 CTRL arm 0x38/trigger 0x39, 0x61 OPCODE, 0x64-0x66 addr/len) and
+    14i's 16-bit window (0x841 CTRL, 0x842 OPCODE, 0x845 ADDR)."""
+    sb = ScalerBus(bus)
+    tgt = I2CTarget("scaler register file", 0x22)
+    # Measured 2026-11-01: on this sink the native lane answers with the
+    # DPCD byte space (0x60 = TPS set 05, 0x61 = lane0 pattern 21, 0x64 =
+    # lane-align 2b) and 0x841.. reads 00 in MTPMT1 - i.e. the Flash.dat
+    # register NUMBERS address DPCD here, they are not the 0x22 register
+    # file. Two names per row, because both readings are true of one byte.
+    regs = [(0x60, "Flash.dat CTRL  = DPCD TPS set"),
+            (0x61, "Flash.dat OPCODE = DPCD lane0"),
+            (0x64, "Flash.dat ADDR   = DPCD lane-align"),
+            (0x65, "Flash.dat mode   = DPCD clocks-rec"),
+            (0x66, "Flash.dat LEN    = DPCD ch-eq"),
+            (0x841, "14i window CTRL  = DPCD MTPMT1"),
+            (0x842, "14i window OPCODE = DPCD MTPMT1+1"),
+            (0x845, "14i window ADDR   = DPCD MTPMT1+4")]
+    print("# native lane: register INDEX scan (no slave addressing in "
+          "native AUX; one byte read per register, read-only)")
+    live = False
+    for reg, what in regs:
+        try:
+            got = sb.word_read(tgt, reg, 1)
+        except Exception as e:
+            print(f"  reg {reg:#05x}  {what:<30} error: {e}")
+            continue
+        if got:
+            live = True
+            print(f"  reg {reg:#05x}  {what:<30} {got.hex(' ')}")
+        else:
+            print(f"  reg {reg:#05x}  {what:<30} no reply")
+    print(f"\nnative register lane: {'ALIVE' if live else 'silent'}")
+    return live
+
+
 def cmd_probe(args):
     with _bus(args) as bus:
+        if getattr(args, "lane", "i2c") == "native":
+            _probe_registers(bus)
+            return
         print(f"# read-only ACK scan of {_busname(bus, args)}")
         print("#  (relay/nvrm probes are pure address-phase; the i2c-dev "
               "probe writes one 0x00 pointer byte per slave, ddcutil parity)")
@@ -396,7 +445,8 @@ tool remains the reference flasher.
 
 def cmd_shell(args):
     kw = dict(use_nvrm=getattr(args, "nvrm", False),
-              use_auxdev=getattr(args, "auxdev", False))
+              use_auxdev=getattr(args, "auxdev", False),
+              lane=getattr(args, "lane", "i2c"))
     if getattr(args, "plain", False) or not sys.stdout.isatty():
         from .console import run
         run(args.bus, args.bin, **kw)
@@ -408,7 +458,8 @@ def cmd_shell(args):
 def cmd_tui(args):
     from .tui import run_tui
     run_tui(args.bus, args.bin, use_nvrm=getattr(args, "nvrm", False),
-            use_auxdev=getattr(args, "auxdev", False))
+            use_auxdev=getattr(args, "auxdev", False),
+            lane=getattr(args, "lane", "i2c"))
 
 
 def main(argv=None):
@@ -423,6 +474,12 @@ def main(argv=None):
     tg.add_argument("--auxdev", action="store_true",
                     help="NVIDIA GPU: use the kernel relay /dev/msi-auxch "
                          "(kernel/msi_auxch.ko; no sudo — see kernel/)")
+    p.add_argument("--lane", choices=list(LANES), default=LANE_DEFAULT,
+                   help="NVIDIA transports: which of the vendor's two register "
+                        "lanes to speak (default i2c = the I2C-over-AUX "
+                        "tunnel, 16-bit window 0x841/0x842/0x845; native = "
+                        "native DP AUX, Flash.dat byte grammar 0x60/0x61/"
+                        "0x64-0x66, 16 B/txn — session 16b)")
     p.add_argument("-v", "--verbose", action="store_true")
     p.add_argument("--bin", help="firmware .bin for info/verify")
     sub = p.add_subparsers(dest="cmd", required=True)

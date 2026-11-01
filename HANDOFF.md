@@ -46,6 +46,8 @@ make -C kernel LLVM=1 CC=clang       # build prototype relay module (sudoless RM
 sudo cp kernel/99-msi-auxch.rules /etc/udev/rules.d/ && sudo udevadm control --reload
 sudo insmod kernel/msi_auxch.ko && python3 kernel/test_relay.py   # -> PASS, as user
 ./msi-isp --auxdev probe             # RM-identical probe over the relay — no sudo
+./msi-isp --auxdev --lane native probe   # native AUX lane: register INDEX scan
+                                         # (answers DPCD bytes; session 16b)
 sudo rmmod msi_auxch                 # fully reversible; nothing auto-loads it
 ```
 

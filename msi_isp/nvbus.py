@@ -31,10 +31,16 @@ import contextlib
 import os
 import time
 
-from . import nvrm
-from .nvrm import AUX_REQ_READ, AUX_REQ_WRITE, RMError
+from . import lane, nvrm
+from .lane import LANE_DEFAULT, LANES, MAX_DATA, req_name, use_native
+from .nvrm import AUX_REQ_READ, AUX_REQ_WRITE, AUX_TYPE_AUX, RMError
 
-MAX_DATA = 16          # per-transaction data bytes, DP auxch hard limit
+# Two lanes reach the scaler's register file, and the vendor uses BOTH:
+# "i2c" = the I2C-over-AUX tunnel (NV_I2C_INFO_V3), "native" = native DP AUX
+# (the 0x20068 legacy wrapper, register index in the address field, 16 B/txn,
+# read = write-then-read). Full provenance + which register grammar each lane
+# reaches: `msi_isp/lane.py` and re/ghidra_isp_engine.md.
+__all__ = ["LANES", "LANE_DEFAULT", "MAX_DATA", "NvRMAuxBus", "req_name"]
 
 
 class NvRMAuxBus:
@@ -42,8 +48,14 @@ class NvRMAuxBus:
 
     label = "nvrm RM DP-AUX (NVIDIA, root)"
 
-    def __init__(self, gpu_id=None, display_id=None, verbose=False):
+    def __init__(self, gpu_id=None, display_id=None, verbose=False,
+                 lane=LANE_DEFAULT):
         self.verbose = verbose
+        self.lane = lane
+        self._reg = None               # native lane: the register last posed
+        self._posed = False            # native lane: is that pose live?
+        if lane != LANE_DEFAULT:
+            self.label = f"nvrm RM DP-AUX native (NVIDIA, root, lane={lane})"
         self.fd = None
         self._last = None              # last slave (warm-up/bookkeeping parity)
         self.rm = nvrm.NvRM(verbose=verbose)
@@ -169,9 +181,60 @@ class NvRMAuxBus:
         return self.rm.aux_i2c(self.display_id, *a, subdevice=self.sub_inst,
                                **k)
 
+    # ---- native lane (vendor legacy 0x20068 shape) ----------------------
+    def _native(self, reg, req, data=b""):
+        """One native AUX transaction: the register index in the address
+        field, <=16 payload bytes, size 0-based (nvrm.aux does the -1)."""
+        name, got, _st = self.rm.aux(self.display_id, reg, data=data,
+                                     req=req, typ=AUX_TYPE_AUX)
+        if name != "ACK":
+            raise OSError(f"AUX native {req_name(req)} at {reg:#06x}: {name}")
+        return got
+
+    def _native_write(self, addr7, data):
+        """[reg_lo(, reg_hi)] + payload -> native write at that register.
+        Chunks at 16 B exactly as FUN_100452c0 loops; the register index is
+        repeated on every chunk because the scaler auto-increments, not the
+        transport. The posed register is remembered: the vendor's read is a
+        write-then-read pair on the register the write left open."""
+        reg, payload = lane.split_register(data)
+        if reg is None:
+            self._native(addr7, AUX_REQ_WRITE, b"")
+            return
+        self._reg = reg
+        if not payload:
+            self._native(reg, AUX_REQ_WRITE, b"")
+            self._posed = True         # a read may now continue on this reg
+            return
+        for chunk in lane.chunks(payload):
+            self._native(reg, AUX_REQ_WRITE, chunk)
+
+    def _native_read(self, n):
+        """Read the register the last write posed. The vendor's native read is
+        a write-then-read pair (FUN_10045060: op 2 then op 3) - the pose is
+        only re-issued when nothing posed it first, so a word_read() that
+        followed word_write() costs one write and one read, not two writes."""
+        reg = self._reg
+        if reg is None:
+            raise OSError("native read with no register posed")
+        if not self._posed:
+            self._native(reg, AUX_REQ_WRITE, b"")
+        self._posed = False
+        buf = bytearray()
+        while len(buf) < n:
+            want = min(MAX_DATA, n - len(buf))
+            got = self._native(reg, AUX_REQ_READ, bytes(want))
+            if not got:
+                break              # "ACK" that delivered nothing (15k rule)
+            buf += got[:want]
+        return bytes(buf[:n])
+
     def write(self, addr7, data, warmup=False):
         """One complete I2C write message: [addr][data...][STOP]."""
         data = bytes(data)
+        if use_native(self.lane, addr7):
+            self._native_write(addr7, data)
+            return
         if not data:
             # pure address phase
             name, _ = self._txn(addr7, AUX_REQ_WRITE, data=b"", mot=True,
@@ -193,9 +256,15 @@ class NvRMAuxBus:
 
     def read(self, addr7, n, delay=0.0, warmup=False):
         """One complete I2C read message: [addr][data...][STOP], chunked at
-        16 bytes with MOT chaining (verified through 16-byte pieces)."""
+        16 bytes with MOT chaining (verified through 16-byte pieces).
+
+        `addr7` carries the register pointer exactly like write() does, so a
+        caller that posed reg 0x64 and then reads 3 bytes gets the same
+        framing on both lanes."""
         if delay:
             time.sleep(delay)
+        if use_native(self.lane, addr7):
+            return self._native_read(n)
         buf = bytearray()
         while len(buf) < n:
             chunk = min(MAX_DATA, n - len(buf))
@@ -217,7 +286,11 @@ class NvRMAuxBus:
     def probe(self, addr7):
         """Bare address-phase write: 0 data bytes out, cannot alter the
         monitor's state. True on ACK (same shape proven safe against the
-        scaler's ISP slaves in t_kern6.py)."""
+        scaler's ISP slaves in t_kern6.py).
+
+        Lane-independent on purpose: native AUX has no slave addressing, so
+        "does 0x22 ACK" is always the tunnel's address phase. The lane only
+        changes how a register is reached, not which slave answers."""
         name, _ = self._txn(addr7, AUX_REQ_WRITE, data=b"", mot=True,
                             addr_only=True)
         self._term_write(addr7)

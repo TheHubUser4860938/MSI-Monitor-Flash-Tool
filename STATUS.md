@@ -2182,3 +2182,66 @@ TOOLCHAIN GOTCHAS (so the next window does not re-learn them):
 stayed at 1, seed it with `create_function` at each export RVA. `save_program`
 can fail `Unable to lock due to active transaction` — retry. The bridge's
 `batch_decompile` wants `0x`-prefixed addresses.
+
+## Session 16b (2026-11-01) — CODE PASS on the 16a decode: the lane model, the relay rebuilt for kernel 7.3.1, the vendor's whole comm contract in Facts
+
+Problem: 16a proved the plugin reaches the wire only through the core's comm
+object, and `Facts.ISP_PIPELINE`'s open question ("which register grammar does
+RTD2711 traffic use?") was still a coin flip. The code also had never been
+rebuilt for the current kernel.
+
+DECODE (all in `re/ghidra_isp_engine.md`, 16b section):
+- **`Comm_Aux.dll`'s entire `Comm_AUX` INI schema** with defaults
+  (`FUN_1003b7e0`): MSI ships a subset, so the defaults ARE the shipped
+  behaviour. Banked as `Facts.COMM_AUX_INI` (31 keys, each with its slot).
+  New knobs worth knowing: `AUX_ExtarSlaveAddress` (+ Check/OnlyUse) = an
+  **alternate ISP slave**, `AUX_SelectDeviceInfo` = select the display by NAME,
+  `AUX_CheckDpcdTable`/`AUX_CheckSpecificDPCD` = DPCD gates,
+  `AUX_SendCmdToFirstBranchForAMD` = AMD talks to the branch device.
+- **Backend codes proven**: 1=Intel, 2=AMD, 3=NVIDIA; AUTO order is
+  **AMD → Intel → NVIDIA** (`AUXInitialDev` 0x10039e50). So an Intel box runs
+  `IntelControlAPI`'s primitives (`FUN_1003d850`/`0x1003e170`), not NVAPI —
+  the issue-#1 trace target is that dll.
+- **The lane answer**: `DAT_1021ae90` switches the param shape on the SAME
+  AUX channel — tunnel = NV_I2C_INFO_V3 (0x3002c, 8-bit DDC slave, 32 B page),
+  native = the legacy 0x20068/104 B block (register INDEX in the address
+  field, op 2 write / op 3 read, 16 B chunks, size 0-based, read is
+  write-then-read). **The grammar follows the lane**: byte-index (Flash.dat
+  0x60/0x61/0x64-0x66) = native, 16-bit window (14i 0x841/0x842/0x845) =
+  tunnel. `Facts.ISP_PIPELINE`'s coin flip is closed.
+- Transfer limits proven from `AuxI2CWrite` (0x1003a3e0): len>page → 0x807,
+  len-with-no-buffer → 0x801, plus 0x800/0x802/0x803/0x804/0x1d named in
+  `Facts.COMM_ERRORS`.
+
+BUILT:
+- `msi_isp/lane.py` — the two lanes, `REGISTER_SLAVES` (0x18/0x19/0x1A/0x1B/
+  0x20/0x22), `use_native()`, `split_register()`, 16 B `chunks()`.
+- `nvbus.NvRMAuxBus` + `auxdev.AuxDevBus` both take `lane=`; the lane is
+  **per slave** (register file = native, DDC/CI+EDID+branch = the tunnel that
+  is byte-matched to ddcutil). `probe` on the native lane is now a register
+  INDEX scan (`cli._probe_registers`).
+- CLI: `--lane {i2c,native}`, plumbed through `console`/`tui` (status header
+  shows the lane).
+- `msi_auxch.ko` rebuilt for **kernel 7.3.1-1-cachyos** against OGKM
+  615.78.08 (headers re-fetched: tmpfs lost them on reboot), loaded,
+  `kernel/test_relay.py` **PASS unprivileged** incl. the write-gate matrix and
+  the 256 B bulk control.
+
+MEASURED (live, read-only, monitor on DP):
+- native lane answers with **DPCD bytes**: 0x60=05 (TPS4), 0x61=21 (lane0
+  adjust), 0x64=2b (lane align), 0x65=04, 0x66=09; the 16-bit window reads
+  00 (MTPMT1). So the native lane is a working DPCD reader, NOT a new road to
+  the 0x22 register file — the register NUMBERS coincide with DPCD offsets.
+- tunnel lane unchanged: 0x30/0x37/0x50 ACK, ISP slaves no-ack.
+  `info` and `verify` pass on both lanes.
+
+GATES: ruff clean, **126 unit tests OK** (79 → 126: +21 vendor-ABI,
++13 nvbus lane, +13 relay lane). Test mocks updated for the new constructor
+arguments (the signature-change law from 2026-10-31).
+
+NEXT: (1) `FUN_1003a3e0`'s per-backend dispatch is now mapped, so the
+`nvrm.py` message builder can be diffed byte-for-byte against the tunnel
+shape; (2) the updater `.exe` for the slot↔export ABI table (16a strike 2,
+still open — and it is what settles the `+0x14` conflict); (3) on Intel/AMD
+day, trace `IntelControlAPI.dll`, and try `AUX_ExtarSlaveAddress` if the
+branch device answers there.

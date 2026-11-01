@@ -18,6 +18,7 @@ from .cli import TARGETS, _checksum_line, bin_header, read_edid, vendor_fw_versi
 from .cli import _edid_model_name as edid_model_name
 from .ddc import RTBus
 from .isp import I2CTarget, ScalerBus
+from .lane import LANE_DEFAULT
 from .progress import Bar
 
 _TTY = sys.stdout.isatty()
@@ -36,11 +37,13 @@ class Console(cmd.Cmd):
              "verify -> backup -> confirm")
 
     def __init__(self, bus_num: int, bin_path: str | None = None,
-                 use_nvrm: bool = False, use_auxdev: bool = False):
+                 use_nvrm: bool = False, use_auxdev: bool = False,
+                 lane: str = LANE_DEFAULT):
         super().__init__()
         self.bus_num = bus_num
         self.use_nvrm = use_nvrm
         self.use_auxdev = use_auxdev
+        self.lane = lane
         self.bin_hdr = None
         self.bin_path = None
         self.verified = False
@@ -52,12 +55,14 @@ class Console(cmd.Cmd):
 
     # ------------------------------------------------------------ helpers --
     def _bus(self) -> RTBus:
+        # The lane only exists on the NVIDIA AUX transports; i2c-dev has one
+        # lane (the tunnel) because the DRM bridge composes it for us.
         if self.use_auxdev:
             from .auxdev import AuxDevBus
-            return AuxDevBus()
+            return AuxDevBus(lane=self.lane)
         if self.use_nvrm:
             from .nvbus import NvRMAuxBus
-            return NvRMAuxBus()
+            return NvRMAuxBus(lane=self.lane)
         return RTBus(self.bus_num)
 
     def _load_bin(self, path: str) -> bool:
@@ -117,6 +122,8 @@ class Console(cmd.Cmd):
         bus_txt = ("kernel relay /dev/msi-auxch" if self.use_auxdev else
                    "nvrm RM DP-AUX (NVIDIA, root)" if self.use_nvrm
                    else f"/dev/i2c-{self.bus_num}")
+        if self.use_nvrm or self.use_auxdev:
+            bus_txt += f"  [lane {self.lane}]"
         print(f"bus        : {bus_txt}")
         print(f"euid       : {os.geteuid()}  ({root})")
         print(f"ISP slaves : {isp_txt}")
@@ -402,9 +409,10 @@ class Console(cmd.Cmd):
 
 
 def run(bus_num: int, bin_path: str | None = None,
-        use_nvrm: bool = False, use_auxdev: bool = False) -> None:
+        use_nvrm: bool = False, use_auxdev: bool = False,
+        lane: str = LANE_DEFAULT) -> None:
     con = Console(bus_num, bin_path, use_nvrm=use_nvrm,
-                  use_auxdev=use_auxdev)
+                  use_auxdev=use_auxdev, lane=lane)
     try:
         con.cmdloop()
     except KeyboardInterrupt:

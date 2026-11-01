@@ -141,3 +141,90 @@ progress grammar, i.e. the numbers the Windows UI shows at 12 % come from here.
    *does* answer on NVIDIA) while `0x22` is only the SPI window behind it.
 4. **The 528-byte config block / Flash Data Map ↔ `vendor/PlugIn/Flash.dat`** —
    bind the region table to offsets, which is what a safe `write` needs.
+
+---
+
+# Session 16b — the comm layer's own contract (same day, code pass)
+
+Same toolchain; `Comm_Aux.dll` seeded function-by-function with
+`create_function` at each export RVA (its `run_analysis` stays at 1 function).
+Addresses are Ghidra `base+RVA`, module base `0x10000000`.
+
+## The whole `Comm_AUX` INI schema (proven: `FUN_1003b7e0` @ 0x1003b7e0)
+
+Every key the module reads, with the default it uses when MSI's INI is silent.
+MSI ships a subset, so the defaults below ARE the shipped behaviour.
+Banked as `Facts.COMM_AUX_INI`. The interesting ones:
+
+| key | default | what it gates |
+|---|---|---|
+| `AUX_DetctType` | 1 | 1=AUTO, 2=MANUAL display detect |
+| `AUX_GraphicsType` | 1 | backend: **1=Intel, 2=AMD, 3=NVIDIA** |
+| `AUX_NeedRetry` / `AUX_RetryLimit` | 1 / **10** | the retry loop lives in the COMM layer |
+| `AUX_I2CPageLen` | **0x20 (32)** | tunnel page AND the hard max per I2CWrite |
+| `AUX_CheckSlaveAddress` | 1 | probe the slave before use |
+| `AUX_ExtarSlaveAddress` + `AUX_CheckExtarSlaveAddress` + `AUX_OnlyUseExtarSlaveAddress` | 0/0/0 | **an extra/alternate ISP slave the tool can be pointed at** — the knob for Intel/AMD day (vendor's spelling "Extar") |
+| `AUX_CheckDpcdTable` | 1 | validate a DPCD table on the sink (the 0x00D0 tunnel-bit gate) |
+| `AUX_CheckSpecificDPCD` / `AUX_SPDPCDStartAddr` / `AUX_SPDPCDData` | 0/0/"" | require specific DPCD bytes |
+| `AUX_SelectDeviceInfo` | "" | **select the display by NAME** — how MSI pins this monitor |
+| `AUX_EnableDebugLog` | 1 | the "AUX DETECT AUTO/MANUAL", "AMD AUX!!!" log lines |
+| `AUX_StopIsp` | 0 | drives the `0x1d` multi-candidate returns |
+| `AUX_bAutoDetectIntelSDK` / `AUX_IntelSDKType` / `AUX_UseNameLoadIntelDriverControlDll` | 1/1/0 | the Intel backend = the shipped `IntelControlAPI` dll |
+| `AUX_SendCmdToFirstBranchForAMD` | 1 | AMD sends a command to the FIRST BRANCH device |
+| `AUX_CheckBranchOUIOnly` | 0 | match the DP branch by OUI (our 0x4a/0x4b branch) |
+| `AUX_WaitDelayTimeAfterSendData` | 0 | `Sleep()` after a native write |
+| `AUX_IncompleteWriteNeedRetry` | 1 | retry a short write |
+| `AUX_NvidiaMSTSupport` | 0 | MST off |
+
+## Backend selection, proven (`AUXInitialDev` @ 0x10039e50)
+
+AUTO (`AUX_DetctType=1`) tries **AMD first** (`FUN_10035440`, logs
+"AMD AUX!!!" → backend 2), then **Intel** (`FUN_10039c00`, "not find Intel
+graphics!!!" on failure); MANUAL honours `AUX_GraphicsType` (1→Intel, 2→AMD,
+else the third = NVIDIA `FUN_100447c0`). Returns `0x800` with no device,
+`0x1d` on the multi-candidate path.
+`Facts.COMM_BACKENDS`, `Facts.COMM_AUTO_DETECT_ORDER`, `Facts.COMM_BACKEND_DLLS`.
+
+**Consequence for issue #1 (Intel/AMD box):** the Intel box does not use the
+NVIDIA primitives at all — it uses `FUN_1003d850`/`FUN_1003e170` behind
+`IntelControlAPI`. The AMD box adds a branch-device step
+(`AUX_SendCmdToFirstBranchForAMD=1`). A trace on the Intel box should watch
+`IntelControlAPI.dll`, not the NVAPI surface.
+
+## Two lanes, proven (`FUN_100452c0` write / `FUN_10045060` read)
+
+`DAT_1021ae90` (an INI key, tail of `FUN_1003b7e0`) picks the param shape on
+the SAME DP-AUX channel:
+
+| lane | param block | addressing | chunk |
+|---|---|---|---|
+| tunnel | `0x3002c` = NV_I2C_INFO_V3 (44 B) | 8-bit DDC slave (`slave<<1\|RW`), `bIsDDCPort=1`, reg pointer passed by ref | 32 B (`AUX_I2CPageLen`) |
+| native | `0x20068` = 104 B (legacy `NvAPI_Disp_DpAuxChannelControl`) | **register index in the address field**, op 2 = write, op 3 = read, size 0-based | **16 B**, loop `(len+1) >> 4` full chunks + a remainder; write is `[pointer byte][payload]` in one message; read is write-then-read |
+
+That closes the 14i open question in `Facts.ISP_PIPELINE`: the two register
+grammars are not competing views of one surface — **the grammar follows the
+lane.** Byte-index (0x60/0x61/0x64-0x66, Flash.dat) = native; 16-bit window
+(0x841/0x842/0x845) = tunnel. Implemented as `msi_isp/lane.py` and
+`--lane {i2c,native}`.
+
+## Live measurement on this box (2026-11-01, kernel 7.3.1-1, driver 615.78.08)
+
+`msi_auxch.ko` rebuilt clean for 7.3.1-1, relay acceptance PASS
+(`kernel/test_relay.py`, unprivileged, gate matrix included).
+
+Native-lane index read, one byte per register (`--auxdev --lane native probe`):
+
+```
+0x60 05   0x61 21   0x64 2b   0x65 04   0x66 09   0x841 00  0x842 00  0x845 00
+```
+
+Reading: those are **DPCD** bytes — 0x60 TRAINING_PATTERN_SET (05 = TPS4),
+0x61 lane-0 pattern (21 = adjust requested), 0x64 lane-align (2b), 0x65
+clocks-recovered, 0x66 channel-equalisation; 0x841.. sits in MTPMT1 and reads
+00. So on this sink the native lane reaches the DPCD/MTPMT byte space, exactly
+as `kernel/msi_auxch.c`'s gate comment says, and the Flash.dat register
+NUMBERS coincide with DPCD offsets. **The native lane is not a new road to the
+0x22 register file** — it is a working DPCD reader, which is useful on its own
+(the vendor's `AUX_CheckDpcdTable` gate lives there).
+
+Tunnel lane unchanged (regression): 0x30/0x37/0x50 ACK, ISP slaves no-ack.

@@ -17,8 +17,16 @@ import ctypes
 import os
 import time
 
+from .lane import (
+    AUX_MODE_AUX,
+    LANE_DEFAULT,
+    MAX_DATA,
+    chunks,
+    split_register,
+    use_native,
+)
+
 NODE = "/dev/msi-auxch"
-MAX_DATA = 16                     # NV0073_CTRL_DP_AUXCH_MAX_DATA_SIZE
 AUX_REQ_MOT, AUX_REQ_WRITE, AUX_REQ_READ = 0x4, 0, 1
 REPLY = {0: "ACK", 1: "NACK", 2: "DEFER", 3: "TIMEOUT",
          4: "I2CNACK", 8: "I2CDEFER", 0xFFFFFFFF: "INVALID_ARG"}
@@ -52,7 +60,10 @@ class AuxDevBus:
 
     label = "kernel relay /dev/msi-auxch"
 
-    def __init__(self, node: str = NODE):
+    def __init__(self, node: str = NODE, lane: str = LANE_DEFAULT):
+        self.lane = lane               # "i2c" tunnel | "native" AUX (see lane.py)
+        self._reg = None               # native lane: the register last posed
+        self._posed = False            # native lane: is that pose live?
         import fcntl as _f
         self._fcntl = _f
         try:
@@ -110,8 +121,15 @@ class AuxDevBus:
 
     # ---- framing (mirrors nvbus.NvRMAuxBus, protocol-proven there) ----
     def _txn(self, addr7, req, data=b"", mot=False, addr_only=False,
-             retries=3):
-        x = _Xfer(cmd=req | (AUX_REQ_MOT if mot else 0), addr=addr7 & 0x7F,
+             retries=3, native=None):
+        """One AUXCH transaction. `native` picks the lane per call; None
+        follows the bus's lane. In the native lane `addr7` is the register
+        INDEX (up to 20 bits) and must not be masked to 7 bits, which is how
+        14i's 0x841-0x84f window stays reachable."""
+        aux = use_native(self.lane, addr7) if native is None else native
+        x = _Xfer(cmd=req | (AUX_REQ_MOT if mot else 0) |
+                  (AUX_MODE_AUX if aux else 0),
+                  addr=addr7 & (0xFFFFF if aux else 0x7F),
                   bAddrOnly=int(addr_only), retryTimeMs=0)
         payload = bytes(data)
         if req == AUX_REQ_READ:
@@ -148,9 +166,48 @@ class AuxDevBus:
     def _term_write(self, addr7):
         self._txn(addr7, AUX_REQ_WRITE, data=b"", mot=False, addr_only=True)
 
+    def _native_write(self, addr7, data):
+        """Native AUX write: register index in the address field, payload 16
+        B at a time (nvbus parity; Comm_Aux FUN_100452c0)."""
+        reg, payload = split_register(data)
+        if reg is None:
+            self._txn(addr7, AUX_REQ_WRITE, b"", native=True)
+            return
+        self._reg = reg
+        if not payload:
+            self._txn(reg, AUX_REQ_WRITE, b"", native=True)
+            self._posed = True
+            return
+        for chunk in chunks(payload):
+            name, _ = self._txn(reg, AUX_REQ_WRITE, data=chunk, native=True)
+            if name != "ACK":
+                raise OSError(f"relay native write to {reg:#06x}: {name}")
+
+    def _native_read(self, n):
+        """Read the register the last write posed (FUN_10045060: op 2 then
+        op 3). Re-poses only when nothing posed it - a caller that writes
+        reg A then reads reg B gets B's pointer on the wire."""
+        if self._reg is None:
+            raise OSError("relay native read with no register posed")
+        if not self._posed:
+            self._txn(self._reg, AUX_REQ_WRITE, b"", native=True)
+        self._posed = False
+        buf = bytearray()
+        while len(buf) < n:
+            want = min(MAX_DATA, n - len(buf))
+            name, got = self._txn(self._reg, AUX_REQ_READ, data=bytes(want),
+                                  native=True)
+            if name != "ACK" or not got:
+                break            # phantom-ACK rule (15k)
+            buf += got[:want]
+        return bytes(buf[:n])
+
     def write(self, addr7, data, warmup=False):
         """One complete I2C write message: [addr][data...][STOP]."""
         data = bytes(data)
+        if use_native(self.lane, addr7):
+            self._native_write(addr7, data)
+            return
         if not data:
             self._txn(addr7, AUX_REQ_WRITE, data=b"", mot=True,
                       addr_only=True)
@@ -170,6 +227,8 @@ class AuxDevBus:
         """One complete I2C read message, 16 B chunks with MOT chained."""
         if delay:
             time.sleep(delay)
+        if use_native(self.lane, addr7):
+            return self._native_read(n)
         buf = bytearray()
         while len(buf) < n:
             chunk = min(MAX_DATA, n - len(buf))

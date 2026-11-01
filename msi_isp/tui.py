@@ -355,13 +355,13 @@ class Tui:
                 self.draw()
 
 
-def run_tui(bus_num: int, bin_path: str | None = None,
+def run_tui(bus_num: int, bin_path: str | None = None, lane: str = "i2c",
             use_nvrm: bool = False, use_auxdev: bool = False) -> None:
     if not (sys.stdout.isatty() and os.environ.get("TERM", "") not in ("", "dumb")):
         # no usable terminal: fall back to the plain text REPL
         run_console(bus_num, bin_path, use_nvrm=use_nvrm,
-                    use_auxdev=use_auxdev)
+                    use_auxdev=use_auxdev, lane=lane)
         return
     console = Console(bus_num, bin_path, use_nvrm=use_nvrm,
-                      use_auxdev=use_auxdev)
+                      use_auxdev=use_auxdev, lane=lane)
     curses.wrapper(lambda scr: Tui(scr, console).loop())
