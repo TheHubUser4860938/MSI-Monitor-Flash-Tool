@@ -113,6 +113,64 @@ class TestCommVtable(unittest.TestCase):
         self.assertIn(0x78, Facts.COMM_VTABLE)
 
 
+class TestSlot14Settled(unittest.TestCase):
+    """16d: the +0x14 disagreement between 14i and 16a is settled on bytes -
+    `ff 50 14` (call [EAX+0x14]) with no PUSH in front of it, and the result
+    compared against 0xe on the next instruction."""
+
+    def test_shape_is_zero_arg_thiscall(self):
+        self.assertIn("zero stack args", Facts.COMM_SLOT_0x14["shape"])
+        self.assertIn("ff5014", Facts.COMM_SLOT_0x14["evidence"])
+
+    def test_it_supersedes_the_page_transfer_label(self):
+        self.assertIn("32-byte page", Facts.COMM_SLOT_0x14["supersedes"])
+
+    def test_values_match_the_comparisons_seen(self):
+        self.assertEqual(Facts.COMM_SLOT_0x14["values"], [3, 8, 0xE, 0x13])
+
+    def test_read_cap_is_24(self):
+        """Comm.dll I2CRead returns 0x10 above 24 bytes - the real transfer
+        ceiling on that path, tighter than the 32-byte INI page."""
+        self.assertEqual(Facts.COMM_READ_CAP, 24)
+
+
+class TestIspBoardGrammar(unittest.TestCase):
+    """The third register surface: 0xF2 addr port, 0x55 cmd, 0x57 width,
+    0x58 bank, 0x5E data, with a 0/1/2 width selector (1/2/3-byte addressing).
+    Decoded from Comm.dll RVA 0x3990; it is the ISP-board/GFX path, armed by
+    GetSpecialCommType()==1."""
+
+    def test_ports(self):
+        self.assertEqual(Facts.ISP_BOARD_REGS["addr_port"], 0xF2)
+        self.assertEqual(Facts.ISP_BOARD_REGS["cmd_port"], 0x55)
+        self.assertEqual(Facts.ISP_BOARD_REGS["data_port"], 0x5E)
+
+    def test_three_widths(self):
+        self.assertEqual(sorted(Facts.ISP_BOARD_REGS["width_values"]), [0, 1, 2])
+        self.assertEqual(Facts.ISP_BOARD_REGS["width_values"][0], (0xFC, 0xE7))
+        self.assertEqual(Facts.ISP_BOARD_REGS["width_values"][2], (0xFC, 0xEF))
+
+    def test_the_grammar_names_where_it_came_from(self):
+        self.assertIn("0x3990", Facts.ISP_BOARD_REGS["decoded_at"])
+
+
+class TestLaneReadback(unittest.TestCase):
+    """The lanes, named by what they answer (measured, not inferred)."""
+
+    def test_the_mailbox_lane_answers_with_status(self):
+        self.assertIn("0x8a", Facts.LANE_READBACK[0x37])
+
+    def test_the_branch_is_zeros(self):
+        self.assertIn("0x00", Facts.LANE_READBACK[0x4A])
+
+    def test_the_flash_lane_is_the_silent_one(self):
+        self.assertIn("EIO", Facts.LANE_READBACK[0x22])
+        self.assertIn("EIO", Facts.LANE_READBACK[0x20])
+
+    def test_measurement_is_located(self):
+        self.assertIn("2026-11-01", Facts.LANE_READBACK_AT)
+
+
 class TestFlashModes(unittest.TestCase):
     """IspFlash (0x10008520) only runs for these DAT_1024a2d4 values; 0x1a is
     the background bank (its own engine), 0x1b the foreground (log only)."""

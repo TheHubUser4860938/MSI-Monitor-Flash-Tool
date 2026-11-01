@@ -2273,3 +2273,35 @@ Pushed to origin/main (16a/16b/16c).
 NEXT: the decisive read is a candidate answering 0x23 **with content** —
 Intel/AMD (where detection actually runs) is now a sharper experiment than
 "does 0x22 ACK".
+
+## Session 16d (2026-11-01) — +0x14 SETTLED on bytes, a THIRD register grammar, and the lanes named by what they answer
+
+- `ff 50 14` / `83 f8 0e` at WinIspPlugIn 0x10023a90: slot +0x14 is thiscall
+  with **zero stack args**, returns a family code (3/8/0xE/0x13). The transfer
+  slots are +0x54 (write) and +0x13c (alt). 14i's "32-byte page transfer" is
+  superseded, with the byte evidence. `Facts.COMM_SLOT_0x14`.
+- Comm.dll `I2CWrite`/`I2CRead`/`I2CWordWrite` (RVA 0x46e0/0x4a20/0x4e50) take
+  `(dev, byte reg, count, buf)`; I2CRead **caps count at 0x18 = 24 bytes**
+  (returns 0x10 above it) — tighter than the 32-byte INI page.
+  `Facts.COMM_READ_CAP`.
+- **Third register surface** decoded (Comm.dll RVA 0x3990/0x3c80, armed by
+  `GetSpecialCommType()==1`): ports `0xF2` addr, `0x55` cmd (read-back |0x80 =
+  go), `0x57` width (0xFC + nibble), `0x58` bank (0xE7 / 0xEF|0x08), `0x5E`
+  data (read |1); width 0/1/2 = 1/2/3-byte addressing, >2 -> 0x11. Matches the
+  `rtd38/Comm_GFXI2C.dll` module that exports NativeRead/NativeWrite.
+  `Facts.ISP_BOARD_REGS`.
+- The exe IS the engine (imports LoadLibrary*/GetProcAddress, relaunches itself
+  as WinISPTool.exe); the comm words are in Comm.dll (170 exports) — the
+  installed prefix kept only IspSetting.ini.
+- MEASURED lanes (1-byte reads, i2c-dev): **0x37 answers 0x8a at all nine
+  registers** (the MCCS status byte — the register index selects no cell),
+  0x4A/0x4B answer 00, 0x22/0x20 EIO. With ISP entry accepted (magic cand 0,
+  status 0xfe) the 4-byte reads on all five stay EIO. `Facts.LANE_READBACK`.
+
+Gates: ruff clean, **149 unit tests OK** (+11: slot shape, read cap, board
+grammar, lane readback). Notes: re/ghidra_isp_engine.md (16d).
+
+NEXT (software-only, no clip): the mailbox ladder on 0x37, command-level —
+drive the Flash.dat commands through the DDC/CI slave and read the reply, and
+map reply -> register. Address-level scanning is exhausted: three lanes, three
+constant replies.

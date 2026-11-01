@@ -864,3 +864,70 @@ ISP_SLAVE_TRIPLES = [
 ISP_SLAVE_PROBE_REG = 0x23
 ISP_SLAVE_FOR_TYPE8 = 0x6F        # IspSetting.ini; RTD2711 skips detection
 ISP_SLAVE_DECODED_AT = "Comm.dll 0x101b5db4 (table), RVA 0x7050/0x4230/0x4240"
+
+
+# ---- Slot +0x14 SETTLED, and a third register grammar (session 16d) ------
+# Disassembly, not pseudocode (the decompiler drops arguments with no
+# prototype, which is why 14i and 16a disagreed):
+#   WinIspPlugIn 0x10023a90   ff 50 14     CALL [EAX+0x14]     <- no PUSHes
+#   WinIspPlugIn 0x10023a93   83 f8 0e     CMP EAX, 0xe        <- result tested
+# So slot +0x14 is thiscall with ZERO stack args and returns a family code
+# (compared against 3 / 8 / 0xe / 0x13 in the enter and dump paths). 14i's
+# "32-byte page transfer" label is superseded: the transfer slots are +0x54
+# (write, 3 bytes from the ISP command object + a buffer pointer) and +0x13c
+# (the alt path when obj+0x43054 != 0). Corroborating shape on the far side:
+# Comm.dll's own I2CWrite/I2CRead (RVA 0x46e0 / 0x4a20) take
+# (dev, byte reg, count, buf) and their special path calls
+# func_0x10003c80(reg, count, buf) / FUN_10003990(reg, width, addr, ...).
+# Comm.dll I2CRead ALSO caps the transfer: count > 0x18 (24) returns 0x10.
+COMM_SLOT_0x14 = {
+    "shape": "thiscall, zero stack args, returns a scaler family code",
+    "evidence": "WinIspPlugIn 0x10023a90 ff5014 then 83f80e CMP EAX,0xe",
+    "values": [3, 8, 0xE, 0x13],
+    "supersedes": "14i 'slot +0x14 = 32-byte page I2C transfer' (the transfer "
+                  "slots are +0x54 / +0x13c)",
+}
+COMM_READ_CAP = 24          # Comm.dll I2CRead: count > 0x18 -> 0x10
+
+# The ISP-board / GFX grammar, decoded from Comm.dll FUN_10003990 (RVA 0x3990,
+# the "special comm" path taken when GetSpecialCommType() == 1). A THIRD
+# register surface, beside 14i's 0x841-window and 15i's 0x60-window:
+#   0xF2  address port  - 3-byte address written, then the high byte read back
+#   0x55  command/mode  - written, then read with bit 0x80 set (the go strobe)
+#   0x57  width select  - 0xFC with a mode nibble 0 (1-byte) / 1|2 (2,3-byte)
+#   0x58  bank/width    - 0xE7 (1-byte) | 0xEF with bit3 (2- and 3-byte)
+#   0x5E  data window   - address bytes then data, read back with |1 for a read
+# width selector: 0 = 1 byte, 1 = 2 bytes, 2 = 3 bytes; >2 returns 0x11.
+ISP_BOARD_REGS = {
+    "addr_port": 0xF2, "cmd_port": 0x55, "width_port": 0x57,
+    "bank_port": 0x58, "data_port": 0x5E,
+    "width_values": {0: (0xFC, 0xE7), 1: (0xFC, 0xEF), 2: (0xFC, 0xEF)},
+    "bank_bit": 0x08,        # 0x58 value |8 for the 2- and 3-byte widths
+    "read_flag": 0x01,       # the data port is re-read with |1
+    "mode_switch": "GetSpecialCommType()==1 selects it (Comm.dll RVA 0xc190); "
+                   "FUN_10003990 clears it after arming (one-shot)",
+    "decoded_at": "Comm.dll RVA 0x3990 (read) / 0x3c80 (write)",
+}
+
+
+# ---- What each lane is actually made of (measured 2026-11-01, i2c-dev) ----
+# One-byte reads through the tunnel, register grammar, every slave the vendor
+# can name. The replies are CONSTANT per slave, which is the finding: on this
+# sink the register index does not select a cell on these slaves.
+#   0x37 -> 0x8a at 0xF2, 0x55, 0x57, 0x58, 0x5E, 0x60, 0x61, 0x64, 0x23
+#   0x4A -> 0x00 at all nine, and 0x4B the same
+#   0x22 / 0x20 -> EIO (they answer only once the scaler is in ISP mode;
+#                  16c: ISP entry was accepted with status 0xfe and the
+#                  4-byte reads still EIO)
+# Reading: 0x8a is the MCCS status byte, so 0x37's "register reads" are DDC/CI
+# status polls - the mailbox lane the type-8 path uses. The ISP register file
+# (0x22) is the lane that carries flash, and it is the one that is silent here.
+LANE_READBACK = {
+    0x37: "0x8a at every register tried - the DDC/CI status byte; this is "
+          "the MCCS mailbox lane (what type 8 uses, INI slave 0x6F)",
+    0x4A: "0x00 everywhere - the DP branch device, not a register file",
+    0x4B: "0x00 everywhere - the branch's continuous-transfer pair",
+    0x22: "EIO - the ISP register file; answers in ISP mode only",
+    0x20: "EIO - the ReadFlashData burst engine",
+}
+LANE_READBACK_AT = "2026-11-01 /dev/i2c-4, one-byte reads, regs F2 55 57 58 5E 60 61 64 23"

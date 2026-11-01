@@ -287,3 +287,83 @@ report lane quality, not just presence. The open measurement is unchanged in
 kind and sharper in form: **find a candidate that answers the 0x23 probe with
 content** — on Intel/AMD (type != 8, so detection runs) and on a real Windows
 run. Banked as `Facts.ISP_SLAVE_TRIPLES`.
+
+---
+
+# Session 16d — slot +0x14 settled on bytes, a third register grammar, and what each lane is made of
+
+## The exe is the engine, and it has no comm strings
+
+`MSI Firmware Update Utility V1.0.6.exe` imports `LoadLibraryA/W/ExW` +
+`GetProcAddress` and carries only MFC strings plus its own relaunch line
+(`WinISPTool.exe --ispdiff --newboot --fw "%ls" --comm %d --settingfile "%ls"`
+at 0x5e9170 / 0x5e9548). The comm vocabulary lives in `Comm.dll` (**170 named
+exports**) and `rtd38/Comm_GFXI2C.dll` (52, with `NativeRead`/`NativeWrite`
+exported by name). `IspSetting.ini` is read at `FUN_00413e20` (string
+0x5e8d04). The installed copy under the Wine prefix left only the INI behind
+(`.../Temp/ISPToolForMsi/`), so the exe we have is the engine.
+
+## +0x14: SETTLED
+
+```
+WinIspPlugIn 0x10023a90   ff 50 14    CALL [EAX+0x14]     <- no PUSH before it
+WinIspPlugIn 0x10023a93   83 f8 0e    CMP  EAX, 0xe       <- result is a code
+```
+
+Zero stack arguments, `thiscall`, returns a **family code** compared against
+3 / 8 / 0xE / 0x13. 14i's "32-byte page transfer" label is superseded: the
+transfer slots are **+0x54** (write: three bytes from the ISP command object at
+`obj+0x42f50..52` plus a buffer pointer at `+0x42f53`) and **+0x13c** (the
+alternate path when `obj+0x43054 != 0`). Corroborated on the far side by
+Comm.dll's own exports: `I2CWrite` (RVA 0x46e0) and `I2CRead` (0x4a20) take
+`(dev, byte reg, count, buf)`, and `I2CWordWrite` (0x4e50) forwards to the
+same triple.
+
+**New limit:** Comm.dll `I2CRead` returns `0x10` when `count > 0x18` — a
+**24-byte** ceiling on that path, tighter than the 32-byte INI page.
+(`Facts.COMM_READ_CAP`.)
+
+## A third register grammar (Comm.dll RVA 0x3990 / 0x3c80)
+
+Taken when `GetSpecialCommType() == 1` (RVA 0xc190; the read path clears the
+flag after arming, so it is one-shot). Ports:
+
+| port | role | evidence |
+|---|---|---|
+| `0xF2` | address port | 3-byte address written, high byte read back |
+| `0x55` | command/mode | written, then read with `\|0x80` (the go strobe) |
+| `0x57` | width select | `0xFC` with a mode nibble 0 / 1 / 2 |
+| `0x58` | bank/width | `0xE7` for 1-byte; `0xEF` (+bit3 `0x08`) for 2- and 3-byte |
+| `0x5E` | data window | address bytes, then data; read back with `\|1` |
+
+Width selector 0/1/2 = 1/2/3-byte addressing; `>2` returns `0x11`. Banked as
+`Facts.ISP_BOARD_REGS`. This is the ISP-board / GFX surface — a third map
+beside 14i's `0x841` window and 15i's `0x60` window, and it matches the
+`rtd38/Comm_GFXI2C.dll` module that exports `NativeRead`/`NativeWrite`.
+
+## What each lane is made of (measured, one-byte reads, i2c-dev)
+
+```
+        0xF2 0x55 0x57 0x58 0x5E 0x60 0x61 0x64 0x23
+  0x37   8a   8a   8a   8a   8a   8a   8a   8a   8a     DDC/CI status byte
+  0x4A   00   00   00   00   00   00   00   00   00     DP branch device
+  0x4B   00   00   00   00   00   00   00   00   00
+  0x22  EIO  ...                                        ISP register file
+  0x20  EIO  ...                                        ReadFlashData engine
+```
+
+The replies are **constant per slave** — the register index selects no cell on
+0x37/0x4A. So: `0x37` is the MCCS mailbox lane (what the type-8 path uses, INI
+slave `0x6F`), `0x4A/0x4B` is the branch, and the flash-carrying lane is
+`0x22`, which answers only in ISP mode. With ISP entry accepted this session
+(magic candidate 0, status `0xfe`), the 4-byte reads on all five stayed EIO —
+the lane is mode-dependent and the register file is the one still silent.
+
+## What that means for flashing without the clip
+
+The software path is the **mailbox ladder on 0x37**: 15g's slots +0x74/+0x78
+push `(0x6A, 0xCA, count, &buf)` and 16c's table confirms `0x6A` is the third
+member of the winning triple — so the ladder is (slave 0x4A pair, mailbox
+0x6A) driven through the DDC/CI slave. The next measurement is command-level,
+not address-level: send the Flash.dat commands on 0x37 and read the reply,
+then map reply→register. `Facts.LANE_READBACK` records where we stand.
