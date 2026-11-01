@@ -376,6 +376,32 @@ def cmd_slaves(args):
             "0x00, 1-16 bytes). Vendor-parity lane; content still pending."))
 
 
+def cmd_ladder(args):
+    """Replay the vendor's mailbox ladder (Flash.dat commands in the 0xCA
+    frame) on this transport; --isp runs it once more inside ISP mode."""
+    from .isp import enter_isp, exit_isp, mailbox_ladder
+    slaves = [(Facts.ISP_MAILBOX_SLAVE7, "mailbox (triple member)"),
+              (0x22, "scaler MCU window"), (0x20, "flash read burst"),
+              (0x4A, "cand0 ISP slave"), (0x37, "DDC/CI")]
+    with _bus(args) as bus:
+        for mode in (["plain", "isp"] if args.isp else ["plain"]):
+            if mode == "isp":
+                try:
+                    idx, st = enter_isp(bus)
+                    print(f"# inside ISP mode (magic candidate {idx}, "
+                          f"status {st:#04x})")
+                except Exception as e:
+                    print(f"# ISP entry failed: {e}")
+            for slave7, what in slaves:
+                lad = mailbox_ladder(bus, slave7=slave7)
+                verdict = ("VARIES" if lad.varies else
+                           "constant" if lad.alive else "silent")
+                print(f"  {slave7:#04x} {what:<22} {verdict:<9} "
+                      f"{lad[0].reply.hex(' ') if lad[0].reply else lad[0].error}")
+            if mode == "isp":
+                exit_isp(bus)
+
+
 def cmd_backup(args):
     from .buslock import BusBusyError, bus_lock
     try:
@@ -512,6 +538,10 @@ def main(argv=None):
     sub.add_parser("probe", help="slave ACK scan incl. ISP addresses (safe)")
     sub.add_parser("slaves", help="the vendor's ISP-slave detection, re-run "
                                   "(Comm.dll AutoDetectSlaveAddr; safe)")
+    ld = sub.add_parser("ladder", help="the vendor's mailbox ladder replayed "
+                                       "with Flash.dat's commands (safe)")
+    ld.add_argument("--isp", action="store_true",
+                    help="also run the ladder inside ISP mode (enter/exit)")
     b = sub.add_parser("backup", help="dump scaler SPI flash (read-only)")
     b.add_argument("--out", required=True)
     b.add_argument("--size", type=lambda s: int(s, 0),
@@ -529,7 +559,7 @@ def main(argv=None):
                    help="required and acknowledged: a bad flash can brick the scaler")
     args = p.parse_args(argv)
     {"info": cmd_info, "verify": cmd_verify, "probe": cmd_probe,
-     "slaves": cmd_slaves,
+     "slaves": cmd_slaves, "ladder": cmd_ladder,
      "backup": cmd_backup, "write": cmd_write,
      "shell": cmd_shell, "tui": cmd_tui}[args.cmd](args)
 

@@ -2305,3 +2305,30 @@ NEXT (software-only, no clip): the mailbox ladder on 0x37, command-level —
 drive the Flash.dat commands through the DDC/CI slave and read the reply, and
 map reply -> register. Address-level scanning is exhausted: three lanes, three
 constant replies.
+
+## Session 16e (2026-11-01) — the mailbox ladder replayed: the info lane confirmed with the vendor's own commands, and ISP entry named as a DDC/CI handshake
+
+`msi-isp ladder [--isp]` (new) sends Flash.dat's commands (0x06 / 0x90 / 0x3B,
+15i Phase A) in the vendor's mailbox frame `[0xCA, opcode]` on every slave the
+vendor names.
+
+- **0x37 answers ONE frame at every command**: `8a 02 00 fe 00 46 57 2e 30 30
+  39 4e` = "FW.009N". The apparent per-command variation was the WIDTH we
+  asked for, so `Ladder.varies` now compares replies at the shortest width
+  (a test pins it). Info lane, confirmed with the vendor's own commands.
+- **Two doors, one register**: the version string is reached by MCCS opcode
+  0x51 (FE E1 E6, our byte-exact packet) and by writing 0xCA with any second
+  byte.
+- **0x35 / 0x22 / 0x20 EIO in both modes** (plain and inside ISP entry, magic
+  candidate 3, status 0x8a); 0x4A answers zeros. And `enter_isp`'s 0x80-bit
+  test is reading the MCCS reply header (0x8a in, 0xfe out) — ISP entry on
+  this sink IS a DDC/CI handshake.
+
+Banked: `Facts.ISP_MAILBOX_SLAVE7/_TOKEN`, `Facts.LADDER_VERDICT`,
+`isp.mailbox_ladder` + `Ladder.varies/alive`, the `ladder` command.
+Gates: ruff clean, **164 unit tests OK** (+15: frame shape, per-command
+replies, NACK-as-step, prefix-is-one-answer, the verdict).
+
+NEXT: on Intel/AMD, `msi-isp ladder --isp` — 0x35 is the probe that matters
+there (no NVIDIA allow-list). On NVIDIA the software ceiling is now measured:
+the info lane.

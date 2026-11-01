@@ -367,3 +367,50 @@ member of the winning triple — so the ladder is (slave 0x4A pair, mailbox
 0x6A) driven through the DDC/CI slave. The next measurement is command-level,
 not address-level: send the Flash.dat commands on 0x37 and read the reply,
 then map reply→register. `Facts.LANE_READBACK` records where we stand.
+
+---
+
+# Session 16e — the mailbox ladder, replayed with the vendor's own commands
+
+The address sweep is exhausted (three lanes, constant replies), so the test
+moved to command level: Flash.dat's commands for this chip
+(`0x06` write-enable, `0x90` Device-ID, `0x3B` fast read — 15i Phase A) sent
+in the frame 15g decoded from the engine's ISP-control slots
+`[0xCA, opcode]`, on every slave the vendor can name. New command:
+`msi-isp ladder [--isp]`.
+
+## Result
+
+```
+                       plain            inside ISP mode (status 0x8a)
+  0x35 mailbox         EIO              EIO
+  0x22 scaler MCU      EIO              EIO
+  0x20 flash read      EIO              EIO
+  0x4A cand0           00 (all cmds)    00 (all cmds)
+  0x37 DDC/CI          8a | 8a 02 00 fe | 8a 02 00 fe 00 46 57 2e 30 30 39 4e
+```
+
+Three findings:
+
+1. **The `0x37` reply is ONE frame, not three.** It looked like the command
+   changed the answer; it changed the *width we asked for*. The frame is
+   `8a 02 00 fe 00` + `"FW.009N"` — the live firmware version. So the mailbox
+   is an info lane, now witnessed with the vendor's own commands (15j saw it
+   with the `0xA0` opcode). `Ladder.varies` was corrected to compare at the
+   shortest width for exactly this reason.
+2. **A second door to the same register.** The version string is reached by
+   MCCS opcode `0x51` with `(FE, E1, E6)` — `VENDOR_FW_VERSION_CMD`, our
+   byte-exact packet — *and* by writing `0xCA` with any second byte. One
+   register, two doors, which is what a mirrored register looks like.
+3. **ISP entry on this sink is a DDC/CI handshake.** `enter_isp` reads the
+   `0x80` bit of what turns out to be the MCCS reply header: `0x8a` on entry,
+   `0xfe` after exit. The flash-carrying slaves (`0x22`, `0x20`) and the
+   mailbox slave (`0x35`) stay EIO in both modes.
+
+## What that means for flashing without the clip
+
+On NVIDIA the software ceiling is the info lane. The lever is a tunnel with no
+allow-list: the DRM AUX bridge on Intel/AMD exposes the whole 7-bit space, so
+`0x35` — the third member of the winning triple, the slave 15g's ladder pushes
+— is the first thing to probe there, and `msi-isp ladder --isp` is the
+one-command version of this experiment. Banked as `Facts.LADDER_VERDICT`.

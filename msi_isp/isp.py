@@ -351,3 +351,79 @@ def autodetect_isp_slave(bus, verbose: bool = False) -> IspSlave:
                 print(f"  cand{i} {w8>>1:#04x} replies {got.hex(' ')}")
             return IspSlave(i, w8 >> 1, c8 >> 1, x8 >> 1, bytes(got))
     return IspSlave()
+
+
+# ---- mailbox ladder replay (session 16e) --------------------------------
+LADDER_COMMANDS = [
+    (0x06, "WRITE ENABLE", 1),
+    (0x90, "DEVICE ID (vendor gate 70 16 15)", 4),
+    (0x3B, "FAST READ", 16),
+]
+
+
+@dataclass
+class LadderStep:
+    """One command on the mailbox lane: what we sent, what came back."""
+    opcode: int
+    what: str
+    sent: bytes = b""
+    reply: bytes | None = None
+    error: str | None = None
+
+    @property
+    def answered(self) -> bool:
+        return bool(self.reply)
+
+
+class Ladder(list):
+    """The replay result. `varies` is the whole point: a mailbox that answers
+    every command with the same bytes is an info lane (15j's verdict for the
+    DDC/CI 0xA0 opcode); a mailbox whose reply depends on the command has a
+    register file behind it, and the backup becomes a software read."""
+
+    @property
+    def varies(self) -> bool:
+        """Compare replies at the SHORTEST width, content first.
+
+        Measured 2026-11-01 on 0x37: the ladder looked like it varied (1 byte
+        for 0x06, 4 for 0x90, 16 for 0x3B) because the DDC/CI reply register
+        is ONE frame - `8a 02 00 fe 00 46 57 2e 30 30 39 4e` = "FW.009N" -
+        read at increasing widths. A window register has to change the bytes,
+        not the read length, so every reply is truncated to the shortest
+        answer before trailing zeros are trimmed."""
+        got = [s.reply for s in self if s.answered]
+        if not got:
+            return False
+        m = min(len(r) for r in got)
+        seen = {r[:m].rstrip(b"\x00") for r in got}
+        seen.discard(b"")
+        return len(seen) > 1
+
+    @property
+    def alive(self) -> bool:
+        return any(s.answered for s in self)
+
+
+def mailbox_ladder(bus, slave7: int | None = None, token: int | None = None,
+                   verbose: bool = False) -> Ladder:
+    """Send Flash.dat's commands through the vendor's mailbox frame
+    [token, opcode] and read each reply. Read-only on the monitor: writes to
+    a mailbox register cannot damage the flash, and the commands chosen are
+    the ID/read class the vendor itself uses to identify the chip."""
+    from . import Facts
+    sl = slave7 if slave7 is not None else Facts.ISP_MAILBOX_SLAVE7
+    tk = token if token is not None else Facts.ISP_MAILBOX_TOKEN
+    out = Ladder()
+    for opcode, what, n in LADDER_COMMANDS:
+        sent = bytes([tk, opcode])
+        step = LadderStep(opcode, what, sent)
+        try:
+            bus.write(sl, sent, warmup=True)
+            step.reply = bus.read(sl, n, warmup=False)
+        except Exception as e:
+            step.error = str(e)
+        if verbose:
+            print(f"  {opcode:#04x} {what}: "
+                  f"{step.reply.hex(' ') if step.reply else (step.error or 'no reply')}")
+        out.append(step)
+    return out

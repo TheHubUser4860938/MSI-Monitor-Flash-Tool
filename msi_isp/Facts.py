@@ -931,3 +931,45 @@ LANE_READBACK = {
     0x20: "EIO - the ReadFlashData burst engine",
 }
 LANE_READBACK_AT = "2026-11-01 /dev/i2c-4, one-byte reads, regs F2 55 57 58 5E 60 61 64 23"
+
+
+# ---- The mailbox ladder: command-level, not address-level (16e) ----------
+# 15g decoded the engine's ISP-control slots +0x74/+0x78 pushing
+# (0x6A, 0xCA, count, &buf): the slave, a token register, then the payload.
+# 16c's slave table (Comm.dll 0x101b5db4) independently confirms 0x6A is the
+# THIRD member of winning candidate 0 - the mailbox lane that sits beside the
+# ISP slave 0x4A and its continuous pair 0x4B. The commands below are
+# Flash.dat's own for this chip (Facts.FLASHDAT_MAP, 15i Phase A): write
+# enable, Device-ID (the vendor's gate answers '70 16 15'), fast read.
+ISP_MAILBOX_SLAVE7 = 0x35        # 8-bit 0x6A
+ISP_MAILBOX_TOKEN = 0xCA
+
+
+# ---- The ladder, replayed (16e) ------------------------------------------
+# Flash.dat's commands (0x06 / 0x90 / 0x3B) sent as the vendor's mailbox frame
+# [0xCA, opcode] on the 0x37 lane. MEASURED 2026-11-01, in normal mode AND
+# after an accepted ISP entry (magic candidate 3, status 0x8a):
+#   0x37  ONE frame at every command: 8a | 8a 02 00 fe | 8a 02 00 fe 00
+#         46 57 2e 30 30 39 4e  = "FW.009N". The reply grows because WE ask
+#         for more bytes, not because the command changed -> info lane, now
+#         witnessed with the vendor's OWN commands (15j saw it with 0xA0).
+#   0x4A  answers 00 at every command (the DP branch).
+#   0x35  EIO in both modes - the mailbox slave of the winning triple.
+#   0x22  EIO in both modes - the flash register file.
+#   0x20  EIO in both modes - the ReadFlashData burst engine.
+# A second, independent witness on one register: the vendor's version string
+# is reached by opcode 0x51 (VENDOR_FW_VERSION_CMD, FE E1 E6) AND by writing
+# 0xCA with any second byte - one register, two doors.
+LADDER_VERDICT = {
+    "measured": "2026-11-01, /dev/i2c-4, normal + ISP mode (status 0x8a)",
+    "0x37": "constant MCCS frame '8a 02 00 fe 00 FW.009N' at all three "
+            "commands -> info lane; the width varies, the content does not",
+    "0x4A": "zeros at all three commands (DP branch)",
+    "0x35": "EIO in both modes - the mailbox slave; THIS is the lever for "
+            "Intel/AMD, where the DRM AUX bridge has no allow-list",
+    "0x22": "EIO in both modes - the flash register file",
+    "0x20": "EIO in both modes - the ReadFlashData burst engine",
+    "isp_status_note": "enter_isp's 0x80-bit 'ISP alive' test is reading the "
+                       "MCCS reply header (0x8a on entry, 0xfe after exit): "
+                       "ISP entry on this sink IS a DDC/CI handshake",
+}
