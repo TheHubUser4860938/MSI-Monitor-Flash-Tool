@@ -1470,3 +1470,38 @@ FLASH_LANE_MATRIX = {
                    "(msi-isp record) but its flash side needs 0x22/0x35 to "
                    "answer - that is the one blocking step",
 }
+
+
+# ---- 16l: the mailbox echo, measured - the address goes IN, nothing moves --
+# The experiment: put the flash address in the mailbox frame and see if the
+# reply moves. Two forms, on the slave that answers (0x37, i2c-dev):
+#   form A  raw register write  [0xCA, op, addr_lo, addr_mid, addr_hi]
+#   form B  MCCS VCP write      0xCA <- [op, lo, mid, hi]
+# Results (read-only, 2026-11-01):
+#   form A: the reply is the version frame (`fe 00 46 57 2e 30 30 39 4e` =
+#     "FW.009N") for op 0x06, 0x90 AND 0x3B, at addr 0x0, 0xF806, 0x2F7AA -
+#     address-independent, as 16k predicted.
+#   form A at 48 bytes: the reply is STABLE over repeated (write,read) pairs -
+#     it does not walk - and the frame we wrote comes back ECHOED at bytes
+#     28..31: `06 aa f7 02` for op 0x06 addr 0x2F7AA. Direct proof of the
+#     shared write/read buffer (16e), with the exact offset.
+#   form B: `6e 80 be` (N=0, the pending form) at every address - the mailbox
+#     wants the RAW register form, not a MCCS-packeted VCP write.
+MAILBOX_ECHO = {
+    "measured": "2026-11-01, i2c-dev /dev/i2c-4, slave 0x37, token 0xCA, "
+                "read-only",
+    "frame_written": "[0xCA, op, addr_lo, addr_mid, addr_hi]",
+    "reply": "the version frame, same for op 0x06/0x90/0x3B and for every "
+             "address (0x0, 0xF806, 0x2F7AA, 0x2F806)",
+    "echo_offset": "bytes 28..31 of a 48-byte read carry [op, lo, mid, hi] - "
+                   "the write buffer, read back",
+    "stability": "STABLE across repeated (write,read) pairs at 48 bytes: the "
+                 "'walk' of 16e is the kernel re-serving cache windows ~0.75 s "
+                 "apart (DDCCI_MAILBOX), not the device stepping",
+    "mccs_form": "VCP 0xCA write with a payload -> 6e 80 be (N=0) at every "
+                 "address; the mailbox is a raw register surface",
+    "conclusion": "the mailbox is an INFO lane: one command in, one frame out, "
+                  "no address selector. The flash bulk lane is 0x22 (EIO here) "
+                  "with 0x35 beside it - on-box options exhausted (15x, 16f, "
+                  "16l agree).",
+}

@@ -2552,3 +2552,31 @@ that is the one blocking step, named.
 
 Facts: FLASH_READ_LADDER, FLASH_LANE_MATRIX.
 Gates: ruff clean, **261 unit tests OK** (+8). Notes: re/ghidra_isp_engine.md (16k).
+
+## Session 16l (2026-11-01) — the mailbox echo: the address goes in, nothing moves
+
+Ran the approved experiment on the answering slave (0x37, i2c-dev, read-only),
+two write forms:
+
+- **form A** raw register write `[0xCA, op, lo, mid, hi]`: the reply is the
+  version frame `fe 00 "FW.009N"` for op 0x06, 0x90 AND 0x3B at addresses 0x0,
+  0xF806, 0x2F7AA, 0x2F806 — address-independent, as 16k predicted.
+- **The 48-byte view is the new part:** the written frame comes back **echoed at
+  bytes 28..31** (`06 aa f7 02` = op, lo, mid, hi) — the write buffer read back.
+  Direct proof of 16e's shared write/read buffer, with the exact offset. And the
+  reply is **STABLE** across repeated (write,read) pairs, which settles the
+  "walk": the device does not step — the kernel re-serves the same content on
+  shifting cache windows ~0.75 s apart.
+- **form B** MCCS VCP write 0xCA ← payload: `6e 80 be` (N=0, the pending form)
+  at every address — the mailbox is a raw register surface, not a packeted VCP.
+
+So the mailbox is an **info lane** (one command in, one frame out, no address
+selector); the bulk lane is 0x22 with 0x35 beside it. 15x, 16f and 16l now
+agree: on-box options exhausted, the lever is a non-NVIDIA box where the DRM AUX
+bridge has no allow-list. The hardware-free next step is the Flash.dat
+**18-statement script** (the A25L032M record inherits it from the A25L020
+template, FLASHDAT_MAP) — the erase and program packet shapes the project has
+never confirmed against the disassembly.
+
+Facts: MAILBOX_ECHO.
+Gates: ruff clean, **266 unit tests OK** (+5). Notes: re/ghidra_isp_engine.md (16l).

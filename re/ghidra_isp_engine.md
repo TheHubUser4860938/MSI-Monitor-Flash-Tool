@@ -860,3 +860,50 @@ flash side needs `0x22` (with `0x35` beside it) to answer on some lane. That is
 the one blocking step, named.
 
 Facts: `FLASH_READ_LADDER`, `FLASH_LANE_MATRIX`.
+---
+
+# Session 16l — the mailbox echo: the address goes in, nothing moves
+
+The approved experiment: put the flash address *inside* the mailbox frame and
+see whether the reply moves. Two write forms, on the slave that answers
+(`0x37`, i2c-dev), read-only:
+
+```
+form A   raw register write   [0xCA, op, addr_lo, addr_mid, addr_hi]
+form B   MCCS VCP write       0xCA  <- [op, lo, mid, hi]
+```
+
+**form A.** The reply is the version frame — `fe 00 46 57 2e 30 30 39 4e` =
+"FW.009N" — for `op` 0x06, 0x90 **and** 0x3B, at addresses 0x0, 0xF806, 0x2F7AA,
+0x2F806. Address-independent, exactly as 16k's port-ladder run predicted.
+
+The 48-byte view is the new part:
+
+```
+0x2f7aa  pair1  00*28  06 aa f7 02  00*16      STABLE
+0x2f7aa  pair2  00*28  06 aa f7 02  00*16      STABLE
+```
+
+The frame we wrote comes back **echoed at bytes 28..31** — `[op, lo, mid, hi]`,
+the write buffer read back. Direct proof of 16e's shared write/read buffer, with
+the exact offset. And the reply is **stable** across repeated (write,read)
+pairs, which settles 16e's "walk": the device does not step — the *kernel*
+re-serves the same content on shifting cache windows ~0.75 s apart
+(`DDCCI_MAILBOX`).
+
+**form B.** `6e 80 be` (N=0, the pending form) at every address: the mailbox is
+a **raw register surface**, not a packeted VCP write.
+
+## Where that leaves the flash read
+
+The mailbox is an **info lane**: one command in, one frame out, no address
+selector. The bulk lane is `0x22` (EIO here) with `0x35` beside it. Three
+sessions now agree — 15x, 16f, 16l: the on-box options are exhausted, and the
+lever is a non-NVIDIA box, where the DRM AUX bridge has no allow-list.
+
+What does *not* need hardware is the **Flash.dat script**: the A25L032M record
+(`FLASHDAT_MAP`) inherits an 18-statement script from the A25L020 template, and
+that script is the command sequence — the erase and program packet shapes the
+project has never confirmed against the disassembly.
+
+Facts: `MAILBOX_ECHO`.

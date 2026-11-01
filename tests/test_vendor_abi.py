@@ -367,6 +367,25 @@ class TestGateNotSkippable(unittest.TestCase):
         self.assertIn("MFC", Facts.VTABLE_SCAN)
 
 
+class TestMailboxEcho(unittest.TestCase):
+    """16l: the mailbox takes an address and shows no sign of using it."""
+
+    def test_the_frame_is_echoed_at_bytes_28_to_31(self):
+        self.assertIn("28..31", Facts.MAILBOX_ECHO["echo_offset"])
+
+    def test_the_reply_is_address_and_command_independent(self):
+        self.assertIn("0x06/0x90/0x3B", Facts.MAILBOX_ECHO["reply"])
+
+    def test_the_window_is_stable_so_the_walk_is_the_kernel(self):
+        self.assertIn("STABLE", Facts.MAILBOX_ECHO["stability"])
+
+    def test_the_mccs_form_is_the_pending_reply(self):
+        self.assertIn("6e 80 be", Facts.MAILBOX_ECHO["mccs_form"])
+
+    def test_the_conclusion_names_the_flash_lane(self):
+        self.assertIn("0x22", Facts.MAILBOX_ECHO["conclusion"])
+
+
 class TestFlashModes(unittest.TestCase):
     """IspFlash (0x10008520) only runs for these DAT_1024a2d4 values; 0x1a is
     the background bank (its own engine), 0x1b the foreground (log only)."""
