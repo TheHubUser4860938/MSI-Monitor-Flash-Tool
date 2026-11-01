@@ -362,12 +362,18 @@ def cmd_slaves(args):
             print(f"  cand{i}  isp {w8>>1:#04x} (8-bit {w8:#04x})  "
                   f"cont {c8>>1:#04x}  mailbox {x8>>1:#04x}")
         got = autodetect_isp_slave(bus)
-        if got.found:
-            print(f"\nvendor picks candidate {got.index}: ISP slave "
-                  f"{got.slave7:#04x}, continuous {got.continuous7:#04x}, "
-                  f"mailbox {got.mailbox7:#04x}  (reply {got.reply.hex(' ')})")
-        else:
+        if not got.found:
             print("\nno candidate answered on this transport")
+            return
+        print(f"\nvendor picks candidate {got.index}: ISP slave "
+              f"{got.slave7:#04x}, continuous {got.continuous7:#04x}, "
+              f"mailbox {got.mailbox7:#04x}  (reply {got.reply.hex(' ')})")
+        print("lane quality    : " + (
+            "answers WITH CONTENT - a flash read can be built on it"
+            if got.distinct else
+            "answers ZEROS - this is the DP branch device, not the ISP "
+            "register file (measured 16c: 0x4A returns 00 at 0x23/0x22/0x20/"
+            "0x00, 1-16 bytes). Vendor-parity lane; content still pending."))
 
 
 def cmd_backup(args):

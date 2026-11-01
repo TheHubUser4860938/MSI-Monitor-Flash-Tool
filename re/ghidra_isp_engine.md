@@ -228,3 +228,62 @@ NUMBERS coincide with DPCD offsets. **The native lane is not a new road to the
 (the vendor's `AUX_CheckDpcdTable` gate lives there).
 
 Tunnel lane unchanged (regression): 0x30/0x37/0x50 ACK, ISP slaves no-ack.
+
+---
+
+# Session 16c — the comm module's slave table, and what it answers here
+
+The engine (`MSI Firmware Update Utility V1.0.6.exe`) carries no comm
+vocabulary of its own — its strings are MFC + the relaunch line
+`WinISPTool.exe --ispdiff --newboot --fw "%ls" --comm %d --settingfile "%ls"`.
+The ISP vocabulary lives in `Comm.dll` (170 named exports) and
+`rtd38/Comm_GFXI2C.dll` (52, with `NativeRead`/`NativeWrite` by name).
+
+## `AutoDetectSlaveAddr` (Comm.dll RVA 0x7050) — proven
+
+Walks a table of **six 3-byte triples** at file-vaddr `0x101b5db4`, probing
+each with a **one-byte read at register 0x23**; the first that answers is
+stored and served by `GetIspSlave` (0x4230, byte +0) and
+`GetIspContinuousSlave` (0x4240, byte +1). Byte +2 has no accessor — it is the
+**0x6A** the 15g ladder pushes as the ISP control mailbox, so the triple is
+`(isp, continuous, mailbox)` and 15g's inference is confirmed by the table.
+
+```
+cand0  94 96 6A   -> 7-bit 0x4A / 0x4B / 0x35
+cand1  64 64 68   -> 7-bit 0x32 / 0x32 / 0x34
+cand2  54 56 58   -> 7-bit 0x2A / 0x2B / 0x2C
+cand3  98 9A 68   -> 7-bit 0x4C / 0x4D / 0x34
+cand4  9C 9E 6C   -> 7-bit 0x4E / 0x4F / 0x36
+cand5  90 92 60   -> 7-bit 0x48 / 0x49 / 0x30   (the community MSTAR pair)
+```
+
+Detection is **skipped when the device type is 8** (our RTD2711): the
+configured slave wins, i.e. `IspSetting.ini`'s `0x6F` = 7-bit `0x37`. So the
+vendor has two ISP lanes on this family, and which one is used depends on
+whether the sink reports type 8.
+
+## Re-run live (2026-11-01) — and what the ACK is really made of
+
+`msi-isp slaves` replays the walk. On **i2c-dev** and on the **sudoless kernel
+relay**, candidate 0 answers and the walk stops; candidates 1-5 EIO.
+
+But the reply is **all zeros, everywhere**: 0x4A returns `00` at registers
+0x23, 0x22, 0x20 and 0x00, for read lengths 1, 2, 3, 4, 8 and 16. That is the
+DP **branch device**, which the project already listed as "alive". So:
+
+* the vendor's detection is satisfied by the branch, and
+* an ACK is necessary and **not sufficient** — `IspSlave.distinct` (ours)
+  demands content, and the tool now says "vendor-parity lane; content pending".
+
+Second observation: the ISP handshake (`enter_isp`, status `0xfe`) succeeds,
+and **in ISP mode the 4-byte reads go EIO on all five slaves tried**
+(0x4A/0x4B/0x20/0x22/0x37). ISP entry changes what answers — the lane is
+mode-dependent, which no single-pass scan in the corpus recorded.
+
+## What this changes for the flash path
+
+`flash_path_enter` now considers `0x4A` beside `0x20/0x22`, and the gates
+report lane quality, not just presence. The open measurement is unchanged in
+kind and sharper in form: **find a candidate that answers the 0x23 probe with
+content** — on Intel/AMD (type != 8, so detection runs) and on a real Windows
+run. Banked as `Facts.ISP_SLAVE_TRIPLES`.

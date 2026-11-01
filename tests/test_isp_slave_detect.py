@@ -83,6 +83,21 @@ class TestDetection(unittest.TestCase):
         self.assertEqual(got.index, 1)
         self.assertEqual(got.slave7, 0x32)
 
+    def test_an_all_zero_reply_is_an_ack_but_not_a_lane(self):
+        """Measured 16c: 0x4A answers every register with 0x00 (it is the DP
+        branch). The vendor's detection stops there; ours records both
+        verdicts so the gate can demand content."""
+        bus = FakeBus(reads=[b"\x00"])
+        got = autodetect_isp_slave(bus)
+        self.assertTrue(got.found)
+        self.assertFalse(got.distinct)
+
+    def test_a_content_reply_is_a_lane(self):
+        bus = FakeBus(reads=[b"\x1f"])
+        got = autodetect_isp_slave(bus)
+        self.assertTrue(got.found)
+        self.assertTrue(got.distinct)
+
     def test_returns_the_configured_slave_when_the_type_is_eight(self):
         """Device type 8 skips detection: the INI slave (0x6F -> 7-bit 0x37)
         is the answer, and no probe is needed."""

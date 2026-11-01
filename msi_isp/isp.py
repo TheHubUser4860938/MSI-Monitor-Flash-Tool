@@ -316,7 +316,17 @@ class IspSlave:
 
     @property
     def found(self) -> bool:
+        """The vendor's verdict: an ACK on the 0x23 read."""
         return self.slave7 is not None
+
+    @property
+    def distinct(self) -> bool:
+        """OUR gate (16c, measured): candidate 0 = 7-bit 0x4A answers with
+        ZEROS at every register tried (0x23/0x22/0x20/0x00, 1-16 bytes),
+        which is the DP branch device, not the ISP register file. So an ACK
+        is necessary and not sufficient - a lane that answers with content
+        is the one a flash read can be built on."""
+        return bool(self.reply) and any(b for b in self.reply)
 
 
 def autodetect_isp_slave(bus, verbose: bool = False) -> IspSlave:

@@ -2245,3 +2245,31 @@ shape; (2) the updater `.exe` for the slot↔export ABI table (16a strike 2,
 still open — and it is what settles the `+0x14` conflict); (3) on Intel/AMD
 day, trace `IntelControlAPI.dll`, and try `AUX_ExtarSlaveAddress` if the
 branch device answers there.
+
+## Session 16c (2026-11-01) — the vendor's ISP SLAVE TABLE, decoded and re-run: candidate 0 answers here, and it answers with zeros
+
+The engine exe carries no comm strings (it relaunches itself as
+`WinISPTool.exe --comm %d`); the vocabulary is in `Comm.dll` (170 exports) and
+`rtd38/Comm_GFXI2C.dll` (52, with `NativeRead`/`NativeWrite` named).
+`AutoDetectSlaveAddr` (Comm.dll RVA 0x7050) probes SIX fixed slave triples at
+`0x101b5db4` with a one-byte read at register **0x23**; first answer becomes
+the ISP slave (`GetIspSlave` 0x4230). Detection is skipped for device type 8
+(RTD2711) — there the INI's `0x6F` = 7-bit `0x37` wins. Full table + reading:
+`re/ghidra_isp_engine.md` (16c).
+
+LIVE: the replay (`msi-isp slaves`, new command, also in the console) picks
+**candidate 0 = 7-bit 0x4A** on i2c-dev AND on the sudoless relay; 1-5 EIO.
+The reply is `00` at 0x23/0x22/0x20/0x00 for lengths 1-16 — the DP branch
+device, not the ISP register file. And with ISP entry accepted (status 0xfe),
+4-byte reads go EIO on all five slaves: the lane is mode-dependent.
+
+BUILT: `Facts.ISP_SLAVE_TRIPLES/_PROBE_REG/_FOR_TYPE8`,
+`isp.autodetect_isp_slave()` + `IspSlave.found` (the vendor's verdict) and
+`IspSlave.distinct` (ours: an ACK with content is what a flash read can be
+built on), `msi-isp slaves`, console `slaves`, and `flash_path_enter` now
+considers 0x4A beside 0x20/0x22. Gates: ruff clean, **138 tests OK** (+12).
+Pushed to origin/main (16a/16b/16c).
+
+NEXT: the decisive read is a candidate answering 0x23 **with content** —
+Intel/AMD (where detection actually runs) is now a sharper experiment than
+"does 0x22 ACK".
