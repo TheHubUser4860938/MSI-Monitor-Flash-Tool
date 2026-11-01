@@ -91,6 +91,61 @@ PIPELINE: tuple[Step, ...] = (
 )
 
 
+def erase_plan(image_len: int, sector: int = 4096, page: int = 32) -> dict:
+    """The plan the plugin logs as "Bank: 0x%x, ProLen: 0x%x, SectorErase:
+    0x%x, SectorEraseCount: 0x%x" (FUN_1002b8b0, 16y).
+
+    Counted from the image, not the chip: MSI ships a 1.75-1.88 MiB bin for a
+    4 MiB part, and the erase covers the image. A count of 0 is the vendor's
+    chip-erase branch (FUN_1003e9c0)."""
+    return {
+        "image_len": image_len,
+        "sector": sector,
+        "sector_count": -(-image_len // sector),          # ceil
+        "page": page,
+        "pro_len": -(-image_len // page),                 # pages of 32
+    }
+
+
+PIPELINE_WRITE: tuple[Step, ...] = (
+    Step("enter ISP", "enter", DDCI,
+         why="Isp_EnterISPMode in the DoIsp chain at 0x10034120 (16y); the "
+             "magic-byte ladder is 14p, the lane is the INI's 0x6F -> 0x37"),
+    Step("settle", "sleep", ms=Facts.VENDOR_INI["dual_bank"]
+         ["time_after_command_ms"],
+         why="the chain calls comm slot +0x94 (16w: AdjustOption) with the INI's "
+             "200 ms between the config reads and Flash_GetType (16y)"),
+    Step("get flash type", "read", MCU, count=1,
+         why="Flash_GetType in the chain (16a, 16y)"),
+    Step("chip identity", "read", MCU, count=3,
+         why="Flash_GetInfo in the chain: name + capacity in 64 KiB units "
+             "(16a, 16y) - the vendor's own chip gate"),
+    Step("erase sector", "erase", DDCI, count=1,
+         why="FUN_1003e610, looped SectorEraseCount times by the plan "
+             "(16y); a count of 0 takes FUN_1003e9c0, the chip erase"),
+    Step("program page", "program", DDCI, count=32,
+         why="FUN_1003e2a0(record[4] << 0x10, len) (16y) - the address is a "
+             "64 KiB block index, so the top bits ride the page port"),
+    Step("verify", "read", FLASH, count=32,
+         why="FUN_10021040's pair: the ROM-flag step follows a read-back; the "
+             "engine's own verify is Flash_Read at the programmed address (16a)"),
+    Step("write ROM flag", "packet", DDCI, payload=packet_bytes(0x45, 0x01, 0x00),
+         why="FUN_10021040 logs 'Write Rom Flag Fail!, ErrorCode: 0x%x' and "
+             "'Not need isp flag!' (16y) - THIS is the bank switch the INI's "
+             "bSwitchFLag=1 arms; 16a's slot +0x124(1) is the same control byte"),
+    Step("leave ISP", "exit", DDCI, payload=bytes([Facts.EXIT_ISP_CMD]),
+         why="0x24, shared with flashrom's mstarddc_spi (14p); the chain ends "
+             "in FUN_1001dfa0 + FUN_1001fa90 (16y)"),
+)
+
+#: the reset is its own export, not a step in the chain: ResetMCUExport
+#: (RVA 0x8cd0) = InitCommunication -> Isp_HandShakeByBootType ->
+#: Isp_EnterISPMode -> FUN_1001b860, and the INI waits 10000 ms.
+RESET_STEP = Step("reset MCU", "sleep", ms=Facts.VENDOR_INI["dual_bank"]
+                  ["time_after_reset_ms"],
+                  why="ResetMCUExport 0x8cd0 + ulTimeAfterReset=10000 (16y)")
+
+
 @dataclass
 class StepResult:
     step: Step
@@ -120,8 +175,11 @@ class PipelineReport:
 
 
 def run_pipeline(bus, addr=0, size=32, verbose=False, sleep=None,
-                 start=0, stop=None) -> PipelineReport:
-    """Walk PIPELINE on any RTBus-shaped transport (i2c-dev, relay, RM, bulk).
+                 start=0, stop=None, steps=None, image=None) -> PipelineReport:
+    """Walk PIPELINE (or PIPELINE_WRITE) on any RTBus-shaped transport.
+
+    `steps` selects the sequence; `image` is the firmware bytes a program step
+    writes (the real bin in the simulator, nothing on the panel).
 
     `start`/`stop` slice the walk so a runbook can take one step at a time;
     `sleep` is injectable so tests do not wait 200 ms."""
@@ -129,7 +187,8 @@ def run_pipeline(bus, addr=0, size=32, verbose=False, sleep=None,
     nap = sleep or time.sleep
     report = PipelineReport()
     sb = ScalerBus(bus, verbose=verbose)
-    steps = PIPELINE[start:stop]
+    image = bytes(image) if image else None
+    steps = (steps or PIPELINE)[start:stop]
     for st in steps:
         res = StepResult(st)
         try:
@@ -149,6 +208,19 @@ def run_pipeline(bus, addr=0, size=32, verbose=False, sleep=None,
                 isp_write_packet(bus, 0x9C, st.payload,
                                  slave7=st.slave7, verbose=verbose)
                 res.reply = st.payload
+            elif st.op == "erase":
+                from .isp import sector_erase_at
+                sector_erase_at(bus, addr, slave7=st.slave7,
+                                verbose=verbose)
+                res.reply = b"\x00" * 4
+            elif st.op == "program":
+                from .isp import program_page_at
+                data = image[addr:addr + st.count] if image else b""
+                if not data:
+                    data = b"\x00" * st.count
+                program_page_at(bus, addr, data, slave7=st.slave7,
+                                verbose=verbose)
+                res.reply = data
             elif st.op == "write":
                 sb.word_write(I2CTarget(st.name, st.slave7),
                               int.from_bytes(st.payload[:2], "little"),

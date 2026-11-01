@@ -3002,3 +3002,53 @@ gaps surfaced the first time the pipeline ran end to end.
   index inside the 0x42 packet, and the flash-type bytes at window offset 0x23.
 
 Gates: ruff clean, **384 unit tests OK** (+31). Notes: re/ghidra_isp_engine.md (16x).
+
+## Session 16y (2026-11-01) — the write chain transcribed: DoIsp's spine, a 64 KiB block index, the ROM flag
+
+Step (2) of the plan: the vendor's flash sequence as data, read off the plugin's
+entry points. The spine is
+
+    IspFlash 0x8520 -> Isp_DoIsp 0x10034000 (the RETRY LOOP) -> FUN_10034120
+
+and the loop's own strings settle the INI's meaning: "---Retry isp count: %d,
+error code 0x%x, sleep time: %d ms---" — ulCommandRetryCount=10 wraps the WHOLE
+sequence, not one command. The exports share a skeleton in which
+FUN_1001f750 names itself: "InitCommunication Fail, Error Code: 0x%x". The
+reset is its own export: ResetMCUExport 0x8cd0 = InitCommunication ->
+Isp_HandShakeByBootType -> Isp_EnterISPMode -> FUN_1001b860, then 10 000 ms.
+IspFlash's device-type branch resolves 0x1a = background (Isp_DoIsp_Background
+0x1003bcb0), 0x1b = foreground (no ISP call), else Isp_DoIsp.
+
+FUN_10034120's chain, labelled by its own logs (" enumActionType : %d,
+enumSignType:%d, enumIspMode:%d, enumOneBankMode:%d ", "Bank: 0x%x, ProLen:
+0x%x, SectorErase: 0x%x, SectorEraseCount: 0x%x", " Sector %d Erase In Bank %d
+Fail!", "Not need isp flag!", " Write Rom Flag Fail!, ErrorCode: 0x%x"):
+enter ISP -> the ScalerType/config reads -> **slot +0x94 (200 ms, 16w
+AdjustOption)** -> Flash_GetType -> Flash_GetInfo -> erase plan (FUN_1002b8b0)
+-> SectorEraseCount x FUN_1003e610 (chip erase FUN_1003e9c0 when 0) -> program
+FUN_1003e2a0(record[4] << 0x10, len) -> verify -> **write ROM flag
+(FUN_10021040)** -> type branch -> leave.
+
+Three findings that changed code:
+1. THE PROGRAM ADDRESS IS A 64 KiB BLOCK INDEX (record[4] << 0x10). The packet's
+   pair is the middle and low bytes; the top bits ride page port 0xF2 as the
+   read ladder has always done (16k). 16n's "arg2 = sector bank byte" is
+   superseded: sector_erase_at sends (addr>>8, addr) with page = addr>>16, and
+   isp_write_packet(..., page=) (16x) reaches the full 8 MiB. Test expectation
+   updated to [0x9C, 0x42, 0x1F, 0x00, 0x61] for 0x1F00.
+2. THE BANK SWITCH IS A ROM-FLAG WRITE, FUN_10021040 ("Write Rom Flag Fail!",
+   skip path "Not need isp flag!"), AFTER program and verify. 16a's slot
+   +0x124(1) (16w ResetFirmware) is the same control byte 0x45.
+3. THE ERASE IS COUNTED FROM THE IMAGE: FW.012 1,835,008 B = 448 sectors of
+   4 KiB, 57,344 pages of 32 — pipeline.erase_plan() returns the tuple the plan
+   string prints.
+
+Shipped: pipeline.PIPELINE_WRITE (9 Steps, each citing its address),
+pipeline.RESET_STEP, pipeline.erase_plan(); run_pipeline gained steps= and
+image=, so one function drives the read chain and the write chain on any
+transport, real or emulated. msi-isp simulate runs it: 9 steps all answered,
+erase + program with read-back match, reset + switch, version '012'; 212 bus
+operations, flash clock 10,257 ms.
+
+Facts: WRITE_CHAIN_16Y. Gates: ruff clean, **391 unit tests OK** (+7).
+Notes: re/ghidra_isp_engine.md (16y).

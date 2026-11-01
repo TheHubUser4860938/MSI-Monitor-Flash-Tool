@@ -445,13 +445,7 @@ def cmd_simulate(args):
     """Run the whole flash cycle against the emulated monitor (no hardware)."""
     from . import pipeline
     from .emul import EmulatedMonitor
-    from .isp import (
-        enter_isp,
-        exit_isp,
-        flash_read_at,
-        program_page_at,
-        sector_erase_at,
-    )
+    from .isp import enter_isp, flash_read_at, program_page_at, sector_erase_at
     binpath = pathlib.Path(args.bin)
     img = binpath.read_bytes() if binpath.exists() else b"\x00" * 4096
     m = EmulatedMonitor(image=b"\xff" * len(img), chip=args.chip)
@@ -460,11 +454,15 @@ def cmd_simulate(args):
     print(f"image           : {binpath.name} ({len(img):,} B)\n")
     _idx, status = enter_isp(m)
     print(f"1. enter ISP        status {status:#04x}")
-    rep = pipeline.run_pipeline(m, addr=args.addr, size=32, sleep=lambda _ms: None)
-    print(f"2. vendor pipeline  {len(rep.results)} steps, "
-          f"{'all answered' if rep.reached is None else 'stalled at ' + rep.reached}")
-    # The dual-bank flow (16r): erase and program the INACTIVE bank, then let
-    # the reset switch the boot flag. mode 1 -> bank port 0xEF -> bank 1.
+    rep = pipeline.run_pipeline(m, addr=args.addr, size=32, sleep=lambda _ms: None,
+                                steps=pipeline.PIPELINE_WRITE, image=img)
+    plan = pipeline.erase_plan(len(img))
+    print(f"2. write chain      {len(rep.results)} steps, "
+          f"{'all answered' if rep.reached is None else 'stalled at ' + rep.reached}"
+          f"  (plan: {plan['sector_count']} sectors, {plan['pro_len']} pages)")
+    # The dual-bank flow (16r, 16y): the chain above already erased and
+    # programmed one page of the ACTIVE bank. Do the INACTIVE bank here, then
+    # let the reset switch the boot flag. bank_select=1 -> port 0xEF -> bank 1.
     head = img[args.addr:args.addr + 32]
     sector_erase_at(m, args.addr, bank_select=1, slave7=m.slave)
     m.flash.tick(40)
@@ -475,10 +473,9 @@ def cmd_simulate(args):
     back = flash_read_at(m, args.addr, len(head), slave7=m.slave, mode=1)
     ok = "match" if back[:len(head)] == head else "MISMATCH"
     print(f"4. program page     bank 1, {n} B sent, read-back {ok}")
-    print(f"5. version now      {m.version!r} (bank 0 active, blank)")
+    print(f"5. version now      {m.version!r} (bank 0 active)")
     m.reset()
     print(f"6. reset + switch   active bank {m.active_bank}, version {m.version!r}")
-    exit_isp(m)
     print(f"7. leave ISP        ring {m.read(m.slave, 1).hex(' ')}")
     print(f"\nmodel traffic: {m.ops} bus operations, "
           f"flash clock {m.flash.clock_ms:,.0f} ms, "

@@ -167,10 +167,13 @@ class TestProgramAndErase(unittest.TestCase):
 
     def test_sector_erase_carries_no_data(self):
         bus = RecordingBus()
-        sector_erase_at(bus, 0x1F00, bank=0x01)
+        sector_erase_at(bus, 0x1F00, bank_select=0x01)
         regs = Facts.ISP_BOARD_REGS
         body = [v for (p, v) in bus.pairs if p == regs["data_port"]]
-        self.assertEqual(body, [0x9C, 0x42, 0x00, 0x01, 0x43])
+        # 16y: the pair is the address's MIDDLE and LOW bytes (0x1F, 0x00);
+        # 16n read arg2 as a sector-bank byte, superseded by the program
+        # call's `record[4] << 0x10`. The top bits ride the page port.
+        self.assertEqual(body, [0x9C, 0x42, 0x1F, 0x00, 0x61])
 
     def test_the_window_is_a_thirtytwo_byte_ring(self):
         self.assertEqual(Facts.ISP_WINDOW_RING["period_bytes"], 32)
@@ -213,6 +216,12 @@ class TestProgramAndErase(unittest.TestCase):
 
     def test_the_ack_must_come_from_the_flash_side(self):
         self.assertIn("clip", Facts.ISP_WINDOW_MAP["consequence"])
+
+    def test_the_write_chain_fact_names_the_block_index(self):
+        w = Facts.WRITE_CHAIN_16Y
+        self.assertIn("record[4] << 0x10", w["program_address"])
+        self.assertIn("Write Rom Flag Fail", w["bank_switch"])
+        self.assertIn("448 sectors", w["erase_plan"])
 
     def test_the_blank_screen_has_a_named_cause(self):
         d = Facts.DP_BLANKING

@@ -24,11 +24,18 @@ exercised without waiting:
 ```
 $ msi-isp simulate                      # FW.012 -> MX25L32XX, record block
 1. enter ISP        status 0x8a
-2. vendor pipeline  8 steps, all answered
+2. write chain      9 steps, all answered  (plan: 448 sectors, 57344 pages)
 3. sector erase     bank 1 @0x00f800 -> ff ff ff ff
 4. program page     bank 1, 36 B sent, read-back match
 6. reset + switch   active bank 1, version '012'
 ```
+
+The 9 steps are `pipeline.PIPELINE_WRITE` (16y), transcribed from
+`WinIspPlugIn!FUN_10034120` - the chain `Isp_DoIsp` retries 10 times: enter ISP,
+200 ms settle, `Flash_GetType`, `Flash_GetInfo`, erase plan, sector erase
+(448 of them for FW.012), program (`record[4] << 0x10` - a 64 KiB block index),
+verify, **write ROM flag** (the bank switch), leave. The reset is a separate
+export, `ResetMCUExport`, then 10 s.
 
 It proves the protocol model is self-consistent; the panel's cells are still
 unproven (16v). `--chip W25Q32 --addr 0x2f7aa` picks another part and place.

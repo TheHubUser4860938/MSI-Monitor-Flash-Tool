@@ -252,8 +252,11 @@ class IspBridge:
             self.flash.program(self.bank_base + addr, body)
             self.open_pp = self.bank_base + addr + len(body)
         elif control == CMD_SE:
-            sector = ((arg2 << 8) | arg1) & 0xFFFF    # 16n's (addr&0xff, bank) pair
-            self.flash.erase_sector(sector * self.flash.sector)
+            # 16y: same 24-bit shape as a program - page port on top, the
+            # packet's pair as middle and low bytes. The part erases the
+            # sector that contains the address.
+            addr = page | ((arg1 << 8) | arg2) & 0xFFFF
+            self.flash.erase_sector(self.bank_base + addr)
         elif control in (CMD_CE, 0xC7):
             self.flash.erase_chip()
         elif control == CMD_RDID:

@@ -7,6 +7,7 @@ A green test says our protocol model is self-consistent end to end; it does
 not say the panel agrees (the cells are unproven, 16v).
 """
 import pathlib
+import typing
 import unittest
 
 from msi_isp import Facts, flashdat, pipeline
@@ -235,8 +236,9 @@ class TestWholePipeline(unittest.TestCase):
         self.assertEqual(sent[0][0], 0x45)      # control plane (16a)
 
     def test_the_read_step_returned_a_page(self):
-        step = [r for r in self.rep.results if r.step.name == "read flash page"]
-        self.assertEqual(len(step[0].reply), 32)
+        step = next(r for r in self.rep.results
+                    if r.step.name == "read flash page")
+        self.assertEqual(len(step.reply), 32)
 
     def test_the_pipeline_took_no_wall_clock(self):
         # injectable sleep (run_pipeline's `sleep=`) means 200 ms costs nothing
@@ -291,6 +293,51 @@ class TestFirmwareCycle(unittest.TestCase):
         isp_write_packet(m, 0x9C, packet_bytes(CMD_PP, 0x00, 0x00, b"\x5a" * 8),
                          slave7=m.slave)
         self.assertGreater(m.flash.clock_ms, t0)   # every op advances the clock
+
+
+class TestWritePipeline(unittest.TestCase):
+    """PIPELINE_WRITE: the vendor's flash chain, transcribed from FUN_10034120."""
+
+    NAMES: typing.ClassVar = ["enter ISP", "settle", "get flash type", "chip identity",
+             "erase sector", "program page", "verify", "write ROM flag",
+             "leave ISP"]
+
+    def test_the_chain_is_the_decompiled_order(self):
+        self.assertEqual([s.name for s in pipeline.PIPELINE_WRITE], self.NAMES)
+
+    def test_every_step_cites_its_evidence(self):
+        for st in pipeline.PIPELINE_WRITE:
+            self.assertTrue(any(tag in st.why for tag in ("16y", "16a", "14p")),
+                            st.name)
+
+    def test_the_rom_flag_step_is_the_bank_switch(self):
+        flag = next(s for s in pipeline.PIPELINE_WRITE
+                    if s.name == "write ROM flag")
+        self.assertIn("Write Rom Flag Fail", flag.why)
+        self.assertIn("bSwitchFLag", flag.why)
+
+    def test_the_reset_is_its_own_export_not_a_step(self):
+        self.assertNotIn("reset MCU", [s.name for s in pipeline.PIPELINE_WRITE])
+        self.assertIn("ResetMCUExport", pipeline.RESET_STEP.why)
+        self.assertEqual(pipeline.RESET_STEP.ms, 10_000)
+
+    def test_the_write_chain_runs_on_the_emulator(self):
+        if not FW012.exists():
+            self.skipTest(f"{FW012} not present")
+        m = EmulatedMonitor(image=b"\xff" * FW012.stat().st_size)
+        rep = pipeline.run_pipeline(m, addr=0xF800, sleep=nap,
+                                    steps=pipeline.PIPELINE_WRITE,
+                                    image=FW012.read_bytes())
+        self.assertIsNone(rep.reached, f"stalled at {rep.reached}")
+        self.assertEqual(len(rep.results), len(pipeline.PIPELINE_WRITE))
+        self.assertEqual(m.flash_bank(0, 0xF800, 3), b"012")
+        self.assertEqual(m.version, "012")
+
+    def test_the_erase_plan_counts_from_the_image(self):
+        plan = pipeline.erase_plan(1_835_008)                 # FW.012
+        self.assertEqual(plan["sector_count"], 448)           # 4 KiB sectors
+        self.assertEqual(plan["pro_len"], 57_344)             # pages of 32
+        self.assertEqual(pipeline.erase_plan(4096)["sector_count"], 1)
 
 
 class TestHonestLimits(unittest.TestCase):

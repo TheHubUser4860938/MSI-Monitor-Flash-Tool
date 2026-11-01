@@ -1640,3 +1640,93 @@ choices are labelled as such — the sector index in the `0x42` packet's
 window's flash-type bytes at `0x23`.
 
 Gates: ruff clean, **384 unit tests OK** (+31). Facts: unchanged this session.
+---
+
+# Session 16y — the write chain, transcribed: DoIsp's spine, a 64 KiB block index, and the ROM flag
+
+The owner said keep at it, so this is step (2) of the plan: the vendor's flash
+sequence as data, read off the plugin's own entry points rather than
+reconstructed. `msi-isp simulate` now runs it.
+
+## The spine
+
+```
+IspFlash            RVA 0x8520   dispatch on the device type (DAT_1024a2d4)
+  └─ Isp_DoIsp      0x10034000   THE RETRY LOOP
+       "  ---Retry isp count: %d, error code 0x%x, sleep time: %d ms---"
+       "  ---Retry Isp retry count: %d---"
+       └─ FUN_10034120            THE CHAIN, 13 KB of `if (status == 0)` gates
+```
+
+`ulCommandRetryCount=10` (INI) is the loop *around the whole sequence*, not per
+command — a stronger reading than 16g's, and it is the log string that says so.
+
+The exports share a skeleton, and one of them names itself: `FUN_100080f0`
+(open) → `FUN_1001f750` (**InitCommunication** — "InitCommunication Fail,
+Error Code: 0x%x") → the work → `FUN_1001fa90` (leave) → `FUN_1003fab0`
+(report) → `FUN_10048130` (release). The reset is its own export:
+`ResetMCUExport` (0x8cd0) = InitCommunication → `Isp_HandShakeByBootType` →
+`Isp_EnterISPMode` → `FUN_1001b860`, then the INI's 10 000 ms.
+
+`IspFlash` also resolves a branch we had seen only as a number: device type
+`0x1a` → `Isp_DoIsp_Background` (" Fw update fw of background enumError :0x%X "),
+`0x1b` → foreground (no ISP call at all), anything else → `Isp_DoIsp`.
+
+## The chain, in the order the decompile puts it
+
+Its own log strings label the stages:
+
+```
+" enumActionType : %d, enumSignType:%d, enumIspMode:%d, enumOneBankMode:%d "
+"Bank: 0x%x, ProLen: 0x%x, SectorErase: 0x%x, SectorEraseCount: 0x%x"
+" Sector %d Erase In Bank %d Fail!, ErrorCode: 0x%x"
+"Not need isp flag!"          " Write Rom Flag Fail!, ErrorCode: 0x%x"
+```
+
+1. `FUN_1000b550`, `FUN_1000c880` — pre-open
+2. `Isp_EnterISPMode`
+3. `FUN_10016b00` (16i: the ScalerType read), `FUN_1001aa50`, `FUN_10017300`, `FUN_1001a050`
+4. **comm slot `+0x94`** — the 200 ms settle, between the config reads and the flash calls (16w names it `AdjustOption`)
+5. `Flash_GetType`, then `Flash_GetInfo` — the chip gate, capacity in 64 KiB units
+6. the load/plan group: `FUN_1001db90`, `db20`, `ad20`, `e8f0`, `dfa0`, `203d0`, then `FUN_1002b8b0` = the **erase plan**
+7. erase: `SectorEraseCount` × `FUN_1003e610`; **when the count is 0, `FUN_1003e9c0` — the chip erase**
+8. program: `FUN_1003e2a0(record[4] << 0x10, len)`
+9. verify + `FUN_1001e7c0`
+10. **write ROM flag: `FUN_10021040`** — after program and verify
+11. type branch `FUN_10018fa0` / `FUN_1001b8f0`, then leave (`FUN_1001dfa0`, `FUN_1001fa90`)
+
+## Three findings that changed code
+
+1. **The program address is a 64 KiB block index.** `record[4] << 0x10`: the
+   packet's two address bytes are the **middle and low** bytes and the top bits
+   ride the page port `0xF2` — which the read ladder has always done (16k).
+   So 16n's reading of the erase packet's `arg2` as a "sector bank byte" is
+   superseded: `sector_erase_at` now sends `(addr>>8, addr)` with
+   `page = addr>>16`, and `isp_write_packet(..., page=)` (16x) reaches the
+   whole 8 MiB window. Pinned by `test_sector_erase_carries_no_data`, whose
+   expected bytes changed to `[0x9C, 0x42, 0x1F, 0x00, 0x61]` for `0x1F00`.
+2. **The bank switch is a ROM-flag write**, `FUN_10021040`, logged as "Write
+   Rom Flag Fail!" with the skip path "Not need isp flag!" — and it runs
+   *after* program and verify. 16a's slot `+0x124(1)` (16w: `ResetFirmware`)
+   carries the same control byte `0x45`.
+3. **The erase is counted from the image, not the chip.** FW.012 is
+   1,835,008 B → **448 sectors of 4 KiB**, **57,344 pages of 32** —
+   `pipeline.erase_plan()` computes the same tuple the plan string prints.
+
+## Shipped
+
+`pipeline.PIPELINE_WRITE` — 9 `Step`s in the order above, each `why` citing its
+address — plus `pipeline.RESET_STEP` (the separate export + 10 s) and
+`pipeline.erase_plan()`. `run_pipeline` gained `steps=` and `image=`, so one
+function drives the read chain and the write chain on any transport, real or
+emulated. `msi-isp simulate` runs the write chain:
+
+```
+2. write chain      9 steps, all answered  (plan: 448 sectors, 57344 pages)
+3. sector erase     bank 1 @0x00f800 -> ff ff ff ff
+4. program page     bank 1, 36 B sent, read-back match
+6. reset + switch   active bank 1, version '012'
+model traffic: 212 bus operations, flash clock 10,257 ms, 9 flash operations
+```
+
+Facts: `WRITE_CHAIN_16Y`. Gates: ruff clean, **391 unit tests OK** (+7).

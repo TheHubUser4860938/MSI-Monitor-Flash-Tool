@@ -595,16 +595,23 @@ def program_page_at(bus, addr: int, data: bytes, slave7: int = 0x37,
     return sent
 
 
-def sector_erase_at(bus, addr: int, bank: int = 0, slave7: int = 0x37,
-                    bank_select: int = 0, verbose: bool = False) -> None:
-    """Erase one sector: packet [0x42, addr&0xff, bank&0xff, sum], no data.
+def sector_erase_at(bus, addr: int, slave7: int = 0x37, bank_select: int = 0,
+                    sector: int = 0xD8, verbose: bool = False) -> None:
+    """Erase one sector: packet [0x42, addr_mid, addr_lo, sum], no data.
 
-    Two different "banks" live in this call and the names must not blur: the
-    packet's arg2 is the vendor's sector-bank byte (16n), while `bank_select`
-    picks the SPI chip's 2 MiB half through the bank port (16r).
+    16y: the plugin's program call is `FUN_1003e2a0(record[4] << 0x10, len)` -
+    the address is a 64 KiB BLOCK INDEX shifted 16, so the top bits ride the
+    page port and the packet pair carries the middle and low bytes. 16n read
+    arg2 as a "sector bank byte"; that reading is superseded by the shift, and
+    `bank` is kept as the argument name for the wire byte it sends.
+    `sector` is the chip's sector-erase opcode - the Flash.dat record's own
+    value (0xD8 for the 32 Mbit parts, 0x20 for the 16-bit-addressed ones) -
+    carried for the day the record is selected by RDID; the packet today names
+    the address, not the opcode. `bank_select` picks the chip's 2 MiB half
+    through the bank port (16r).
     """
     isp_write_packet(bus, 0x9C,
-                     packet_bytes(0x42, addr & 0xFF, bank & 0xFF),
+                     packet_bytes(0x42, (addr >> 8) & 0xFF, addr & 0xFF),
                      slave7=slave7, bank=bank_select,
                      page=(addr >> 16) & 0x7F, verbose=verbose)
 

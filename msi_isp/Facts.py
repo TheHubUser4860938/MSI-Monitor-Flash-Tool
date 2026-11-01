@@ -2475,3 +2475,63 @@ INI_TIMING_16W = {
                      "the mute matrix (16t): packet shape was varied, timing "
                      "never was",
 }
+
+
+# ---- 16y: the write chain, read off the plugin's own DoIsp spine ----------
+# The read pipeline (16a-16g) was a chain of slots. The WRITE chain is one
+# function: IspFlash (RVA 0x8520) -> Isp_DoIsp (0x10034000) -> FUN_10034120,
+# and the middle one is the retry loop the INI names:
+#     "---Retry isp count: %d, error code 0x%x, sleep time: %d ms---"
+#     "---Retry Isp retry count: %d---"
+# i.e. ulCommandRetryCount=10 wraps the WHOLE sequence, not one command.
+#
+# FUN_10034120's body is a chain of `if (status == 0)` gates, in this order,
+# with its own log strings as labels:
+#     " enumActionType : %d, enumSignType:%d, enumIspMode:%d, enumOneBankMode:%d "
+#     "Bank: 0x%x, ProLen: 0x%x, SectorErase: 0x%x, SectorEraseCount: 0x%x"
+#     " Sector %d Erase In Bank %d Fail!, ErrorCode: 0x%x"
+#     "Not need isp flag!"  /  " Write Rom Flag Fail!, ErrorCode: 0x%x"
+#
+# The two findings that change code, not just prose:
+#   1. THE PROGRAM ADDRESS IS A 64 KiB BLOCK INDEX. The program call is
+#      FUN_1003e2a0(record[4] << 0x10, len) - the record's field 4 shifted 16.
+#      So the packet's two address bytes are the MIDDLE and LOW bytes and the
+#      top bits ride the page port 0xF2 (which the read ladder has always done,
+#      16k). 16n's reading of the erase packet's arg2 as a "sector bank byte"
+#      is superseded by that shift: sector_erase_at now sends (addr>>8, addr)
+#      with page = addr>>16, reaching the whole 8 MiB window.
+#   2. THE BANK SWITCH IS A ROM-FLAG WRITE. FUN_10021040 logs "Write Rom Flag
+#      Fail!" and its skip path logs "Not need isp flag!" - that is what
+#      bSwitchFLag=1 arms, and it runs AFTER program and verify, not before.
+#      16a's slot +0x124(1) (16w: ResetFirmware) is the same control byte 0x45.
+#   3. The erase is a LOOP: SectorEraseCount calls of FUN_1003e610 (sector
+#      erase); a count of 0 takes FUN_1003e9c0, the chip erase. The plan is
+#      counted from the IMAGE, not the chip: FW.012 is 1,835,008 B = 448
+#      sectors of 4 KiB and 57,344 pages of 32 (pipeline.erase_plan).
+#   4. The exports share a skeleton - FUN_100080f0 (open) -> FUN_1001f750
+#      (InitCommunication, named by its own "InitCommunication Fail, Error
+#      Code: 0x%x") -> the work -> FUN_1001fa90 (leave) -> FUN_1003fab0 (report)
+#      -> FUN_10048130 (release). The reset is its OWN export: ResetMCUExport
+#      (0x8cd0) = InitCommunication -> Isp_HandShakeByBootType ->
+#      Isp_EnterISPMode -> FUN_1001b860, with the INI's 10 s.
+# Shipped as pipeline.PIPELINE_WRITE (9 steps, each citing its address) and
+# pipeline.RESET_STEP; the emulator runs the chain end to end.
+WRITE_CHAIN_16Y = {
+    "spine": "IspFlash 0x8520 -> Isp_DoIsp 0x10034000 (retry loop, "
+             "ulCommandRetryCount=10) -> FUN_10034120 (the chain)",
+    "order": "enter ISP -> 200 ms settle (slot +0x94) -> Flash_GetType -> "
+             "Flash_GetInfo -> erase plan (FUN_1002b8b0) -> SectorEraseCount x "
+             "FUN_1003e610 (or FUN_1003e9c0 when 0) -> program "
+             "FUN_1003e2a0(block<<16, len) -> verify -> write ROM flag "
+             "(FUN_10021040) -> leave (FUN_1001dfa0/FUN_1001fa90)",
+    "program_address": "record[4] << 0x10 - a 64 KiB block index; the packet "
+                       "carries the middle and low bytes, the page port the top",
+    "bank_switch": "FUN_10021040, 'Write Rom Flag Fail!' - after program and "
+                   "verify; 'Not need isp flag!' is the skip path",
+    "erase_plan": "counted from the image: FW.012 1,835,008 B = 448 sectors of "
+                  "4 KiB, 57,344 pages of 32 (erase_plan)",
+    "reset": "its own export, ResetMCUExport 0x8cd0, then 10000 ms",
+    "device_type_branch": "type 0x1a -> Isp_DoIsp_Background (0x1003bcb0, "
+                          "' Fw update fw of background enumError :0x%X '); "
+                          "0x1b -> foreground, no ISP call; else Isp_DoIsp",
+}
