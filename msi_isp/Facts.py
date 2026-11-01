@@ -973,3 +973,36 @@ LADDER_VERDICT = {
                        "MCCS reply header (0x8a on entry, 0xfe after exit): "
                        "ISP entry on this sink IS a DDC/CI handshake",
 }
+
+
+# ---- What the 0x37 lane actually is (16e, measured twice) ----------------
+# A 256-register sweep in the 1-byte grammar looked like four registers. It is
+# ONE window, read at four phases - and the last two probes below show why:
+# the i2c-dev proxy on this box hands write and read the SAME 32-byte buffer,
+# so a read returns the tail of the last MCCS reply plus the head of whatever
+# we just sent. The "register byte" is a position in that buffer.
+#   read  8 after writing 0x00      -> 30 30 39 4e 00 00 00 00
+#   read 16 after writing 0x00      -> 00*15 then 90
+#   read 32 after writing 0x00      -> 8a 02 00 fe 00 46 57 2e 30 30 39 4e
+#                                      00...00 90
+#   reg 0..7                        -> phase = reg mod 4, 8 bytes per phase
+#   write 51 84 01 FE E1 E6, read   -> 00 46 57 2e 30 30 39 4e ...   (the
+#                                       version reply, shifted)
+#   write 51 84 02 60, read         -> e1 e6 00 46 57 2e 30 30 39 4e (the
+#                                       E1 E6 we just sent, at the head)
+DDCI_LANE = {
+    "model": "one 32-byte MCCS reply window on a buffer SHARED by write and "
+             "read - not a register file",
+    "phase": "the reply of a read at register R starts at offset (R mod 4) * "
+             "8 of the window; consecutive (write,read) pairs walk it",
+    "frame32": "8a 02 00 fe 00 46 57 2e 30 30 39 4e 00..00 90",
+    "frame_says": "MCCS reply 0x3B/0x8a + VCP 02 00 + FE + 'FW.009N', then "
+                  "zeros and a stale 0x90 tail",
+    "proof": "writing 51 84 02 60 puts 'e1 e6' - the tail of the PREVIOUS "
+             "request - at the head of the next reply",
+    "consequence": "the clip-free flash read cannot come from 0x37: it has "
+                   "one window, and its content is the last reply. The flash "
+                   "lane is 0x22 (allow-listed away on NVIDIA) with 0x35 the "
+                   "mailbox beside it.",
+    "measured": "2026-11-01 /dev/i2c-4, 256-register sweep in three grammars",
+}

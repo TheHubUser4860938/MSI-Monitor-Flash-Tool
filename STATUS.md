@@ -2332,3 +2332,22 @@ replies, NACK-as-step, prefix-is-one-answer, the verdict).
 NEXT: on Intel/AMD, `msi-isp ladder --isp` — 0x35 is the probe that matters
 there (no NVIDIA allow-list). On NVIDIA the software ceiling is now measured:
 the info lane.
+
+## Session 16e (cont.) — the register sweep: the DDC/CI lane is ONE 32-byte window on a shared write/read buffer
+
+Swept the register byte 0x00-0xFF on 0x37 in three grammars. The 1-byte
+grammar gives **4 replies, not 256 registers**: `phase = R mod 4`, 8 bytes per
+phase of one 32-byte window (`8a 02 00 fe 00 46 57 2e 30 30 39 4e 00..00 90`
+= the MCCS reply + "FW.009N" + zeros + a stale 0x90). The two-byte grammars
+give 1 reply.
+
+Mechanism, proven by the write itself: `write 51 84 02 60` puts `e1 e6` — the
+tail of the PREVIOUS request — at the head of the next reply. The kernel proxy
+shares one buffer between write and read, so the register byte is a position,
+not an address. `Facts.DDCI_LANE` (+5 tests, 169 OK, ruff clean).
+
+For the clip-free plan this closes the mailbox: 0x37 has one window and it
+holds the version reply. The flash lane is 0x22 with 0x35 beside it, both
+behind NVIDIA's allow-list — so the Intel/AMD box now has an exact question:
+do 0x22 and 0x35 answer there, and does 0x35 answer the 0xCA ladder with
+content. `msi-isp ladder --isp` is that experiment in one command.

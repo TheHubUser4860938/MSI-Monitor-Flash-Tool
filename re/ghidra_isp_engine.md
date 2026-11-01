@@ -414,3 +414,43 @@ allow-list: the DRM AUX bridge on Intel/AMD exposes the whole 7-bit space, so
 `0x35` — the third member of the winning triple, the slave 15g's ladder pushes
 — is the first thing to probe there, and `msi-isp ladder --isp` is the
 one-command version of this experiment. Banked as `Facts.LADDER_VERDICT`.
+
+## Addendum (16e) — the register sweep: four phases, one shared buffer
+
+Sweeping the **register** byte (0x00-0xFF) on `0x37`, reading 8 bytes:
+
+| grammar | distinct replies |
+|---|---|
+| `[R]` then read | **4** — and they are phases of one frame, `phase = R mod 4` |
+| `[R, 0x3B]` then read | 1 |
+| `[R, 0x90]` then read | 1 |
+
+Reading wider at one register shows the window, not registers:
+
+```
+read  8 -> 30 30 39 4e 00 00 00 00
+read 16 -> 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 90
+read 32 -> 8a 02 00 fe 00 46 57 2e 30 30 39 4e 00 00 00 00
+           00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 90
+reg 0..7 -> phase 0,1,2,3,0,1,2,3 at 8 bytes per phase
+```
+
+And the clincher, which names the mechanism:
+
+```
+write 51 84 01 FE E1 E6 ; read 16 -> 00 46 57 2e 30 30 39 4e 00...   (shifted version reply)
+write 51 84 02 60      ; read 16 -> e1 e6 00 46 57 2e 30 30 39 4e... (our own E1 E6, back at the head)
+```
+
+The bytes we *sent* arrive at the head of the *next reply*: the i2c-dev proxy
+on this box uses **one 32-byte buffer for write and read**. The "register byte"
+is a position in that buffer, so the DDC/CI lane has exactly one window whose
+content is the last MCCS reply — `3B 8A 02 00 FE 00 "FW.009N"` plus zeros and
+a stale `90`. Banked as `Facts.DDCI_LANE`.
+
+**Consequence for the clip-free path:** 0x37 cannot yield flash content — it
+has one window and it is the version reply. The flash lane is **0x22**, with
+**0x35** the mailbox beside it (the vendor's winning triple), and both are
+behind the NVIDIA i2c-dev allow-list. That is the cleanest statement of what
+an Intel/AMD box has to prove: the same two slaves, on a bridge that will send
+them.

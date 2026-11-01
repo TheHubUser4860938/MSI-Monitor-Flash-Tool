@@ -116,5 +116,25 @@ class TestLadderVerdict(unittest.TestCase):
         self.assertIn("2026-11-01", Facts.LADDER_VERDICT["measured"])
 
 
+class TestDdciLaneModel(unittest.TestCase):
+    """The sweep's verdict, pinned: one shared 32-byte window, four phases."""
+
+    def test_it_is_a_window_not_a_register_file(self):
+        self.assertIn("not a register file", Facts.DDCI_LANE["model"])
+
+    def test_the_phase_formula(self):
+        self.assertIn("(R mod 4) * 8", Facts.DDCI_LANE["phase"])
+
+    def test_the_frame_carries_the_live_version(self):
+        """8a 02 00 fe 00 46 57 2e 30 30 39 4e == 'FW.009N'."""
+        self.assertIn("FW.009N", Facts.DDCI_LANE["frame_says"])
+
+    def test_the_proof_is_the_written_bytes_coming_back(self):
+        self.assertIn("e1 e6", Facts.DDCI_LANE["proof"])
+
+    def test_the_consequence_names_the_flash_lane(self):
+        self.assertIn("0x22", Facts.DDCI_LANE["consequence"])
+
+
 if __name__ == "__main__":
     unittest.main()
