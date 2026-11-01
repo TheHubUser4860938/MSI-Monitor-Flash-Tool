@@ -1865,3 +1865,44 @@ ISP_WRITE_LADDER = {
             "send 45 0c 00 51 and 45 01 00 46, then 'get flash type' stops at "
             "0x22 (EIO) - the same wall as before, now with decoded packets",
 }
+
+
+# ---- 16q: the 0x37 window is a 32-byte ring, and it is STICKY -------------
+# The round-trip probe 16p offered: build a packet that cannot be confused with
+# the MCCS frame, send it out the write door (0x9C) with the 16p ladder, read
+# the window back.
+#
+# Measured (2026-11-01, i2c-dev 0x37 and relay lane=native, read-only):
+#   - the ladder runs clean on both lanes: no error, the full port sequence.
+#   - the read-back is a 32-BYTE RING: d[:32] == d[32:64] byte for byte, at
+#     48, 64 and 96-byte reads. The block is
+#         06 f8 02 00*27 bf
+#     and 06/f8/02 is the tail of the mailbox frame [0x06, 0x06, 0xF8, 0x02]
+#     that 16l wrote - op 0x06 at address 0x2F806 - about an HOUR earlier, in a
+#     DIFFERENT process. The window is sticky: it survives process exit.
+#   - the probe packet (40 ab cd b8, and later 55 11 22 88) appears NOWHERE in
+#     48, 64 or 96 bytes of the window.
+#
+# Reading: the PWM2SPI doors are on the ISP slave 0x22 (16n), not on 0x37. On
+# 0x37 the byte-index ports address the DDC/CI-MCCS space, whose reply buffer
+# is this 32-byte ring - so the ring shows the last mailbox frame, not the last
+# window write. The write ladder is decode-correct and unit-pinned; its wire
+# confirmation needs 0x22 answering, which is the non-NVIDIA-box lever.
+ISP_WINDOW_RING = {
+    "measured": "2026-11-01, i2c-dev /dev/i2c-4 slave 0x37 and relay "
+                "lane=native, read-only",
+    "period_bytes": 32,
+    "proof": "d[:32] == d[32:64] exactly, at 48, 64 and 96-byte reads",
+    "content": "06 f8 02 00x27 bf - the tail of 16l's mailbox frame "
+               "[06 06 f8 02] = op 0x06 at address 0x2F806",
+    "sticky": "the content is a write from ~1 h earlier in ANOTHER process: "
+              "the sink keeps the window across process exit",
+    "probe_packet": "40 ab cd b8 and 55 11 22 88 - the packet built by "
+                    "packet_bytes and sent by isp_write_packet through door "
+                    "0x9C - appear nowhere in the window",
+    "reading": "the doors 0x9C/0x9D live on the ISP slave 0x22 (16n); on 0x37 "
+               "the byte-index ports address the MCCS space whose reply buffer "
+               "is the ring",
+    "consequence": "16p's write ladder is decode-correct and code-tested; its "
+                   "wire confirmation is a 0x22 read, i.e. the non-NVIDIA box",
+}

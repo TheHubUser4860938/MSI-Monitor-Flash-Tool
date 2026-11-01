@@ -1157,3 +1157,43 @@ program shape that has been the project's open problem since 2026-10-17 is
 implemented, not sketched.
 
 Facts: `ISP_WRITE_LADDER`.
+---
+
+# Session 16q — the 0x37 window is a 32-byte ring, and it is sticky
+
+The round-trip probe 16p offered, run on the lane that answers: build a packet
+that cannot be confused with the MCCS frame, send it out the write door `0x9C`
+with the 16p ladder, read the window back.
+
+```
+packet built : 40 ab cd b8        (sum byte = 0xb8, built by packet_bytes)
+window  48B  : 06 f8 02 00×27 bf  06 f8 02 00×27 bf
+window  64B  : d[:32] == d[32:64] exactly          <- a RING, period 32
+window  96B  : three copies
+my packet: nowhere in 48, 64 or 96 bytes
+```
+
+Two facts fell out, and neither was the one I went for.
+
+**The window is a 32-byte ring.** At 48, 64 and 96-byte reads the same 32-byte
+block repeats byte for byte, with a `bf` at offset 30. That is the sharpest
+statement yet of 16e's "one window shared by write and read".
+
+**The window is sticky across processes.** The block reads `06 f8 02 …` — the
+tail of the mailbox frame `[06 06 f8 02]`, op `0x06` at address `0x2F806`, which
+**16l wrote about an hour earlier in a different process**. The sink keeps it.
+So "what is in the window" is a property of the panel's recent history, not of
+my connection — and any probe that reads the window is reading the last thing
+*s somebody* wrote.
+
+**The packet did not land there.** The write ladder runs clean on i2c-dev `0x37`
+and on the relay `lane=native` — the whole port sequence, no error — and its
+bytes appear nowhere in the ring. Reading: the PWM2SPI doors `0x9C`/`0x9D` are
+on the ISP slave `0x22` (16n). On `0x37` the byte-index ports address the
+DDC/CI-MCCS space, whose reply buffer *is* this ring, so the ring shows the last
+mailbox frame, not the last window write.
+
+Net: 16p's write ladder is **decode-correct and code-tested**; its wire
+confirmation is a `0x22` read, which is the non-NVIDIA-box lever.
+
+Facts: `ISP_WINDOW_RING`.

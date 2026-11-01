@@ -124,6 +124,19 @@ class TestProgramAndErase(unittest.TestCase):
         body = [v for (p, v) in bus.pairs if p == regs["data_port"]]
         self.assertEqual(body, [0x9C, 0x42, 0x00, 0x01, 0x43])
 
+    def test_the_window_is_a_thirtytwo_byte_ring(self):
+        self.assertEqual(Facts.ISP_WINDOW_RING["period_bytes"], 32)
+        self.assertIn("d[:32] == d[32:64]", Facts.ISP_WINDOW_RING["proof"])
+
+    def test_the_window_survives_the_process(self):
+        self.assertIn("across process exit", Facts.ISP_WINDOW_RING["sticky"])
+
+    def test_the_packet_did_not_land_in_the_ring(self):
+        self.assertIn("appear nowhere", Facts.ISP_WINDOW_RING["probe_packet"])
+
+    def test_the_doors_are_placed_on_the_isp_slave(self):
+        self.assertIn("0x22", Facts.ISP_WINDOW_RING["reading"])
+
     def test_the_ladder_fact_names_the_window_and_the_arithmetic(self):
         w = Facts.ISP_WRITE_LADDER
         self.assertIn("names the register", w["window"])

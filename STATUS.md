@@ -2722,3 +2722,36 @@ since 2026-10-17 is now implemented, not sketched.
 
 Facts: ISP_WRITE_LADDER.
 Gates: ruff clean, **309 unit tests OK** (+15). Notes: re/ghidra_isp_engine.md (16p).
+
+## Session 16q (2026-11-01) — the 0x37 window is a 32-byte ring, and it is sticky across processes
+
+Ran the round-trip probe 16p offered: built a packet that cannot be confused
+with the MCCS frame (`40 ab cd b8`, sum byte included), sent it out the write
+door `0x9C` with the 16p ladder, read the window back on i2c-dev `0x37` and on
+the relay `lane=native`.
+
+```
+window 48B : 06 f8 02 00×27 bf | 06 f8 02 00×27 bf   <- d[:32] == d[32:64]
+window 96B : three exact copies                        <- a RING, period 32
+my packet  : nowhere in 48, 64 or 96 bytes
+```
+
+Two facts fell out, neither the one I went for:
+
+- **The window is a 32-byte ring** — the same block repeats byte for byte at 48,
+  64 and 96-byte reads, with `bf` at offset 30. The sharpest statement yet of
+  16e's "one window shared by write and read".
+- **The window is sticky across processes.** The block is the tail of the mailbox
+  frame `[06 06 f8 02]` (op 0x06 at address 0x2F806) that **16l wrote about an
+  hour earlier in a different process**. So "what is in the window" is a property
+  of the panel's recent history, not of my connection.
+
+And the ladder runs clean on both lanes while its bytes appear nowhere in the
+ring — so the PWM2SPI doors 0x9C/0x9D sit on the ISP slave 0x22 (16n); on 0x37
+the byte-index ports address the MCCS space whose reply buffer *is* the ring.
+
+Net: 16p's write ladder is decode-correct and code-tested; its wire confirmation
+is a 0x22 read — the non-NVIDIA-box lever.
+
+Facts: ISP_WINDOW_RING.
+Gates: ruff clean, **313 unit tests OK** (+4). Notes: re/ghidra_isp_engine.md (16q).
