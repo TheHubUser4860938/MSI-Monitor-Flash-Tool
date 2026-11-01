@@ -386,6 +386,65 @@ class TestMailboxEcho(unittest.TestCase):
         self.assertIn("0x22", Facts.MAILBOX_ECHO["conclusion"])
 
 
+class TestCommApi(unittest.TestCase):
+    """16m: the comm interface is a named export table, and the erase packet
+    and the Flash.dat script are read out of the binaries."""
+
+    def test_the_api_has_every_resolved_slot(self):
+        self.assertEqual(len(Facts.COMM_API), 153)
+
+    def test_the_slots_the_project_uses_are_named(self):
+        for n in ("WriteRegEx", "GetI2CSpeed", "SetI2CSpeed", "WriteFlashData",
+                  "ReadFlashData", "EnterIspMode", "AutoEnterIspMode",
+                  "ConfigProgramFlash", "GetNativePageLength"):
+            self.assertIn(n, Facts.COMM_API, n)
+
+    def test_the_byte_offset_is_four_times_the_index(self):
+        for name, (idx, byte) in Facts.COMM_API.items():
+            self.assertEqual(idx * 4, byte, name)
+
+    def test_the_erase_uses_the_register_write_slot(self):
+        """The chip erase writes regs 0x60/0x61 through slot +0xf0, and the
+        table names index 0x3c = byte 0xf0 as WriteRegEx - a register write."""
+        self.assertEqual(Facts.COMM_API["WriteRegEx"], (0x3c, 0xf0))
+
+    def test_the_erase_packet_shape(self):
+        e = Facts.FLASH_ERASE_PACKET
+        self.assertEqual(e["opcode"], 0xC7)
+        self.assertEqual(e["lane_0x60"]["ctrl"], 0x60)
+        self.assertEqual(e["lane_0x60"]["arm"], 0xA0)
+        self.assertEqual(e["lane_0x60"]["trigger"], 0xA1)
+
+    def test_the_erase_has_three_lanes_one_shape(self):
+        e = Facts.FLASH_ERASE_PACKET
+        self.assertEqual(e["lane_16bit"]["ctrl"], 0x841)
+        self.assertEqual(e["lane_16bit"]["opcode"], 0x842)
+        self.assertIn("0xDE", e["poll"])
+
+    def test_the_script_is_ascii_csv(self):
+        d = Facts.FLASHDAT_SCRIPT
+        self.assertIn("ASCII CSV", d["file"])
+        self.assertEqual(d["grammar"]["06"], "write reg,value")
+
+    def test_the_template_has_three_phases(self):
+        ph = Facts.FLASHDAT_SCRIPT["phases"]
+        self.assertEqual([p["opcode"] for p in ph], [0x06, 0x90, 0x3B])
+        self.assertEqual(ph[2]["len"], 0x40)
+
+    def test_the_command_classes_differ_in_the_control_byte(self):
+        ph = Facts.FLASHDAT_SCRIPT["phases"]
+        self.assertEqual(ph[0]["ctrl"], (0x20, 0x21))
+        self.assertEqual(ph[1]["ctrl"], (0x38, 0x39))
+
+    def test_the_template_lacks_erase_and_program(self):
+        self.assertIn("only WREN, RDID", Facts.FLASHDAT_SCRIPT["not_in_template"])
+
+    def test_the_program_shape_is_the_named_open_item(self):
+        self.assertIn("ConfigProgramFlash",
+                      Facts.FLASHDAT_SCRIPT["not_in_template"])
+        self.assertIn("ConfigProgramFlash", Facts.COMM_API)
+
+
 class TestFlashModes(unittest.TestCase):
     """IspFlash (0x10008520) only runs for these DAT_1024a2d4 values; 0x1a is
     the background bank (its own engine), 0x1b the foreground (log only)."""

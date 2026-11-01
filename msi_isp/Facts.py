@@ -1505,3 +1505,234 @@ MAILBOX_ECHO = {
                   "with 0x35 beside it - on-box options exhausted (15x, 16f, "
                   "16l agree).",
 }
+
+
+# ---- 16m: the comm interface is a NAMED table, not a mystery vtable -------
+# Plugin FUN_100057c0 calls GetProcAddress 153 times on the comm DLL's module
+# handle and stores each pointer at a FIXED slot of the object the plugin
+# later calls through (DAT_10249d10 -> [0] -> table). So every slot has a NAME,
+# and the table is the comm DLL's export API: Comm.dll exports 170 names,
+# Comm_Aux.dll (the AUX backend) 61, Comm_GFXI2C.dll 52 - all measured with
+# pefile, and every name below is an export of Comm.dll.
+#
+# Slot arithmetic: the plugin calls through BYTE offsets
+#     (**(code **)(*DAT_10249d10 + 0xNN))(args)
+# and the loader writes param_1[0xMM] on an int* - so byte = 4 * index.
+# Two independent spot checks agree:
+#   the chip-erase ladder (16m, FUN_1003e3a0) writes regs 0x60/0x61 through
+#   slot +0xf0  -> index 0x3c = WriteRegEx        (a register write - fits)
+#   the scaler-type read (16i, FUN_10016b00) uses slot +0xc0 with (index, &out)
+#   -> index 0x30 = SetI2CSpeed, and slot +0xc4 -> index 0x31 = GetI2CSpeed,
+#   which is exactly the getter-of-obj+0xc8 that 16j measured in Comm_Aux.
+#   So IDCode0/IDCode1 are TWO SPEED SETTINGS, and the ScalerType dictionary
+#   keys on (speed@0, speed@0xF). The pair (0x14, 0x30) = (20, 48) is a
+#   plausible 20/48 kHz pair.
+# The names below are measured; the slot mapping is arithmetic + the two checks
+# above, and is labelled as such wherever it is used.
+COMM_API = {   # name: (table index, byte offset the plugin calls it by)
+    "GetI2CPageLength": (0x0e, 0x38),
+    "I2CWrite": (0x0f, 0x3c),
+    "I2CRead": (0x10, 0x40),
+    "Initiallize": (0x11, 0x44),
+    "GetCommCount": (0x12, 0x48),
+    "GetAllCommName": (0x13, 0x4c),
+    "GetCommID": (0x14, 0x50),
+    "GetCommName": (0x15, 0x54),
+    "GetCommFile": (0x16, 0x58),
+    "SetCommByIndex": (0x17, 0x5c),
+    "SetCommByID": (0x18, 0x60),
+    "SetDebugSlave": (0x19, 0x64),
+    "SetIspSlave": (0x1a, 0x68),
+    "SetIspContinuousSlave": (0x1b, 0x6c),
+    "GetDebugSlave": (0x1c, 0x70),
+    "GetIspSlave": (0x1d, 0x74),
+    "GetIspContinuousSlave": (0x1e, 0x78),
+    "SetDebugMode": (0x1f, 0x7c),
+    "GetDebugMode": (0x20, 0x80),
+    "GetNativePageLength": (0x21, 0x84),
+    "I2CWriteByte": (0x22, 0x88),
+    "I2CCurrentRead": (0x23, 0x8c),
+    "I2CWordWrite": (0x24, 0x90),
+    "I2CWordRead": (0x26, 0x98),
+    "I2CWriteEx": (0x28, 0xa0),
+    "I2CReadEx": (0x29, 0xa4),
+    "I2CCurrentReadEx": (0x2a, 0xa8),
+    "I2CWordWriteEx": (0x2b, 0xac),
+    "I2CWordReadEx": (0x2d, 0xb4),
+    "AdjustOption": (0x2f, 0xbc),
+    "SetI2CSpeed": (0x30, 0xc0),
+    "GetI2CSpeed": (0x31, 0xc4),
+    "SetAuxMode": (0x32, 0xc8),
+    "SetWaitingMode": (0x33, 0xcc),
+    "GetWaitingMode": (0x34, 0xd0),
+    "ReadReg": (0x35, 0xd4),
+    "WriteReg": (0x36, 0xd8),
+    "ReadRegs": (0x37, 0xdc),
+    "WriteRegs": (0x38, 0xe0),
+    "WriteRegBit": (0x39, 0xe4),
+    "WritePortRegBit": (0x3a, 0xe8),
+    "ReadRegEx": (0x3b, 0xec),
+    "WriteRegEx": (0x3c, 0xf0),
+    "ReadRegsEx": (0x3d, 0xf4),
+    "WriteRegsEx": (0x3e, 0xf8),
+    "WriteRegBitEx": (0x3f, 0xfc),
+    "WritePortRegBitEx": (0x40, 0x100),
+    "ReadSysDevice": (0x41, 0x104),
+    "WriteSysDevice": (0x42, 0x108),
+    "ReadWordSysDevice": (0x43, 0x10c),
+    "WriteWordSysDevice": (0x44, 0x110),
+    "ScalerStop": (0x45, 0x114),
+    "ScalerRun": (0x46, 0x118),
+    "WriteMcuReg": (0x47, 0x11c),
+    "WriteMcuRegs": (0x48, 0x120),
+    "ReadMcuReg": (0x49, 0x124),
+    "WriteMcuRegBit": (0x4a, 0x128),
+    "ReadMcuRegs": (0x4b, 0x12c),
+    "WriteContinuousMcuReg": (0x4c, 0x130),
+    "ReadContinuousMcuReg": (0x4d, 0x134),
+    "ReleaseDev": (0x4e, 0x138),
+    "NativeWrite": (0x4f, 0x13c),
+    "NativeRead": (0x50, 0x140),
+    "SetSettingFilePath": (0x51, 0x144),
+    "GetDeviceHandler": (0x52, 0x148),
+    "ResetFirmware": (0x53, 0x14c),
+    "EnterIspMode": (0x54, 0x150),
+    "GetSMBUSDataType": (0x55, 0x154),
+    "SetSMBUSDataType": (0x56, 0x158),
+    "GetDeviceCount": (0x57, 0x15c),
+    "RemoveDevice": (0x58, 0x160),
+    "AutoDetectSlaveAddr": (0x59, 0x164),
+    "DDCCIWrite": (0x5a, 0x168),
+    "DDCCIRead": (0x5b, 0x16c),
+    "SetFTDIGetAck": (0x5c, 0x170),
+    "GetFTDIGetAckStatus": (0x5d, 0x174),
+    "I2CMasterInitial": (0x5e, 0x178),
+    "I2CMasterCurrentRead": (0x5f, 0x17c),
+    "I2CMasterCurrentReadEx": (0x60, 0x180),
+    "I2CMasterRead": (0x61, 0x184),
+    "I2CMasterReadEx": (0x62, 0x188),
+    "I2CMasterCurrentWrite": (0x65, 0x194),
+    "I2CMasterCurrentWriteEx": (0x66, 0x198),
+    "I2CMasterWrite": (0x67, 0x19c),
+    "I2CMasterWriteByte": (0x68, 0x1a0),
+    "I2CMasterWriteEx": (0x69, 0x1a4),
+    "I2CMasterWordWrite": (0x6a, 0x1a8),
+    "I2CMasterWordWriteEx": (0x6b, 0x1ac),
+    "GetUsbDevicePath": (0x6c, 0x1b0),
+    "SelectUsbByDevicePath": (0x6d, 0x1b4),
+    "SelectUsbByIndex": (0x6e, 0x1b8),
+    "WriteFlashData": (0x6f, 0x1bc),
+    "ReadFlashData": (0x70, 0x1c0),
+    "DebugMessageEventStart": (0x73, 0x1cc),
+    "DebugMessageEventFinish": (0x74, 0x1d0),
+    "DebugMessageStart": (0x75, 0x1d4),
+    "DebugMessageEnd": (0x76, 0x1d8),
+    "DebugMessageGetValue": (0x77, 0x1dc),
+    "DebugMessageGetString": (0x78, 0x1e0),
+    "SetCmdLine": (0x79, 0x1e4),
+    "GetSpecialCommType": (0x7a, 0x1e8),
+    "SetSpecialCommType": (0x7b, 0x1ec),
+    "Read32BitRegEx": (0x7c, 0x1f0),
+    "Write32BitRegEx": (0x7d, 0x1f4),
+    "Read32BitRegsEx": (0x7e, 0x1f8),
+    "Write32BitRegsEx": (0x7f, 0x1fc),
+    "ReadDDRRegEx": (0x80, 0x200),
+    "WriteDDRRegEx": (0x81, 0x204),
+    "ReadDDRRegsEx": (0x82, 0x208),
+    "WriteDDRRegsEx": (0x83, 0x20c),
+    "ReadPWM2SPIReg": (0x84, 0x210),
+    "WritePWM2SPIReg": (0x85, 0x214),
+    "ReadPWM2SPIDev": (0x86, 0x218),
+    "WritePWM2SPIDev": (0x87, 0x21c),
+    "ReadPWM2SPIWordReg": (0x88, 0x220),
+    "WritePWM2SPIWordReg": (0x89, 0x224),
+    "ReadPWM2SPIWordDev": (0x8a, 0x228),
+    "WritePWM2SPIWordDev": (0x8b, 0x22c),
+    "I2CWriteSegment": (0x8c, 0x230),
+    "I2CWriteSegmentEx": (0x8d, 0x234),
+    "I2CReadSegment": (0x8e, 0x238),
+    "I2CReadSegmentEx": (0x8f, 0x23c),
+    "AutoEnterIspMode": (0x90, 0x240),
+    "SetIDevInComm": (0x91, 0x244),
+    "SendUsbPacket": (0x92, 0x248),
+    "ReceiveUsbPacket": (0x93, 0x24c),
+    "ReadDDRCPURegEx": (0x94, 0x250),
+    "WriteDDRCPURegEx": (0x95, 0x254),
+    "ReadDDRCPURegsEx": (0x96, 0x258),
+    "WriteDDRCPURegsEx": (0x97, 0x25c),
+    "ConfigProgramFlash": (0x98, 0x260),
+    "ReadAuxSniffer": (0x99, 0x264),
+    "NeedSetMcuDefault": (0x9a, 0x268),
+    "CompleteIspFlowInISPBoard": (0x9b, 0x26c),
+    "AuxSnifferStart": (0x9c, 0x270),
+    "GetAuxSnifferConfigPara": (0x9d, 0x274),
+    "SetNewRealtekUSBMode": (0x9e, 0x278),
+    "SetI2CDebugPort": (0x9f, 0x27c),
+    "SetI2coverAUXDebugPort": (0xa0, 0x280),
+    "CheckSnifferBoardCustomerId": (0xa1, 0x284),
+    "I2CSlaveWrite": (0xa2, 0x288),
+    "I2CSlaveRead": (0xa3, 0x28c),
+    "Read32BitReg1Byte": (0xa4, 0x290),
+    "I2CStretchRead": (0xa5, 0x294),
+    "Write32BitReg1Byte": (0xa6, 0x298),
+    "I2CWordSlaveWrite": (0xa7, 0x29c),
+    "I2CWordSlaveRead": (0xa8, 0x2a0),
+    "I2CWordStretchRead": (0xa9, 0x2a4),
+    "SetPortMode": (0xaa, 0x2a8),
+    "BBIdentifyDevice": (0xab, 0x2ac),
+    "GetDisplayCount": (0xac, 0x2b0),
+    "SelectDisplayByIndex": (0xad, 0x2b4),
+    "GetQCDisplaySetting": (0xae, 0x2b8),
+}
+
+# The erase packet, read out of FUN_1003e3a0 (the routine Flash_ChipErase
+# calls; its failure logs " ChipErase Fail!, Error Code:0x%x"):
+FLASH_ERASE_PACKET = {
+    "site": "plugin FUN_1003e3a0, called by Flash_ChipErase 0x1003a2f0",
+    "shape": "write CTRL, write OPCODE, write CTRL|1, then poll the status",
+    "opcode": 0xC7,                      # 199 decimal in the decompile
+    "lane_0x60": {"ctrl": 0x60, "opcode": 0x61, "arm": 0xA0, "trigger": 0xA1,
+                  "slot": "+0xf0 (WriteRegEx)"},
+    "lane_0x83": {"ctrl": 0x83, "opcode": 0x84, "arm": 0xA0, "trigger": 0xA1,
+                  "slot": "+0xf0 (WriteRegEx)",
+                  "when": "DAT_1024a3bc != 0"},
+    "lane_16bit": {"ctrl": 0x841, "opcode": 0x842, "arm": 0xA0, "trigger": 0xA1,
+                   "slot": "+0xc4 (GetI2CSpeed-by-index shape, 16-bit regs)",
+                   "when": "DAT_1024a360 != 0  (the tunnel lane - OURS)"},
+    "poll": "status == 0xDE means busy; loop until it is not, capped by the "
+            "record's retry count (param+0x40)",
+    "timeout": "20000 (FUN_1001c4c0(0, 20000) on the byte lanes)",
+    "setup": "if the record has a 4-byte-address field (param+0x58), FUN_1003cb60 "
+             "writes the dword at param+0x50 first - the 0xBF enter-4-byte-mode "
+             "the A25L020 record carries (0xFF = none on the A25L032M)",
+}
+
+# The Flash.dat scripts are ASCII CSV, not binary (16m, vendor/PlugIn/Flash.dat,
+# 44,211 bytes). Statement grammar: `06,reg,value` = write a register,
+# `0d,60,01,00,00,64,00,64` = fetch/poll. The A25L020 template at 0x37 - the
+# script the A25L032M (the chip on this board, key 37 30 16 15 = "70 16 15")
+# inherits - is 18 statements in three phases:
+FLASHDAT_SCRIPT = {
+    "file": "vendor/PlugIn/Flash.dat, 44,211 bytes, ASCII CSV of hex bytes",
+    "grammar": {"06": "write reg,value", "0d": "fetch/poll (60,01,00,00,64,00,64)"},
+    "registers": {0x60: "CTRL", 0x61: "OPCODE", 0x64: "ADDR", 0x65: "MODE",
+                  0x66: "LEN"},
+    "phases": [
+        {"name": "write enable", "ctrl": (0x20, 0x21), "opcode": 0x06,
+         "addr": None, "mode": None, "len": None},
+        {"name": "read device id", "ctrl": (0x38, 0x39), "opcode": 0x90,
+         "addr": 0x00, "mode": 0x28, "len": 0x00},
+        {"name": "fast read (quad out)", "ctrl": (0x38, 0x39), "opcode": 0x3B,
+         "addr": 0x00, "mode": 0x28, "len": 0x40},
+    ],
+    "ctrl_reading": "0x20/0x21 is the command-only class (WREN), 0x38/0x39 the "
+                    "addressed class; bit 0 is the arm/trigger, and 16a's "
+                    "0x38 arm / 0x39 trigger is this byte, confirmed",
+    "not_in_template": "erase and program: the template carries only WREN, RDID "
+                       "and Fast-Read; erase is 0xC7 from the plugin (see "
+                       "FLASH_ERASE_PACKET), program is the ConfigProgramFlash "
+                       "export (COMM_API) - the open shape, next to decode",
+    "per_chip": "each record may carry its own script: AT25DF041 has a status-"
+                "read script (06,60,68 / 61,01 / 64,02 / 60,69), BY25D40_Special "
+                "has 0xC3/0xA5 4-byte-mode statements",
+}

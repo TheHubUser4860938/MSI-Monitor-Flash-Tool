@@ -907,3 +907,80 @@ that script is the command sequence — the erase and program packet shapes the
 project has never confirmed against the disassembly.
 
 Facts: `MAILBOX_ECHO`.
+---
+
+# Session 16m — the comm interface has names, the erase packet has bytes, and Flash.dat is ASCII
+
+Three things fell, and they are the three the project has carried longest.
+
+## 1. The "mystery vtable" is a named export table
+
+Plugin `FUN_100057c0` calls `GetProcAddress` **153 times** against the comm
+DLL's module handle and stores each pointer at a fixed slot of the object the
+plugin later calls through (`DAT_10249d10 → [0] → table`). So the slots have
+names, and the names are the comm DLL's exports — measured with pefile:
+**Comm.dll exports 170, Comm_Aux.dll 61, Comm_GFXI2C.dll 52.**
+
+The slot arithmetic: the plugin calls through a **byte** offset
+(`(**(code **)(*DAT_10249d10 + 0xNN))`), and the loader writes
+`param_1[0xMM]` on an `int*` — so **byte = 4 × index**. Two independent checks:
+
+| plugin slot | index | name | does it fit the call site? |
+|---|---|---|---|
+| `+0xf0` (the erase's register writes) | `0x3c` | **WriteRegEx** | yes — it writes regs `0x60`/`0x61` |
+| `+0xc4` (16j measured: a getter of `obj+0xc8`) | `0x31` | **GetI2CSpeed** | yes — a getter, of a speed |
+| `+0xc0` (`FUN_10016b00`'s ID read) | `0x30` | **SetI2CSpeed** | by pair |
+
+So **IDCode0/IDCode1 are two speed settings**, and the ScalerType dictionary
+keys on `(speed@0, speed@0xF) = (0x14, 0x30) = (20, 48)` — a plausible 20/48
+pair. The names are measured; the mapping is arithmetic plus those checks.
+
+16a's label for slot `+0x28c` was `GetQCDisplaySetting`, from the log string at
+the call site; the arithmetic puts index `0xa3` = `I2CSlaveRead` there. Both are
+true — the string names the *purpose*, the slot names the *mechanism*: the QC
+display setting is read over I2C from the scaler.
+
+The table is in `Facts.COMM_API` (all 153, with index and byte offset).
+
+## 2. The erase packet
+
+`Flash_ChipErase` (0x1003a2f0) is an orchestrator — enter, `FUN_10016b00` (the
+scaler type, 16i), a chain of setup steps, `Flash_GetType`, `Flash_GetInfo`
+(it logs `Flash Name: %ls`), then the packet in `FUN_1003e3a0`:
+
+```
+lane A (byte regs)     +0xf0(0x60, 0xA0); +0xf0(0x61, 199); +0xf0(0x60, 0xA1); poll(0, 20000)
+lane B (byte regs 83)  +0xf0(0x83, 0xA0); +0xf0(0x84, 199); +0xf0(0x83, 0xA1); poll(0, 20000)
+lane C (16-bit regs)   +0xc4(0x841,0xA0); +0xc4(0x842,199); +0xc4(0x841,0xA1); poll
+```
+
+`199 = 0xC7` — the standard Serial Flash **Chip Erase** opcode. Shape:
+**write CTRL, write OPCODE, write CTRL|1, then poll the status** until it is no
+longer `0xDE` (busy), capped by the record's retry count. If the record carries
+a 4-byte-address field, `FUN_1003cb60` writes a dword first — the `0xBF`
+enter-4-byte-mode the A25L020 record has and the A25L032M record marks `0xFF`
+(none). Lane C, the 16-bit `0x841/0x842` pair, is **our** tunnel lane.
+
+## 3. Flash.dat is ASCII CSV
+
+44,211 bytes of `06,reg,value` / `0d,…` statements — no binary structure. The
+A25L020 template at `0x37`, which the **A25L032M** (this board's chip, key
+`37 30 16 15` = `"70 16 15"`) inherits, is 18 statements in three phases:
+
+```
+write enable        CTRL 0x20 → OPCODE 0x06 → CTRL 0x21        (fetch)
+read device id      CTRL 0x38 → OPCODE 0x90, ADDR 00, MODE 28, LEN 00, CTRL 0x39   (fetch)
+fast read (quad)    CTRL 0x38 → OPCODE 0x3B, ADDR 00, MODE 28, LEN 40, CTRL 0x39   (fetch)
+```
+
+`CTRL` splits the classes: `0x20/0x21` is command-only (WREN), `0x38/0x39` is
+the addressed class, and bit 0 is the arm/trigger — 16a's "0x38 arm / 0x39
+trigger" is exactly this byte. Registers `0x60` CTRL, `0x61` OPCODE, `0x64`
+ADDR, `0x65` MODE, `0x66` LEN — the ones 16e swept on the native lane.
+
+**The template carries no erase and no program.** Erase is `0xC7` from the
+plugin, above. Program is the **`ConfigProgramFlash`** export (index `0x98`,
+byte `0x260`) — that is the last unconfirmed packet shape, and it has a name
+and an address in the binary now.
+
+Facts: `COMM_API`, `FLASH_ERASE_PACKET`, `FLASHDAT_SCRIPT`.

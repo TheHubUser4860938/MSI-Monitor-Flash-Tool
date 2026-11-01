@@ -2580,3 +2580,46 @@ never confirmed against the disassembly.
 
 Facts: MAILBOX_ECHO.
 Gates: ruff clean, **266 unit tests OK** (+5). Notes: re/ghidra_isp_engine.md (16l).
+
+## Session 16m (2026-11-01) — the comm interface has NAMES, the erase packet has BYTES, and Flash.dat is ASCII
+
+Three long-carried unknowns fell at once.
+
+- **The "mystery vtable" (16h) is a named export table.** Plugin FUN_100057c0
+  calls GetProcAddress **153 times** on the comm DLL handle and stores each
+  pointer at a fixed slot of the object the plugin calls through
+  (DAT_10249d10 → [0] → table). The names are the comm DLL's exports (pefile:
+  Comm.dll 170, Comm_Aux.dll 61, Comm_GFXI2C.dll 52). Slot arithmetic: the
+  plugin calls a BYTE offset, the loader writes `param_1[i]` on an int*, so
+  **byte = 4 × index** — and two independent checks fit: erase's `+0xf0` →
+  index 0x3c = **WriteRegEx** (it writes regs 0x60/0x61), and 16j's
+  getter-of-obj+0xc8 at `+0xc4` → 0x31 = **GetI2CSpeed**. So **IDCode0/IDCode1
+  are two speed settings** and the ScalerType keys on (speed@0, speed@0xF) =
+  (0x14,0x30) = (20,48). 16a's "+0x28c = GetQCDisplaySetting" (a log string) and
+  the arithmetic's 0xa3 = I2CSlaveRead are both true: string = purpose, slot =
+  mechanism. Full table: `Facts.COMM_API`.
+- **The erase packet, in bytes.** Flash_ChipErase (0x1003a2f0) orchestrates
+  (enter → FUN_10016b00 → setup chain → Flash_GetType → Flash_GetInfo, which
+  logs "Flash Name: %ls") and the packet is FUN_1003e3a0: **write CTRL, write
+  OPCODE 199 = 0xC7, write CTRL|1, poll status until not 0xDE**, retry-capped,
+  timeout 20000. Three lanes, one shape: regs 0x60/0x61, regs 0x83/0x84, and
+  16-bit **0x841/0x842 — our tunnel lane**. If the record has a 4-byte-address
+  field, FUN_1003cb60 writes a dword first (the 0xBF enter-4-byte-mode the
+  A25L020 record carries; the A25L032M marks it 0xFF = none).
+  `Facts.FLASH_ERASE_PACKET`.
+- **Flash.dat is ASCII CSV**, 44,211 bytes of `06,reg,value` / `0d,…`
+  statements. The A25L020 template @0x37 that the **A25L032M** (this board's
+  chip, key `37 30 16 15` = "70 16 15") inherits is 18 statements, three
+  phases: WREN (CTRL 0x20/0x21, OPCODE 0x06), RDID (0x38/0x39, 0x90, MODE 0x28),
+  Fast-Read quad-out (0x38/0x39, 0x3B, LEN 0x40). CTRL encodes the class
+  (command-only 0x20 vs addressed 0x38) and bit 0 is arm/trigger — 16a's
+  "0x38 arm / 0x39 trigger" is this byte. Registers 0x60 CTRL / 0x61 OPCODE /
+  0x64 ADDR / 0x65 MODE / 0x66 LEN, the ones 16e swept. Some records carry their
+  own scripts (AT25DF041 a status read; BY25D40_Special 0xC3/0xA5 4-byte mode).
+  `Facts.FLASHDAT_SCRIPT`.
+- **The last open packet shape is named**: the template has no erase and no
+  program; erase is 0xC7 (above), program is the **ConfigProgramFlash** export
+  (index 0x98, byte 0x260). That is the next decode, with an address in the
+  binary.
+
+Gates: ruff clean, **277 unit tests OK** (+11). Notes: re/ghidra_isp_engine.md (16m).
