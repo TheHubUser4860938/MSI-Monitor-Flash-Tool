@@ -836,3 +836,31 @@ ISP_HANDSHAKE_ERROR = {
     "gate": "DAT_1024a2f0 == 1", "module": "WinIspPlugIn.dll",
     "log": "HandShakeBeforeEnterIspModeByBootType fail, error code:0x%x",
 }
+
+
+# ---- The vendor's ISP slave candidates (session 16c, Comm.dll) -----------
+# Comm.dll `AutoDetectSlaveAddr` (RVA 0x7050) walks SIX 3-byte triples at
+# file-vaddr 0x101b5db4 and probes each with a ONE-BYTE READ AT REGISTER 0x23;
+# the first that answers is stored and served by GetIspSlave (RVA 0x4230,
+# byte +0) and GetIspContinuousSlave (RVA 0x4240, byte +1). Byte +2 goes to
+# DAT_101d49aa (no accessor) - it is the 0x6A the 15g ladder pushes as the
+# ISP control mailbox, so the triple is (isp, continuous, mailbox).
+# All bytes are the 8-bit WRITE form; 7-bit = >>1.
+# Detection is SKIPPED when the device type is 8 (RTD2711): the configured
+# slave wins, which is IspSetting.ini's 0x6F = 7-bit 0x37 - the lane `info`
+# and `verify` already use.
+# MEASURED 2026-11-01 on /dev/i2c-4 (this monitor): candidate 0 answers the
+# 0x23 read with 0x00; candidates 1-5 EIO. The project's dead roster
+# (0x18/0x20/0x22/0x35/0x49) was measured with BARE-ADDRESS probes - the
+# vendor's probe is a register read, and its first candidate ACKs here.
+ISP_SLAVE_TRIPLES = [
+    (0x94, 0x96, 0x6A),   # 7-bit 0x4A / 0x4B / 0x35  <- answers on this sink
+    (0x64, 0x64, 0x68),   # 7-bit 0x32 / 0x32 / 0x34
+    (0x54, 0x56, 0x58),   # 7-bit 0x2A / 0x2B / 0x2C
+    (0x98, 0x9A, 0x68),   # 7-bit 0x4C / 0x4D / 0x34
+    (0x9C, 0x9E, 0x6C),   # 7-bit 0x4E / 0x4F / 0x36
+    (0x90, 0x92, 0x60),   # 7-bit 0x48 / 0x49 / 0x30  (community MSTAR pair)
+]
+ISP_SLAVE_PROBE_REG = 0x23
+ISP_SLAVE_FOR_TYPE8 = 0x6F        # IspSetting.ini; RTD2711 skips detection
+ISP_SLAVE_DECODED_AT = "Comm.dll 0x101b5db4 (table), RVA 0x7050/0x4230/0x4240"

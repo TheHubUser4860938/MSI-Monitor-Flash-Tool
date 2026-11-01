@@ -206,13 +206,14 @@ def exit_isp(bus, verbose: bool = False) -> bool:
 # we found it: exit_isp + EDID re-verify at 0x50. flash_path_enter/exit
 # wrap that so CLI and console share one honest implementation.
 
-def flash_path_enter(bus, flash_slaves=(0x20, 0x22),
+def flash_path_enter(bus, flash_slaves=(0x4A, 0x20, 0x22),
                      verbose: bool = False) -> str:
     """Enter ISP mode (idempotent) and report whether a flash-path slave
     answers.  BOTH lanes are probed because the vendor uses both: the
-    0x20 ReadFlashData burst engine (Comm fn 0x7e50, re/f_readflash.txt)
-    and the 0x22 register-file page lane (Facts.ISP_PIPELINE: the plugin
-    engine's DumpFlash rides slot +0x14 on 0x22).  Returns "" on success,
+    0x20 ReadFlashData burst engine (Comm fn 0x7e50, re/f_readflash.txt),
+    the 0x22 register-file page lane (Facts.ISP_PIPELINE), and the vendor's
+    own first candidate 0x4A (Facts.ISP_SLAVE_TRIPLES, 16c - the triple
+    0x94/0x96/0x6A that Comm.dll probes at register 0x23).  Returns "" on success,
     else a refusal reason.  ALWAYS safe to pair with flash_path_exit: on
     refusal we exit again ourselves, so callers never leave the scaler
     mid-ISP."""
@@ -300,3 +301,43 @@ def jedec_id(sb: ScalerBus, tgt: I2CTarget,
                                   0xC8, 0xD8, 0xEF):          # known vendor prefixes
                 return got
     return None
+
+
+# ---- the vendor's own slave detection (session 16c) ----------------------
+@dataclass
+class IspSlave:
+    """Result of the vendor's AutoDetectSlaveAddr walk. index -1 / slave7
+    None = every candidate stayed silent."""
+    index: int = -1
+    slave7: int | None = None
+    continuous7: int | None = None
+    mailbox7: int | None = None
+    reply: bytes = b""
+
+    @property
+    def found(self) -> bool:
+        return self.slave7 is not None
+
+
+def autodetect_isp_slave(bus, verbose: bool = False) -> IspSlave:
+    """Re-run Comm.dll's AutoDetectSlaveAddr on our transport: for each of
+    the six triples, pose register 0x23 and read one byte; the first answer
+    wins (Comm stores it as the ISP slave and never probes again).
+
+    An empty reply is NOT an answer - the 15k phantom-ACK rule. Every probe
+    is a read; nothing here can change the scaler's state."""
+    from . import Facts
+    sb = bus if isinstance(bus, ScalerBus) else ScalerBus(bus)
+    for i, (w8, c8, x8) in enumerate(Facts.ISP_SLAVE_TRIPLES):
+        tgt = I2CTarget(f"vendor cand{i}", w8 >> 1)
+        try:
+            got = sb.word_read(tgt, Facts.ISP_SLAVE_PROBE_REG, 1)
+        except Exception as e:                 # NACK / EIO: next candidate
+            if verbose:
+                print(f"  cand{i} {w8>>1:#04x}: {e}")
+            continue
+        if got:
+            if verbose:
+                print(f"  cand{i} {w8>>1:#04x} replies {got.hex(' ')}")
+            return IspSlave(i, w8 >> 1, c8 >> 1, x8 >> 1, bytes(got))
+    return IspSlave()

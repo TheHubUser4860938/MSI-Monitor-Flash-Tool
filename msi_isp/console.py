@@ -98,9 +98,13 @@ class Console(cmd.Cmd):
         enter-probe-exit cycle retries it — the vendor flow shows flash
         slaves come up only after ISP entry (session 14p), and the cycle
         restores normal mode itself (still never writes flash)."""
-        from .isp import flash_path_enter, flash_path_exit
+        from .isp import autodetect_isp_slave, flash_path_enter, flash_path_exit
         try:
             with self._bus() as bus:
+                # The vendor's own lane first: Comm.dll probes register 0x23
+                # at six slaves and 0x4A is the one this sink answers (16c).
+                if autodetect_isp_slave(bus).found:
+                    return True
                 if any(bus.probe(t) for t in (0x20, 0x22, 0x18)):
                     return True
                 vis = flash_path_enter(bus, 0x20) == ""

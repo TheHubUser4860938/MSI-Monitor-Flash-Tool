@@ -352,6 +352,24 @@ def cmd_probe(args):
           f"({'flash read/backup possible' if isp_visible else 'flash dump needs ISP slave access -- see STATUS.md'})")
 
 
+def cmd_slaves(args):
+    """The vendor's own ISP-slave detection, re-run on our transport."""
+    from .isp import autodetect_isp_slave
+    with _bus(args) as bus:
+        print(f"# AutoDetectSlaveAddr replay on {_busname(bus, args)}: "
+              f"pose reg {Facts.ISP_SLAVE_PROBE_REG:#04x}, read 1 byte")
+        for i, (w8, c8, x8) in enumerate(Facts.ISP_SLAVE_TRIPLES):
+            print(f"  cand{i}  isp {w8>>1:#04x} (8-bit {w8:#04x})  "
+                  f"cont {c8>>1:#04x}  mailbox {x8>>1:#04x}")
+        got = autodetect_isp_slave(bus)
+        if got.found:
+            print(f"\nvendor picks candidate {got.index}: ISP slave "
+                  f"{got.slave7:#04x}, continuous {got.continuous7:#04x}, "
+                  f"mailbox {got.mailbox7:#04x}  (reply {got.reply.hex(' ')})")
+        else:
+            print("\nno candidate answered on this transport")
+
+
 def cmd_backup(args):
     from .buslock import BusBusyError, bus_lock
     try:
@@ -486,6 +504,8 @@ def main(argv=None):
     sub.add_parser("info", help="monitor + bin identity (safe)")
     sub.add_parser("verify", help="model-match check that error 0x45 does (safe)")
     sub.add_parser("probe", help="slave ACK scan incl. ISP addresses (safe)")
+    sub.add_parser("slaves", help="the vendor's ISP-slave detection, re-run "
+                                  "(Comm.dll AutoDetectSlaveAddr; safe)")
     b = sub.add_parser("backup", help="dump scaler SPI flash (read-only)")
     b.add_argument("--out", required=True)
     b.add_argument("--size", type=lambda s: int(s, 0),
@@ -503,6 +523,7 @@ def main(argv=None):
                    help="required and acknowledged: a bad flash can brick the scaler")
     args = p.parse_args(argv)
     {"info": cmd_info, "verify": cmd_verify, "probe": cmd_probe,
+     "slaves": cmd_slaves,
      "backup": cmd_backup, "write": cmd_write,
      "shell": cmd_shell, "tui": cmd_tui}[args.cmd](args)
 
