@@ -2868,3 +2868,36 @@ README safety section updated (expect a transient blank).
 
 Facts: GROK_REVIEW_16T, ISP_REGFILE_NATIVE, DP_BLANKING.
 Gates: ruff clean, **337 unit tests OK** (+10). Notes: re/ghidra_isp_engine.md (16t–16u).
+
+## Session 16v (2026-11-01) — the native-lane window is a latch, not an ack
+
+Hunted a per-transaction acknowledgement (the thing that makes a 57,344-page
+write auditable). The vendor's write leaf reads 8 bytes at register 2 expecting
+9C E1; this panel answers c4 83 01 00, so register 2 is a stream offset, not the
+ack slot. Mapping the 0x0100 block on the native lane, slave 0x22, read-only:
+
+| probe | result |
+|---|---|
+| command classes 0x20 0x38 0x40 0x42 0xA0 | no delta, 5/5 |
+| data phase 0, 4, 8, 12, 16 bytes | no delta, 5/5 |
+| ISP entry (candidate 5, status 0x8a) | no delta |
+| passive, 8 samples x 12 s | no drift |
+
+Idle block: 00 84 00 02 02 02 02 00 01 00 00 00 00 00 00 00.
+
+**Correction to 16t (annotated, not erased):** "24 indices changed" is ONE byte
+moving. Reading at index N returns the same stream offset by N, so one byte at
+stream offset 0x107 appears in every overlapping index. Its history: 0x90 (start
+of 16t) -> 0x10 (the session that ran the page-program matrix) -> 0x00 (ever
+since, through a power cycle, an ISP entry, five command classes and five data
+phases). A latch, not a live ack.
+
+Model as it now stands: the native lane's 0x22 is a real, byte-addressable,
+write-visible window that holds the **sink's DP-branch state** (which is also why
+ladder writes blank the screen, 16u); the ISP register file proper (doors
+0x9C/0x9D) reads zeros on the tunnel lane; flash cells remain unproven; and **no
+per-transaction ack is observable from the DP side** — the ack has to come from
+the flash side, i.e. the clip.
+
+Facts: ISP_WINDOW_MAP.
+Gates: ruff clean, **340 unit tests OK** (+3). Notes: re/ghidra_isp_engine.md (16v).

@@ -153,6 +153,19 @@ class TestProgramAndErase(unittest.TestCase):
             isp_write_packet(bus, 0x9C, b"\x40\x00\x00\x40", mode=mode)
             self.assertEqual(bus.pairs[-1][1], want, f"mode={mode}")
 
+    def test_the_window_shows_no_per_command_ack(self):
+        m = Facts.ISP_WINDOW_MAP
+        self.assertIn("no delta", m["per_command"])
+        self.assertIn("no delta", m["per_data_phase"])
+        self.assertIn("no delta", m["isp_entry"])
+        self.assertIn("no drift", m["passive"])
+
+    def test_the_24_index_claim_is_corrected_to_one_byte(self):
+        self.assertIn("ONE byte", Facts.ISP_WINDOW_MAP["correction_16t"])
+
+    def test_the_ack_must_come_from_the_flash_side(self):
+        self.assertIn("clip", Facts.ISP_WINDOW_MAP["consequence"])
+
     def test_the_blank_screen_has_a_named_cause(self):
         d = Facts.DP_BLANKING
         self.assertIn("LANE_ADJUST_REQUEST", d["cause"])

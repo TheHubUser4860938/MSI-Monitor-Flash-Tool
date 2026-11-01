@@ -2104,3 +2104,45 @@ DP_BLANKING = {
                         "ladder; the link recovers on retrain, and a power "
                         "cycle restores the panel",
 }
+
+
+# ---- 16v: the native-lane window is a latch, not an ack - the map ---------
+# The hunt: find the byte that answers a packet, so a 57,344-page write has a
+# per-transaction acknowledgement to watch. The vendor's own write leaf reads 8
+# bytes at register 2 and expects 0x9C then 0xE1; this panel answers
+# c4 83 01 00..., so register 2 is a stream offset, not the ack slot (16u).
+# Mapping the 0x0100 block on the native lane, slave 0x22, all reads read-only:
+#
+#   command class   (0x20, 0x38, 0x40, 0x42, 0xA0)   -> block unchanged, 5/5
+#   data phase      (0, 4, 8, 12, 16 bytes)          -> block unchanged, 5/5
+#   ISP entry       (candidate 5, status 0x8a)       -> block unchanged
+#   passive, 12 s x 8 samples                        -> block unchanged
+#
+# The block's idle value is 00 84 00 02 02 02 02 00 01 00... and it is stable.
+#
+# CORRECTION to 16t, annotated not erased: "24 indices changed" is ONE byte
+# moving. Reading at index N returns the same stream at offset N, so a single
+# byte at stream offset 0x107 appears in every overlapping index - 0x90 -> 0x10
+# once, in the session that ran the page-program matrix, and 0x00 ever since,
+# through a power cycle, an ISP entry, five command classes and five data
+# phases. It is a LATCHED value, not a live per-command ack.
+#
+# So: the window is real, byte-addressable and write-visible, and it is the
+# sink's DP-branch state - the ISP register file proper (doors 0x9C/0x9D) still
+# reads zeros on the tunnel lane. The ack for a page program has to come from
+# the flash side, which is the clip's job.
+ISP_WINDOW_MAP = {
+    "measured": "2026-11-01, relay lane=native, slave 0x22, read-only",
+    "idle_block_0x0100": "00 84 00 02 02 02 02 00 01 00 00 00 00 00 00 00",
+    "per_command": "5 command classes (0x20, 0x38, 0x40, 0x42, 0xA0): no delta",
+    "per_data_phase": "5 sizes (0, 4, 8, 12, 16 B): no delta",
+    "isp_entry": "candidate 5, status 0x8a: no delta",
+    "passive": "8 samples at 12 s: no drift",
+    "correction_16t": "'24 indices changed' is ONE byte at stream offset 0x107 "
+                      "seen through the shifted window (0x90 -> 0x10 once, then "
+                      "0x00 permanently) - a latch, not a per-command ack",
+    "ack_register": "the leaf reads 8 bytes at register 2 expecting 9C E1; this "
+                    "panel answers c4 83 01 00 - register 2 is a stream offset",
+    "consequence": "no per-transaction ack is observable from the DP side; the "
+                   "ack must come from the flash side, i.e. the clip",
+}

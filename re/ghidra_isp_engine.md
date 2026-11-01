@@ -1377,3 +1377,40 @@ proper. The flash cells remain unproven — but the door demonstrably turns, and
 we now have a write-visible state byte to watch: `0x0107`.
 
 Facts: `GROK_REVIEW_16T`, `ISP_REGFILE_NATIVE`, `DP_BLANKING`.
+---
+
+# Session 16v — the native-lane window is a latch, not an ack
+
+The hunt was a per-transaction acknowledgement: if one byte answers a packet, a
+57,344-page write becomes auditable. The vendor's write leaf reads 8 bytes at
+register 2 and expects `9C E1`; this panel answers `c4 83 01 00 …` (16u), so
+register 2 is a stream offset, not the ack slot. Mapping the `0x0100` block on
+the native lane, slave `0x22`, all read-only:
+
+| probe | result |
+|---|---|
+| command classes `0x20 0x38 0x40 0x42 0xA0` | no delta, 5/5 |
+| data phase 0, 4, 8, 12, 16 bytes | no delta, 5/5 |
+| ISP entry (candidate 5, status `0x8a`) | no delta |
+| passive, 8 samples × 12 s | no drift |
+
+Idle block: `00 84 00 02 02 02 02 00 01 00 00 00 00 00 00 00`.
+
+**Correction to 16t, annotated not erased:** "24 indices changed" is **one byte**
+moving. Because reading at index N returns the same stream offset by N, a single
+byte at stream offset `0x107` shows up in every overlapping index. Its history
+is `0x90` (start of the 16t session) → `0x10` (in the session that ran the
+page-program matrix) → `0x00` (ever since — through a power cycle, an ISP entry,
+five command classes and five data phases). That is a **latch**, not a live ack.
+
+So the honest shape of the model now:
+
+- The native lane's `0x22` is a real, byte-addressable, write-visible window —
+  and it is the **sink's DP-branch state**, which is also why driving the ladder
+  blanks the screen (lane-adjust writes, 16u).
+- The ISP register file proper — doors `0x9C`/`0x9D` — reads zeros on the tunnel
+  lane, and the flash cells remain unproven.
+- **No per-transaction ack is observable from the DP side.** The ack has to come
+  from the flash side, which is the clip's job: `CLIP-PLAYBOOK.md`.
+
+Facts: `ISP_WINDOW_MAP`.
