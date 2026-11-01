@@ -235,6 +235,28 @@ class TestPluginSettingsStruct(unittest.TestCase):
         self.assertIn("FUN_10007670", Facts.PLUGIN_SETTINGS_STRUCT["caller"])
 
 
+class TestHostChain(unittest.TestCase):
+    """16h: the host chain and the two shells, as decoded from the binaries."""
+
+    def test_the_gui_entry_is_operatescalerex(self):
+        self.assertIn("OperateScalerEx", Facts.HOST_CHAIN["gui_entry"])
+
+    def test_the_fallback_is_the_child_process_path(self):
+        self.assertIn("--ispdiff", Facts.HOST_CHAIN["fallback"])
+
+    def test_the_vendor_log_file_is_isplog(self):
+        self.assertIn("IspLog.txt", Facts.HOST_CHAIN["log_file"])
+
+    def test_one_engine_two_shells(self):
+        self.assertIn("one engine, two shells", Facts.HOST_CHAIN["engine_class"])
+
+    def test_signing_is_off_as_shipped(self):
+        self.assertIn("modes 0", Facts.HOST_CHAIN["signing"])
+
+    def test_the_vtable_hunt_is_recorded_as_open(self):
+        self.assertIn("SetCommInterface", Facts.COMM_VTABLE_HUNT)
+
+
 class TestFlashModes(unittest.TestCase):
     """IspFlash (0x10008520) only runs for these DAT_1024a2d4 values; 0x1a is
     the background bank (its own engine), 0x1b the foreground (log only)."""

@@ -1132,3 +1132,54 @@ PLUGIN_SETTINGS_STRUCT = {
                       "mode (0x00), boot type (0x11), the Flash.dat record "
                       "(0x10b50) - and the INI that fills them.",
 }
+
+
+# ---- 16h: the host chain, and the engine has two shells -------------------
+# Traced from the GUI's OnInitDialog (exe FUN_0040f460) and the loader
+# (FUN_00411430):
+#   GUI exe --LoadLibraryW--> WinOperateCScaler.dll
+#       --GetProcAddress("OperateScalerEx")--> FUN_1001c770(args, cb, ...)
+#       fallback if the export is missing: relaunch
+#       "WinISPTool.exe --ispdiff --newboot --fw \"%ls\" --comm %d --settingfile \"%ls\""
+#       failure string: "Load scaler dll in UpdateFwNormal fail!"
+#   WinOperateCScaler.dll carries (utf-16) "WinIspPlugIn" and "IspSetting.ini"
+#   and the ASCII "I2CWrite" - it is the HOST: it loads the plugin and reads
+#   the INI. Its GUI sets the log file name to "IspLog.txt" (so that, not
+#   nvapi.log, is the file to look for on a borrowed-Windows run).
+#
+# The engine is ONE class in TWO shells: WinOperateCScaler.dll's RTTI has
+# CCpIsp, CCpSignVerify, CCpRsString, CCpTransform, and a name table listing
+# the plugin's exact export set (IspFlash, SetCommInterface, RecordFWVersion,
+# GetKeyFromFlash, SetUIFunction, GetFWInfo, DumpFlash,
+# GetUserDefinedInfoFromDDCCI, ChipEraseFlash, IspEeprom, EnterISPModeExport,
+# ResetMCUExport, GetMergeFwInfo, SetMergeFwInfo, SendUserDefinedInfo,
+# I2CWriteExport, GetScalerType, BankEraseFlash). WinIspPlugIn.dll is the same
+# engine built as a plugin. => a native port mirrors OperateScalerEx, not the
+# plugin, and the method set to mirror is exactly that list.
+# CCpSignVerify + the INI's enumDigitalSignatureType=0 /
+# enumSWDigitalSignatureMode=0 mean signature checks are OFF as shipped: the
+# port does not need to sign anything.
+HOST_CHAIN = {
+    "gui_entry": "WinOperateCScaler.dll!OperateScalerEx (RVA 0x1c760 -> "
+                 "FUN_1001c770), called by the exe at FUN_00411430 after "
+                 "LoadLibraryW + GetProcAddress",
+    "progress_callback": "exe FUN_0040f0a0 (the 3rd argument) - the same "
+                         "progress the GUI bars show (16a: the 10%/100% "
+                         "grammar lives in the plugin)",
+    "fallback": "WinISPTool.exe --ispdiff --newboot --fw <bin> --comm <id> "
+                "--settingfile <ini>  (the child-process path)",
+    "log_file": "IspLog.txt (the GUI's own name; AUX_EnableDebugLog=1 to get it)",
+    "engine_class": "CCpIsp (RTTI in WinOperateCScaler.dll, and the same 19 "
+                    "export names as WinIspPlugIn.dll) - one engine, two shells",
+    "signing": "CCpSignVerify exists; shipped INI has both signature modes 0",
+}
+
+# 16h, honestly open: the comm object's vtable (the slots in COMM_VTABLE) is a
+# hand-built function-pointer table, not an RTTI-polymorphic class - the three
+# vendor modules each expose 38 runs of >=164 code pointers with the SAME top
+# length (280), which is the statically linked MFC/CRT, not the comm object.
+# Next method that has not been tried: the host resolves "SetCommInterface" by
+# NAME (the string is in WinOperateCScaler's name table), so the call site is
+# reachable from that string's xref in Ghidra, and the object it passes has
+# its vtable pointer at [0] - one hop to the table.
+COMM_VTABLE_HUNT = "open: find the host's SetCommInterface call site (name string at WinOperateCScaler 0x101a6100 region), read the object's [0]"

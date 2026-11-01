@@ -2414,3 +2414,38 @@ Notes: re/ghidra_isp_engine.md (16g).
 NEXT RE target, named: the vtable the exe hands the plugin's
 `SetCommInterface` (ordinal 16) — decoding slots `+0x21c` and `+0x124` is the
 whole remaining gap between "the pipeline walks" and "the pipeline reads flash".
+
+## Session 16h (2026-11-01) — the host chain: one engine in two shells, signing off, and the log file's real name
+
+Followed the owner's "redo the decompilation, there must be something missed"
+and it paid: the missed structure is the HOST, not a slot.
+
+- GUI `OnInitDialog` (exe FUN_0040f460) → loader (FUN_00411430) →
+  `LoadLibraryW` + `GetProcAddress("OperateScalerEx")` →
+  **`WinOperateCScaler.dll` FUN_1001c770**, a 13 KB master with a 276 KB frame,
+  called with the exe's progress callback `FUN_0040f0a0`. If the export is
+  missing it falls back to the child process (`--ispdiff --newboot --comm N`),
+  with the GUI string "Load scaler dll in UpdateFwNormal fail!".
+- **One engine, two shells:** that module's RTTI carries `CCpIsp` (+
+  `CCpSignVerify`, `CCpRsString`, `CCpTransform`) and a name table with the
+  plugin's exact 19 export names. `WinIspPlugIn.dll` is the same engine as a
+  plugin; the host carries it in-process (utf-16 "WinIspPlugIn" +
+  "IspSetting.ini" + ascii "I2CWrite").
+- **So a native port mirrors `OperateScalerEx` and a 19-method surface** — not
+  an unknown API. `Facts.HOST_CHAIN`.
+- **Signing is off as shipped** (`enumDigitalSignatureType=0`,
+  `enumSWDigitalSignatureMode=0`, class `CCpSignVerify` present): the port
+  inherits no signing requirement.
+- **The vendor's log file is `IspLog.txt`** (named in the GUI init) — 15g
+  hunted `nvapi.log`; with `AUX_EnableDebugLog=1` the run writes `IspLog.txt`.
+- **Cheap witness we never used:** under Wine the whole tool is ONE call,
+  `OperateScalerEx(args, cb)` — no GUI, no relaunch, no second PC.
+- Open, with the exact next hop: the comm object's vtable is hand-built (the
+  38 runs of ≥164 pointers in all three modules are the shared MFC/CRT), so
+  reach it from the host's `SetCommInterface` **name** xref in
+  WinOperateCScaler.dll; the object's `[0]` is the table. Slots `+0x21c` and
+  `+0x124` are the two wire forms `msi-isp pipeline` is missing.
+
+Gates: ruff clean, **214 unit tests OK** (+6: the host chain, the log name,
+the two-shell claim, signing-off, the open hunt). Notes:
+re/ghidra_isp_engine.md (16h).

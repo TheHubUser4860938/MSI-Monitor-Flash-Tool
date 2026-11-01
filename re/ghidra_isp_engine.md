@@ -579,3 +579,64 @@ steps, and both are the same unknown: the wire form of the core's vtable slots
 find the vtable the exe passes to the plugin's `SetCommInterface` (ordinal 16;
 the exe's own strings show only `IspSetting` and `WinISPTool`, so the plugin
 and comm names arrive from the INI at run time).
+
+---
+
+# Session 16h — the host chain: the tool is one engine in two shells
+
+Went in through the GUI's `OnInitDialog` (exe `FUN_0040f460`) and the loader
+(`FUN_00411430`), which is where `LoadLibraryW` + `GetProcAddress` live:
+
+```
+MSI Firmware Update Utility V1.0.6.exe
+  └─ LoadLibraryW(<scaler dll>)  →  GetProcAddress(h, "OperateScalerEx")
+       └─ WinOperateCScaler.dll  OperateScalerEx (RVA 0x1c760 → FUN_1001c770)
+            · a 13 KB master function, with a 276 KB stack frame
+            · the exe passes a progress callback: FUN_0040f0a0
+            · carries (utf-16) "WinIspPlugIn" and "IspSetting.ini",
+              (ascii) "I2CWrite"  →  it is the HOST, not a wrapper
+       └─ fallback, if the export is missing:
+            WinISPTool.exe --ispdiff --newboot --fw "<bin>" --comm <id> --settingfile "<ini>"
+            ("Load scaler dll in UpdateFwNormal fail!" is the GUI's message)
+```
+
+**The engine is one class in two shells.** `WinOperateCScaler.dll`'s RTTI
+names four own classes — `CCpIsp`, `CCpSignVerify`, `CCpRsString`,
+`CCpTransform` — and it carries a name table with the plugin's exact export
+set:
+
+```
+IspFlash · SetCommInterface · RecordFWVersion · GetKeyFromFlash · SetUIFunction
+GetFWInfo · DumpFlash · GetUserDefinedInfoFromDDCCI · ChipEraseFlash · IspEeprom
+EnterISPModeExport · ResetMCUExport · GetMergeFwInfo · SetMergeFwInfo
+SendUserDefinedInfo · I2CWriteExport · GetScalerType · BankEraseFlash
+```
+
+`WinIspPlugIn.dll` is the same engine built as a plugin. So the port's target
+is **`OperateScalerEx`**, and the method set to mirror is exactly that list —
+19 names, not a mystery surface.
+
+Three practical consequences:
+
+1. **Signing is off as shipped.** `CCpSignVerify` exists, and the INI sets
+   `enumDigitalSignatureType=0` and `enumSWDigitalSignatureMode=0`. The native
+   port inherits no signing requirement.
+2. **The vendor's log file is `IspLog.txt`** — the GUI names it in
+   `OnInitDialog`. 15g looked for `nvapi.log` and found nothing; with
+   `AUX_EnableDebugLog=1` (16g) the borrowed-Windows run produces
+   `IspLog.txt`.
+3. **Under Wine the whole tool is one call** — `OperateScalerEx(args, cb)` in
+   `WinOperateCScaler.dll`, no GUI, no relaunch. That is a cheap witness
+   option we have never used, and it needs no second PC.
+
+## What is still open, and the exact next hop
+
+The comm object's vtable (the `COMM_VTABLE` slots) is a **hand-built function
+pointer table**, not an RTTI class: all three vendor modules expose 38 runs of
+≥164 code pointers whose top length is identical (280) — that is the
+statically linked MFC/CRT, seen three times. The next hop that has not been
+tried: `SetCommInterface` is resolved **by name** by the host, and that name
+string is in `WinOperateCScaler.dll`'s table (0x101a6100 region) — its xref is
+the call site, and the object passed carries the vtable pointer at `[0]`. One
+hop to the table, then slots `+0x21c` and `+0x124` decompile to the two wire
+forms the pipeline is missing.
