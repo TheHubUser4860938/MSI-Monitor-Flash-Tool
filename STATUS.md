@@ -2659,3 +2659,35 @@ data phase.
 
 Facts: PROGRAM_PACKET, ISP_CTRL_GRAMMAR.
 Gates: ruff clean, **286 unit tests OK** (+9). Notes: re/ghidra_isp_engine.md (16n).
+
+## Session 16o (2026-11-01) — the PWM2SPI packet grammar: the program shape's last hop
+
+16n's open question — what `control = 0x40` expands into — is answered. The
+primitive is Comm.dll's WritePWM2SPIDev (RVA 0xa280) / ReadPWM2SPIDev (0xa1b0):
+the scaler's **PWM-to-SPI bridge**. The flash is not on a PC-driven I2C bus; it
+is on the scaler's SPI and the PC sends the scaler *packets*.
+
+- **Dev level:** chunks of **12 data bytes** per transaction with a **24-byte**
+  buffer stride; only backends **3 and 5** work (selector _DAT_101d49a4 returns
+  0xB for 1, 2, 4).
+- **Leaf level** (0xa650 write / 0xa350 read) builds the packet on a 32-byte
+  stack buffer: `[control, arg1, arg2, checksum] + <=12 data bytes`, where the
+  checksum is the **8-bit SUM of the three header bytes, not XOR** (the read
+  leaf sums 3 bytes and appends: CONCAT13(sum, header)) — so the port must add.
+- **Ports:** write door **0x9C**, read command door **0x9D**, both through
+  FUN_10003c80 (write) / FUN_10003990 (read) — **the same ISP port ladder 16k
+  shipped as flash_read_at**. The packet door and the data door are one ladder;
+  the special-comm-type flag (_DAT_101def2c == 1) is what makes the read leaf
+  write its 4-byte header to 0x9D.
+- **Wire length:** `2 * len + 3` — the bridge clocks a 16-bit word per data byte
+  plus a header phase (a 12-byte transaction is 27 bytes on the wire).
+
+So a page program on this board is: packet [0x40, addr>>16, addr, sum] to reg
+0x9C; page bytes in 12-byte chunks at 24-byte stride; loop whole pages of
+GetI2CPageLength() = 32, then a tail of count % 32 — with the record's
+page-program opcode 0x02 behind control 0x40. The **pairing is inference** (the
+erase pairs 0x42 with its erase opcode; the A25L020 record carries 0x02); the
+**packet shape is read off the binary**.
+
+Facts: PWM2SPI_PACKET.
+Gates: ruff clean, **294 unit tests OK** (+8). Notes: re/ghidra_isp_engine.md (16o).

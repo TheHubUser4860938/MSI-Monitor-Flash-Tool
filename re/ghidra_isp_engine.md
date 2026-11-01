@@ -1046,3 +1046,53 @@ whether it takes data. That is why the port can drive all of them with the same
 three register writes plus an optional data phase.
 
 Facts: `PROGRAM_PACKET`, `ISP_CTRL_GRAMMAR`.
+---
+
+# Session 16o — the PWM2SPI packet grammar: the program shape's last hop
+
+16n left one question: what does `control = 0x40` expand into on the wire? The
+primitive is Comm.dll's `WritePWM2SPIDev` (RVA `0xa280`) / `ReadPWM2SPIDev`
+(RVA `0xa1b0`) — the scaler's **PWM-to-SPI bridge**, which is the whole point:
+the flash is not on an I2C bus the PC drives, it is on the scaler's SPI, and the
+PC sends the scaler *packets*.
+
+Two levels:
+
+- **The Dev level** chunks a transfer into `0xC` (12) data bytes per transaction
+  with a `0x18` (24) byte buffer stride, and only backends **3 and 5** are
+  supported — the selector `_DAT_101d49a4` returns `0xB` for 1, 2 and 4.
+- **The leaf level** (`0xa650` write, `0xa350` read) builds the packet on a
+  32-byte stack buffer and ships it:
+
+```
+packet = [control, arg1, arg2, checksum] + up to 12 data bytes
+checksum = the 8-bit SUM of the three header bytes          (not XOR)
+```
+
+The read leaf sums three bytes and appends the result as byte 4 — `CONCAT13(sum,
+header)` — so the checksum is arithmetic, not a mask. That matters: my port has
+to add, not xor.
+
+**The ports:** the write leaf ships to register **`0x9C`**, the read leaf to
+**`0x9D`**, and both go through `FUN_10003c80` (write) / `FUN_10003990` (read) —
+the very ISP port ladder 16k implemented as `flash_read_at`. So the packet door
+and the data door are **one ladder**, and the special-comm-type flag
+(`_DAT_101def2c == 1`) is what makes the read leaf write its 4-byte header to
+`0x9D`.
+
+**Wire length:** `2 * len + 3` — the bridge clocks a 16-bit word per data byte
+plus a header phase. That is why a 12-byte transaction is 27 bytes on the wire.
+
+Putting 16n and 16o together, a page program on this board is:
+
+```
+packet  [0x40, addr>>16, addr, sum]        -> reg 0x9C   (write door)
+data     page bytes in 12-byte chunks, 24-byte stride
+loop     whole pages of GetI2CPageLength() = 32, then a tail of count % 32
+```
+
+with the record's page-program opcode `0x02` behind control `0x40` — the
+pairing is inference (the erase pairs `0x42` with its erase opcode, and the
+A25L020 record carries `0x02`); the packet shape is read off the binary.
+
+Facts: `PWM2SPI_PACKET`.

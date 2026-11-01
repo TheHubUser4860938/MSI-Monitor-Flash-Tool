@@ -1796,3 +1796,39 @@ ISP_CTRL_GRAMMAR = {
                "can drive every one of these with the same three register "
                "writes plus a data phase",
 }
+
+
+# ---- 16o: the PWM2SPI packet grammar - the last hop of the program shape --
+# Comm.dll's WritePWM2SPIDev (RVA 0xa280) / ReadPWM2SPIDev (RVA 0xa1b0) are the
+# primitive 16n named. Two levels:
+#   the Dev level chunks a transfer into 0xC (12) data bytes per transaction
+#   with a 0x18 (24) byte buffer stride, and only backends 3 and 5 are
+#   supported (the selector _DAT_101d49a4: 1/2/4 return 0xB = unsupported).
+#   The leaf level (0xa650 write / 0xa350 read) builds the packet and ships it.
+# The packet, built on a 32-byte stack buffer:
+#     [control, arg1, arg2, checksum] + up to 12 data bytes
+#   checksum = the plain 8-bit SUM of the three header bytes (the read leaf
+#   sums 3 bytes and appends the result as byte 4 - CONCAT13(sum, header)).
+# The ports: the write leaf ships to register 0x9C, the read leaf to 0x9D, both
+# through FUN_10003c80 (write) / FUN_10003990 (read) - the same ISP port ladder
+# 16k implemented as flash_read_at. So the packet door and the data door are
+# ONE ladder, and the special-comm-type flag (_DAT_101def2c == 1) is what makes
+# the read leaf write its 4-byte header to 0x9D.
+# Wire length of a transaction: 2 * len + 3 (the SPI bridge clocks a 16-bit
+# word per data byte, plus the header phase).
+PWM2SPI_PACKET = {
+    "sites": "Comm.dll WritePWM2SPIDev RVA 0xa280, ReadPWM2SPIDev RVA 0xa1b0; "
+             "leaves 0xa650 (write) / 0xa350 (read)",
+    "packet": "[control, arg1, arg2, checksum] + <=12 data bytes",
+    "checksum": "8-bit SUM of the three header bytes (not XOR)",
+    "ports": {"write": 0x9C, "read_command": 0x9D},
+    "transport": "FUN_10003c80 (write) / FUN_10003990 (read) = the ISP port "
+                 "ladder of 16k - packet door and data door are one ladder",
+    "chunking": "12 data bytes per transaction, 24-byte buffer stride",
+    "wire_length": "2 * len + 3 (a 16-bit word clocked per data byte)",
+    "backends": "selector _DAT_101d49a4: 3 and 5 work; 1, 2, 4 return 0xB",
+    "program_pairing": "control 0x40 (16n) with the record's page-program "
+                       "opcode 0x02 (the A25L020 record carries 0x02; the "
+                       "erase pairs 0x42 with the erase opcode) - the pairing "
+                       "is inference, the packet shape is read off the binary",
+}

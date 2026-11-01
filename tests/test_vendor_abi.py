@@ -487,6 +487,38 @@ class TestProgramPacket(unittest.TestCase):
         self.assertIn("0xa1", Facts.ISP_CTRL_GRAMMAR["bit0"])
 
 
+class TestPWM2SPIPacket(unittest.TestCase):
+    """16o: the packet grammar that the program shape ships in."""
+
+    def test_the_packet_has_a_checksummed_header(self):
+        d = Facts.PWM2SPI_PACKET
+        self.assertIn("checksum", d["packet"])
+        self.assertIn("<=12", d["packet"])
+
+    def test_the_checksum_is_a_sum_not_an_xor(self):
+        self.assertIn("SUM", Facts.PWM2SPI_PACKET["checksum"])
+
+    def test_the_two_ports_are_named(self):
+        self.assertEqual(Facts.PWM2SPI_PACKET["ports"],
+                         {"write": 0x9C, "read_command": 0x9D})
+
+    def test_the_transport_is_the_16k_ladder(self):
+        self.assertIn("16k", Facts.PWM2SPI_PACKET["transport"])
+
+    def test_the_chunking_is_twelve_and_twentyfour(self):
+        self.assertIn("12 data bytes", Facts.PWM2SPI_PACKET["chunking"])
+        self.assertIn("24-byte", Facts.PWM2SPI_PACKET["chunking"])
+
+    def test_the_wire_clocks_two_bytes_per_data_byte(self):
+        self.assertEqual(Facts.PWM2SPI_PACKET["wire_length"].split(" ")[0], "2")
+
+    def test_only_two_backend_classes_are_supported(self):
+        self.assertIn("3 and 5", Facts.PWM2SPI_PACKET["backends"])
+
+    def test_the_program_pairing_is_labelled_as_inference(self):
+        self.assertIn("inference", Facts.PWM2SPI_PACKET["program_pairing"])
+
+
 class TestFlashModes(unittest.TestCase):
     """IspFlash (0x10008520) only runs for these DAT_1024a2d4 values; 0x1a is
     the background bank (its own engine), 0x1b the foreground (log only)."""
