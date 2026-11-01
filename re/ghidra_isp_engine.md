@@ -1305,3 +1305,75 @@ so a borrowed box exercises both vendor surfaces in one command each. The
 grammar is no longer something to remember; it is a flag.
 
 Facts: `ISP_WINDOW_RING` (16q), `DUAL_BANK`/`PILOT_WRITE` (16r).
+---
+
+# Sessions 16t–16u — Grok's review, measured; and the blank screen explains the lanes
+
+An outside review (`GROK-REVIEW.md`) attacked the inferences. Two predictions
+were testable, and running them produced the most useful live result of the
+week.
+
+## Item 1 — the 24-bit address path: measured, rejected as the explanation
+
+`flash_read_at` defaulted to mode 1 (low, high, low|1 = 16 bits + arm); the
+decompile's mode-2 branch is the 24-bit path. Running all three modes:
+
+```
+native lane 0x22   mode 0/1/2 @ 0x000000, 0x010000, 0x200000
+                   -> 00 00 05 21 00 04 2b 04 09 00 80 0f   (all nine)
+i2c-dev  0x37      mode 0/1/2 @ 0x000000, 0x200000
+                   -> 88 02 00 10 00 00 64 00 46 86 00 00   (all six)
+```
+
+Address width does not move the reply. Note what the `0x37` frame *is*: a
+GetVCP reply for VCP `0x10` (70 Hz of a 100 max) — so "the grammar's reply" and
+"the last MCCS read" are the same 32 bytes. The reviewer's alternative reading
+stands.
+
+## Item 2 — the packet trailer: implemented, and the matrix is mute
+
+The write leaf's unrolled accumulation over 32-byte padded blocks is the
+vectorized sum-of-buffer pattern — a checksum over the **data**, not the
+3-byte header. Shipped as `program_page_at(..., trailer=True)` (the 8-bit sum of
+header+data, appended once; the leaf's transaction cap is 12 data bytes, the
+window's is 16). The trigger is also mode-encoded (`cVar10` = chunk−1 / chunk /
+chunk+1). Six combinations, mode 0/1/2 × trailer off/on:
+
+```
+sent 36 B (or 37) each time; read-back identical to the baseline in all six
+```
+
+## The new finding: the native lane's `0x22` is a live, stateful window
+
+Probing the leaf's own acknowledgement (read 8 bytes at register 2, expect `9C
+E1`) found that register **2 answers with content** — `c4 83 01 00 01 c0 02 00`
+— unlike `0x9C`/`0x9D` (zeros). Sweeping 512 register indices:
+
+- **98 of 512 have content**, and reading at index N returns the *same stream
+  offset by N* — this is **one byte-addressable window**, not 512 registers.
+- Head block `0x0000 = 12 14 c4 83 01 00 01 c0` — **unchanged by a power cycle**,
+  i.e. a capability block.
+- `0x0100 = 00 84 00 02 02 02 02 90` — the transaction state.
+- **After a page-program write, 24 indices changed**: the status byte at
+  `0x0107` went `0x90 → 0x10`, and a counter near `0x010a` (`0x04`) cleared.
+  After the power cycle it is `0x90` again.
+- The packet's own bytes (`c0 fe ee 12`, header `40 23 45`) appear **nowhere**
+  in `0x0000..0x01ff`.
+
+## And the blank screen explains the lane split
+
+During that sweep the panel went blank, the source said "no signal" on DP, the
+panel stood by, and a power cycle restored it. The cause is now named: on the
+native lane the ladder's ports **are DPCD byte addresses** on this sink —
+`0x55`/`0x56`/`0x57`/`0x58` are `LANE_ADJUST_REQUEST` lanes 0–3 and `0xF2` is
+MTPMT1 — so a ladder write asks the link to retrain. DPCD came back to its 16k
+baseline (`0x60 = 0x05`, `0x64 = 0x2b`), panel healthy: `FW.009`,
+`MAG 341CQ X28`.
+
+So the vendor's model splits across our two lanes: the **ports** we can drive
+(native lane) live in DPCD space, and the **window that acknowledges**
+(`0x9C`/`0x9D`, read as zeros on the tunnel lane) is the ISP register file
+proper. The flash cells remain unproven — but the door demonstrably turns, and
+we now have a write-visible state byte to watch: `0x0107`.
+
+Facts: `GROK_REVIEW_16T`, `ISP_REGFILE_NATIVE`, `DP_BLANKING`.

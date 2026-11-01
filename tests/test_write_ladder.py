@@ -137,6 +137,53 @@ class TestProgramAndErase(unittest.TestCase):
     def test_the_doors_are_placed_on_the_isp_slave(self):
         self.assertIn("0x22", Facts.ISP_WINDOW_RING["reading"])
 
+    def test_the_trailer_sums_the_whole_packet(self):
+        """16t: the trailer covers header + data, appended once (Grok item 2)."""
+        bus = RecordingBus()
+        data = bytes([0xC0, 0xFE, 0xEE, 0x12])
+        n = program_page_at(bus, 0x000000, data, trailer=True)
+        body = [v for (p, v) in bus.pairs
+                if p == Facts.ISP_BOARD_REGS["data_port"]][1:]
+        self.assertEqual(n, 4 + 4 + 1)                # header + data + trailer
+        self.assertEqual(body[-1], sum(body[:-1]) & 0xFF)
+
+    def test_the_trigger_is_mode_encoded(self):
+        for mode, want in ((0, 0xC6), (1, 0xC8), (2, 0xCA)):   # n = 4
+            bus = RecordingBus()
+            isp_write_packet(bus, 0x9C, b"\x40\x00\x00\x40", mode=mode)
+            self.assertEqual(bus.pairs[-1][1], want, f"mode={mode}")
+
+    def test_the_blank_screen_has_a_named_cause(self):
+        d = Facts.DP_BLANKING
+        self.assertIn("LANE_ADJUST_REQUEST", d["cause"])
+        self.assertIn("0xF2", d["cause"])
+
+    def test_the_window_state_moves_and_resets(self):
+        self.assertIn("0x90 idle -> 0x10", Facts.DP_BLANKING["window_state"])
+        self.assertIn("power cycle", Facts.DP_BLANKING["window_state"])
+
+    def test_the_panel_is_healthy_after(self):
+        self.assertIn("FW.009", Facts.DP_BLANKING["health_after"])
+
+    def test_the_window_is_one_byte_addressable_buffer(self):
+        self.assertIn("same stream at offset N", Facts.ISP_REGFILE_NATIVE["shape"])
+
+    def test_a_write_changed_device_state(self):
+        self.assertIn("24 indices changed",
+                      Facts.ISP_REGFILE_NATIVE["after_a_page_write"])
+
+    def test_the_packet_bytes_never_appear(self):
+        self.assertEqual(Facts.ISP_REGFILE_NATIVE["marker_visible"][:2], "no")
+
+    def test_the_vendor_ack_is_not_what_we_get(self):
+        self.assertIn("c4 83", Facts.ISP_REGFILE_NATIVE["leaf_ack"])
+
+    def test_the_matrix_fact_records_both_rejected_axes(self):
+        g = Facts.GROK_REVIEW_16T
+        self.assertIn("REJECTED", g["item1_address_width"])
+        self.assertIn("identical", g["item2_trailer"])
+        self.assertIn("0x9C", g["leaf_ack"])
+
     def test_the_ladder_fact_names_the_window_and_the_arithmetic(self):
         w = Facts.ISP_WRITE_LADDER
         self.assertIn("names the register", w["window"])

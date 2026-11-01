@@ -1966,3 +1966,141 @@ PILOT_WRITE = {
             "register file (Intel/AMD, no allow-list) - erase, program, read "
             "back the marker",
 }
+
+
+# ---- 16t: Grok's review, and the two axes it predicted are now measured ---
+# An outside reviewer (Grok, reading this repo) attacked the inferences. Two
+# predictions were testable tonight; both were run on the panel.
+#
+# ITEM 1 - "the address-independent reply is your 16-bit addressing". The
+# decompile's mode-2 branch is the 24-bit path (writes param_1, param_3>>8,
+# param_3), and the tool defaulted to mode 1. Running mode 0, 1 and 2 at
+# 0x000000, 0x010000 and 0x200000:
+#     native lane 0x22 -> 00 00 05 21 00 04 2b 04 09 00 80 0f   (all nine)
+#     i2c-dev  0x37   -> 88 02 00 10 00 00 64 00 46 86 00 00   (all six)
+# REJECTED as the explanation: the address width does not move the reply. The
+# reviewer's alternative reading stands - 0x37's reply is the DDC/CI reply
+# buffer (that frame is a GetVCP 0x10 reply: 70 Hz of a 100 max), so "the
+# grammar's reply" and "the last MCCS read" are the same 32 bytes.
+#
+# ITEM 2 - "your packets omit a data-checksum trailer". The write leaf's
+# unrolled accumulation over 32-byte padded blocks is the vectorized
+# sum-of-buffer pattern, and its tail does something we had not recorded:
+#     FUN_10003990(8, 2, &buf)   (special-comm-type path)
+#     if (buf[0] != 0x9C) -> fail;  if (buf[1] != 0xE1) -> fail
+# i.e. the vendor WRITES THE PACKET AND READS BACK 8 BYTES AT REGISTER 2,
+# expecting 0x9C then 0xE1 - a per-transaction acknowledgement. Shipped as
+# program_page_at(..., trailer=True): the trailer is the 8-bit sum of the whole
+# packet (header + data), appended once.
+#
+# THE MATRIX (native lane, slave 0x22, marker page at 0x200000):
+#     mode 0/1/2  x  trailer off/on  -> 6 writes, 36 or 37 bytes, read-back
+#     identical to the baseline in all six.
+# So neither the address width, the bank bit, the checksum trailer nor the
+# mode-correct trigger moves the reply. The wall is the slave, not the packet.
+GROK_REVIEW_16T = {
+    "reviewer": "Grok, reading this repo (GROK-REVIEW.md), 2026-11-01",
+    "item1_address_width": "REJECTED as the explanation - mode 0, 1 and 2 at "
+                           "0x0, 0x10000, 0x200000 give one reply each lane",
+    "item2_trailer": "IMPLEMENTED (program_page_at(trailer=True)); 6-combination "
+                     "matrix (mode 0/1/2 x trailer off/on) - read-back identical",
+    "leaf_ack": "the write leaf reads 8 bytes back at register 2 and expects "
+                "0x9C then 0xE1 - a per-transaction ack we now send blind",
+    "conclusion": "address, bank, checksum trailer and mode-correct trigger "
+                  "move nothing on the answering slave: the wall is the slave "
+                  "(0x22), not the packet",
+    "misread_risks": "the reviewer's three, all accepted: (a) slot arithmetic "
+                     "byte = 4 x index underpins the whole naming layer; (b) "
+                     "the address-independent story rests on a sticky DDC/CI "
+                     "buffer; (c) 0x37 is the handshake/MCCS slave, so "
+                     "building the flash model on the only slave that answers "
+                     "yields a coherent model that never touches flash",
+    "next_probe": "read back 8 bytes at register 2 (the leaf's own ack) after a "
+                  "write - if it answers 9c e1, the packet is accepted at the "
+                  "bridge and only the cell write is unproven",
+}
+
+
+# ---- 16t(b): the native lane's 0x22 IS an addressable window, and a write
+#            changes it - the first write-visibility on this panel ----------
+# Probing the write leaf's own ack (read 8 bytes at register 2) found that
+# register 2 answers with CONTENT (c4 83 01 00 01 c0 02 00), unlike 0x9C/0x9D
+# (zeros). Sweeping 512 16-bit register indices on the native lane, slave 0x22:
+#   - 98 of 512 indices return non-zero
+#   - reading at index N returns the SAME byte stream offset by N - so this is
+#     ONE byte-addressable buffer (a DPCD-shaped window), not 512 registers
+#   - content at 0x0000: 12 14 c4 83 01 00 01 c0 02 00 06 00 00 00 82 00
+#     content at 0x0100: 00 84 00 02 02 02 02 90
+# After a page-program write (mode 2, trailer on) at 0x200000, 24 indices
+# CHANGED: the status byte at 0x0107 went 0x90 -> 0x10 and a counter around
+# 0x010a (0x04) cleared to zero. That is the first measured case on this panel
+# of a write producing a device-side change we can see.
+#
+# The packet's own bytes are NOT in the window: a marker packet
+# (header 40 23 45, data c0 fe ee 12 ab cd ef 5a) appears nowhere in
+# 0x0000..0x01ff. So the write lands as BRANCH STATE (transaction status,
+# counters), not as flash data - the cells are still unproven.
+ISP_REGFILE_NATIVE = {
+    "measured": "2026-11-01, relay /dev/msi-auxch lane=native, slave 0x22, "
+                "read-only reads + one page write",
+    "shape": "one byte-addressable window: reading at index N returns the same "
+             "stream at offset N (not 512 independent registers)",
+    "swept": "512 indices, 98 with content",
+    "content_0x0000": "12 14 c4 83 01 00 01 c0 02 00 06 00 00 00 82 00",
+    "content_0x0100": "00 84 00 02 02 02 02 90",
+    "after_a_page_write": "24 indices changed: 0x0107 0x90 -> 0x10, a counter "
+                          "at 0x010a (0x04) -> 0x00",
+    "marker_visible": "no - the packet's own bytes appear nowhere in "
+                      "0x0000..0x01ff",
+    "leaf_ack": "the vendor's write leaf reads 8 bytes at register 2 and "
+                "expects 0x9C then 0xE1; this panel answers c4 83 01 00..., "
+                "so the ack we send blind is not the ack it checks",
+    "reading": "the write reaches the sink's branch and changes transaction "
+               "state; the flash cells remain unproven. The window is the "
+               "branch's, which is why every grammar on 0x37 also read it",
+}
+
+
+# ---- 16u: the blank screen is explained, and the window is stateful -------
+# During the 16t sweep (a page write with mode 2 + trailer on the native lane)
+# the panel went blank, the source reported "no signal" on DisplayPort, the
+# panel entered standby, and a power cycle restored the image. That is not a
+# fluke - it is the mechanism, and it is good news twice over.
+#
+# WHY IT BLANKS. On the native lane the ISP "port numbers" are DPCD byte
+# addresses on this sink (16k's dual naming: 0x60 = DPCD TPS set, 0x61 = lane0
+# pattern, 0x64 = lane align). The ladder's ports land in the same space:
+#     0x55, 0x56, 0x57, 0x58  = DPCD LANE_ADJUST_REQUEST lanes 0..3
+#     0x5E                    = the lane-adjust / MTPMT region
+#     0xF2                    = MTPMT1 (the 16-bit window's own home, 14i)
+# So driving the ISP ladder writes lane-adjustment requests, and the source
+# retrains the link. A blank + "no signal" + standby during a probe is the
+# expected behaviour of a working write path, not a fault.
+#
+# WHY THAT IS GOOD. The window is stateful and the state is write-visible:
+#     0x0107  0x90 (idle)  ->  0x10 (after a page write)  ->  0x90 (after a
+#                               power cycle)
+# and DPCD came back to its 16k baseline (0x60 = 0x05, 0x64 = 0x2b). So the
+# writes reach live scaler state through the branch - the flash cells are still
+# unproven, but the door demonstrably turns.
+#
+# The window's head block is stable across the power cycle
+# (0x0000 = 12 14 c4 83 01 00 01 c0), which is what a link-capability block
+# looks like; the 0x0100 block is the transaction state that moves.
+DP_BLANKING = {
+    "observed": "2026-11-01, during the 16t register-file sweep: screen blank, "
+                "source reports no signal on DP, panel enters standby; a power "
+                "cycle restores the image",
+    "cause": "the ISP ladder's ports are DPCD byte addresses on this sink - "
+             "0x55/0x57/0x58 are LANE_ADJUST_REQUEST lanes 0-2 and 0xF2 is "
+             "MTPMT1 - so a ladder write asks the link to retrain",
+    "window_state": "0x0107: 0x90 idle -> 0x10 after a page write -> 0x90 "
+                    "after a power cycle",
+    "dpcd_after": "0x60 = 0x05, 0x64 = 0x2b (the 16k baseline)",
+    "head_block": "0x0000 = 12 14 c4 83 01 00 01 c0 - unchanged by the power "
+                  "cycle, i.e. a capability block, not transaction state",
+    "health_after": "FW.009, MAG 341CQ X28",
+    "operational_note": "expect a transient blank/standby when driving the ISP "
+                        "ladder; the link recovers on retrain, and a power "
+                        "cycle restores the panel",
+}

@@ -2825,3 +2825,46 @@ a borrowed box exercises both vendor surfaces in one command each — the gramma
 is a flag now, not a memory.
 
 Gates: ruff clean, **327 unit tests OK** (+3). Notes: re/ghidra_isp_engine.md (16s).
+
+## Session 16t–16u (2026-11-01) — Grok's review measured; the native lane's 0x22 is a live stateful window; the blank screen is explained
+
+An outside review (Grok, reading `GROK-REVIEW.md`) attacked the inferences. Both
+testable predictions were run, and running them produced the week's best live
+result.
+
+- **Item 1 (the 24-bit address path): measured, rejected as the explanation.**
+  mode 0/1/2 at 0x000000/0x010000/0x200000: native 0x22 gives
+  `00 00 05 21 00 04 2b 04 09 00 80 0f` in all nine; i2c-dev 0x37 gives
+  `88 02 00 10 00 00 64 00 46 86 00 00` in all six. Note what that 0x37 frame
+  IS: a GetVCP reply for VCP 0x10 (70 Hz of 100 max) — "the grammar's reply" and
+  "the last MCCS read" are the same 32 bytes.
+- **Item 2 (the packet trailer): implemented, and the matrix is mute.** The
+  write leaf's unrolled accumulation over 32-byte padded blocks is a
+  sum-of-buffer — a checksum over the DATA. Shipped as
+  `program_page_at(trailer=True)`; the trigger is also mode-encoded
+  (`cVar10` = chunk−1 / chunk / chunk+1). Six combinations (mode × trailer):
+  36–37 bytes sent each time, read-back identical in all six.
+- **NEW: the native lane's 0x22 is a live, stateful window.** Probing the leaf's
+  ack (read 8 at register 2, expect 9C E1) showed register 2 answers with
+  content. Sweeping 512 indices: 98 have content, and reading at index N returns
+  the same stream offset by N — one byte-addressable window, not 512 registers.
+  Head block 0x0000 = 12 14 c4 83 01 00 01 c0 survives a power cycle (a
+  capability block); 0x0100 = 00 84 00 02 02 02 02 90 is transaction state.
+  **After a page write, 24 indices changed: 0x0107 0x90 → 0x10, a counter at
+  0x010a cleared; after the power cycle 0x0107 is 0x90 again.** The packet's own
+  bytes appear nowhere in 0x0000..0x01ff.
+- **The blank screen explains the lane split.** During the sweep the panel
+  blanked, the source said "no signal", the panel stood by, a power cycle
+  restored it. Cause named: on the native lane the ladder's ports ARE DPCD byte
+  addresses — 0x55/0x56/0x57/0x58 are LANE_ADJUST_REQUEST lanes 0–3, 0xF2 is
+  MTPMT1 — so a ladder write retrains the link. DPCD returned to its 16k
+  baseline (0x60=05, 0x64=2b); panel healthy: FW.009, MAG 341CQ X28.
+
+So the vendor's model splits across our lanes: the ports we can drive (native)
+live in DPCD space; the window that acknowledges (0x9C/0x9D, zeros on the tunnel
+lane) is the ISP register file proper. Flash cells unproven, but the door
+demonstrably turns and we have a write-visible state byte to watch: **0x0107**.
+README safety section updated (expect a transient blank).
+
+Facts: GROK_REVIEW_16T, ISP_REGFILE_NATIVE, DP_BLANKING.
+Gates: ruff clean, **337 unit tests OK** (+10). Notes: re/ghidra_isp_engine.md (16t–16u).

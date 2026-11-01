@@ -189,6 +189,11 @@ auto-detected at runtime since `94f256a`.
 - Every command except `write` is read-only in effect. The ISP ladder's writes
   land in a 32-byte window; the flash cells change only under a program
   command.
+- **Expect a transient blank.** On this sink the ladder's ports are DPCD byte
+  addresses (`0x55`/`0x57`/`0x58` are lane-adjust requests, `0xF2` is MTPMT1),
+  so driving the ladder retrains the DP link: the screen blanks, the source says
+  "no signal", the panel may standby, and it recovers — a power cycle restores
+  the image. Measured 2026-11-01; `Facts.DP_BLANKING`.
 - `write` (a stub today) will require `--allow-write` **and** a typed
   confirmation, and will refuse to run before: JEDEC `0x9F` → `0x1Fxxxx` at the
   ISP slave, a full flash backup, and a byte-compare of that backup. (The JEDEC

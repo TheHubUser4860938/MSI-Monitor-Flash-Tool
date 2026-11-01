@@ -485,7 +485,8 @@ def flash_read_at(bus, addr: int, n: int, slave7: int = 0x37,
 
 
 def isp_write_packet(bus, reg: int, payload: bytes, slave7: int = 0x37,
-                     bank: int = 0, verbose: bool = False) -> None:
+                     bank: int = 0, mode: int = 1,
+                     verbose: bool = False) -> None:
     """Write a packet through the ISP data window (16p).
 
     The write ladder is Comm.dll FUN_10003c80, the twin of the read ladder
@@ -538,7 +539,9 @@ def isp_write_packet(bus, reg: int, payload: bytes, slave7: int = 0x37,
     w(regs["cmd_port"], 0xC1)                        # write command
     for b in payload:
         w(regs["data_port"], b)
-    w(regs["cmd_port"], (2 * n - 0x40) & 0xFF)       # the length-encoded trigger
+    # The trigger is length- AND mode-encoded: FUN_10003c80's cVar10 is
+    # chunk-1 (mode 0), chunk (mode 1), chunk+1 (mode 2) - 16t, Grok item 4.
+    w(regs["cmd_port"], (2 * (n + mode - 1) - 0x40) & 0xFF)
 
 
 def packet_bytes(control: int, arg1: int, arg2: int,
@@ -553,7 +556,8 @@ def packet_bytes(control: int, arg1: int, arg2: int,
 
 
 def program_page_at(bus, addr: int, data: bytes, slave7: int = 0x37,
-                    page: int = 32, bank: int = 0, verbose: bool = False) -> int:
+                    page: int = 32, bank: int = 0, mode: int = 1,
+                    trailer: bool = False, verbose: bool = False) -> int:
     """Program one page the way WriteFlashData does (16n, 16p).
 
     Packet [0x40, addr>>16, addr, sum] to the write door 0x9C, then the page
@@ -565,10 +569,18 @@ def program_page_at(bus, addr: int, data: bytes, slave7: int = 0x37,
         raise IspError(f"a page is {page} bytes, got {len(data)}")
     addr &= 0xFFFFFF
     head = packet_bytes(0x40, (addr >> 16) & 0xFF, addr & 0xFF)
+    body = head + bytes(data)
+    if trailer:
+        # 16t, Grok's item 2: the PWM2SPI leaves accumulate over 32-byte
+        # padded blocks (the vectorized sum-of-buffer pattern), which is a
+        # checksum over the DATA, not just the 3-byte header. The trailer is
+        # the 8-bit sum of the whole packet, appended once at the end - the
+        # leaf's own transaction cap is 12 data bytes, the window's is 16.
+        body = body + bytes([sum(body) & 0xFF])
     sent = 0
-    for chunk in _chunks(head + bytes(data), 16):
+    for chunk in _chunks(body, 16):
         isp_write_packet(bus, 0x9C, chunk, slave7=slave7, bank=bank,
-                         verbose=verbose)
+                         mode=mode, verbose=verbose)
         sent += len(chunk)
     return sent
 
