@@ -17,6 +17,7 @@ from msi_isp.isp import (
     isp_write_packet,
     packet_bytes,
     program_page_at,
+    rdid,
     read_status,
     sector_erase_at,
     write_status,

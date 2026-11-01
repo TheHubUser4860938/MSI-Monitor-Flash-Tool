@@ -1843,3 +1843,62 @@ status) — and the first thing the clip should read, because RDID and RDSR
 answer there with no DP branch in between.
 
 Facts: `STATUS_REGISTER_16Z`. Gates: ruff clean, **402 unit tests OK** (+6).
+---
+
+# Session 16aa — the model card: a second monitor becomes a file, not a code change
+
+The owner's goal is the whole MSI family, so the question is what is X28-specific.
+Answer, from the Windows tool itself: **a handful of numbers, and it keeps every
+one of them in `IspSetting.ini`** — the file it writes at startup and hands to
+`WinIspPlugIn`. So the card is that INI as data.
+
+## `msi_isp/models.py`
+
+`ModelCard` carries five groups, each traced to a measurement:
+
+| group | X28 value | where it came from |
+|---|---|---|
+| identity | `MAG 341CQ X28`, panel `TPO340QH1-`, scaler RTD2711, device type 8 | 16i's record read; 16z's `IspFlash` branch |
+| record | version `@0xF800` len 3, model `@0xF806` | the INI, confirmed against FW.012's bytes (16w) |
+| transport | slave `0x37`, page 32, 2 × 2 MiB banks | 16c, 16n, 16r |
+| timing | 200 ms/command, 10 retries, 10 s after reset, 3 s after DDCCI | the INI (16w), measured mute (16z) |
+| checks | model=1, version=**0**, checksum=1 | the INI — the version is not checked |
+
+The flash chip is deliberately **not** a card field: it's a question you ask
+(`isp.identify()`, 16z), because one model ships parts from several vendors and
+`Flash.dat` keys the script off the RDID answer.
+
+`from_ini` / `ini_text` round-trip the vendor's format, so a card can be dropped
+in for the Windows tool to read, and a vendor INI read out into a card. Validated
+against the live file: **`msi-isp models --from-ini …` reports "identical
+contract"**.
+
+## `contract` — the field set that decides a flash
+
+`card.contract` is the tuple of the numbers that matter, excluding names. A
+vendor INI names no panel, so comparing whole cards over-reports a difference;
+comparing contracts is the honest test, and it is what the `models` verb prints.
+
+## The record reader gains the vendor's own method
+
+`record.parse_bin_record` (16i) anchors on a `"MAG "` run. That works on the two
+images we hold and nowhere else — **an MPG image starts `"MPG "`**. Added
+`parse_bin_record_at(data, card)`, which reads at the card's offsets, no mark:
+
+```
+X28 / FW.012   mark: model='MAG 341CQ X28' panel='TPO340QH1-CH01 D01' code='e012'
+               card: same three, plus version='FW.012'      <- the card reaches it
+MPG (synthetic) mark: ValueError, no 'MAG ' run
+               card: model='MPG 274QRD' version='FW.021'
+```
+
+So the card method is a superset on the X28 and the only method that generalizes.
+
+## New verb
+
+`msi-isp models` lists the registry, `--model NAME` prints one card,
+`--ini` prints it back as a vendor INI, and `--from-ini PATH` reads the tool's
+file and diffs its contract against the built-in card.
+
+Gates: ruff clean, **433 unit tests OK** (+27 over 16z). Facts: unchanged —
+the card is code, the measurements stay in `Facts`.

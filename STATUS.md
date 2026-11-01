@@ -3149,3 +3149,43 @@ the clip's first read. The tool now carries the whole chain for a second
 monitor: RDID -> record -> the record's script, with no MSI model named in code.
 
 Facts: CHIP_ID_16Z. Gates: ruff clean, **406 unit tests OK** (+4).
+
+## Session 16aa (2026-11-01) — the model card: a second MSI monitor becomes a file
+
+The owner's goal is the family, so the question is what is X28-specific. From the
+Windows tool itself: a handful of numbers, all of them in IspSetting.ini — the
+file it writes at startup and hands to WinIspPlugIn. So the card is that INI as
+data: msi_isp/models.py.
+
+ModelCard carries five groups, each traced: identity (model MAG 341CQ X28, panel
+TPO340QH1-, scaler RTD2711, device type 8 — 16i's record, 16z's IspFlash branch);
+record (version @0xF800 len 3, model @0xF806 — the INI, confirmed on FW.012);
+transport (slave 0x37, page 32, 2 x 2 MiB banks — 16c/16n/16r); timing (200 ms per
+command, 10 retries, 10 s after reset, 3 s after DDCCI — the INI, measured mute in
+16z); checks (model=1, version=0, checksum=1 — the version is not checked).
+
+The flash chip is deliberately NOT a card field: it's a question you ask
+(isp.identify(), 16z), because one model ships parts from several vendors and
+Flash.dat keys the script off the RDID answer, not the monitor.
+
+from_ini / ini_text round-trip the vendor's format, so a card can be dropped in
+for the Windows tool to read and a vendor INI read out into a card. Validated
+against the live file: `msi-isp models --from-ini ...` reports IDENTICAL CONTRACT.
+
+card.contract is the tuple of numbers that decide a flash, names excluded — a
+vendor INI names no panel, so whole-card comparison over-reports; contract
+comparison is the honest test and what the verb prints.
+
+The record reader gains the vendor's own method: parse_bin_record (16i) anchors on
+a "MAG " run, which works on the two images we hold and nowhere else — an MPG
+image starts "MPG ". parse_bin_record_at(data, card) reads at the card's offsets:
+on FW.012 it agrees with the mark method on model/panel/code AND reaches
+version='FW.012' (the mark method returns None there); on a synthetic MPG image it
+works where the mark method raises.
+
+New verb: msi-isp models (list), --model NAME (one card), --ini (print it back as
+a vendor INI), --from-ini PATH (read the tool's file, diff its contract against
+the built-in card).
+
+Gates: ruff clean, **433 unit tests OK** (+27 over 16z). Facts unchanged: the card
+is code, the measurements stay in Facts.

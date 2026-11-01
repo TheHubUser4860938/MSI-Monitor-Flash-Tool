@@ -14,6 +14,25 @@ it — and unproven at the *cell* level, because live transactions at 7-bit
 `0x22` need a host path that reaches the scaler's internal bus. The monitor in
 the dev lab has never received a flash-cell write.
 
+## One monitor, then the family
+
+Everything X28-specific lives in a **model card** (`msi_isp/models.py`, 16aa) —
+which is the vendor's own design: `IspSetting.ini` is where MSI keeps the numbers,
+and a card reads and writes that format.
+
+```
+$ msi-isp models --from-ini .../IspSetting.ini
+  MAG 341CQ X28  ...  record @0xF800, model @0xF806, slave 0x37, page 32,
+  2 x 2 MiB banks, 200 ms/command, 10 retries, 10 s after reset
+  vs the built-in card for this model: identical contract
+```
+
+A new monitor is a card (or an INI), not a code change: identity, the record's
+offsets in the image, the slave and page length, the bank layout, the timing, and
+which checks the gate runs. The **flash chip is not a card field** — you ask it
+(`msi-isp chips`, 16z), because one model ships parts from several vendors and
+`Flash.dat` keys the erase/program script off the RDID answer.
+
 ## Verbs
 
 `simulate` (16x) runs the whole flash cycle against an emulated monitor - the
@@ -39,6 +58,25 @@ export, `ResetMCUExport`, then 10 s.
 
 It proves the protocol model is self-consistent; the panel's cells are still
 unproven (16v). `--chip W25Q32 --addr 0x2f7aa` picks another part and place.
+
+## One monitor, then the family
+
+Everything X28-specific lives in a **model card** (`msi_isp/models.py`, 16aa) —
+which is the vendor's own design: `IspSetting.ini` is where MSI keeps the numbers,
+and a card reads and writes that format.
+
+```
+$ msi-isp models --from-ini .../IspSetting.ini
+  MAG 341CQ X28  ...  record @0xF800, model @0xF806, slave 0x37, page 32,
+  2 x 2 MiB banks, 200 ms/command, 10 retries, 10 s after reset
+  vs the built-in card for this model: identical contract
+```
+
+A new monitor is a card (or an INI), not a code change: identity, the record's
+offsets in the image, the slave and page length, the bank layout, the timing, and
+which checks the gate runs. The **flash chip is not a card field** — you ask it
+(`msi-isp chips`, 16z), because one model ships parts from several vendors and
+`Flash.dat` keys the erase/program script off the RDID answer.
 
 ## Verbs
 

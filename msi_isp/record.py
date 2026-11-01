@@ -92,6 +92,39 @@ def _fields(data: bytes, lo: int, hi: int) -> list[bytes]:
     return data[lo:hi].split(bytes([SEP]))
 
 
+def parse_bin_record_at(data: bytes, card=None) -> Record:
+    """The vendor's own method: read the fields where the card says they are.
+
+    `parse_bin_record` (16i) anchors on a "MAG " run, which works on the two
+    images we hold and nowhere else - an MPG image starts "MPG ". The INI
+    method needs no mark: `BinVersionAddress` / `BinVersionLength` /
+    `ulModelNamePosInBin` are the coordinates, and a ModelCard carries them, so
+    any model with a card can be read. Fields are 0xff-separated (16i's
+    layout, and what FW.012 shows at 0xF800: '012\\xff\\x03\\xff').
+    """
+    from . import models
+    card = card or models.X28
+    lo, hi = card.version_addr, card.version_addr + card.version_len
+    ver = data[lo:hi]
+    block = data[card.model_pos:card.model_pos + 96]
+    fields = [f.decode("ascii", "replace").strip()
+              for f in block.split(b"\xff") if f.strip(b"\x00")]
+    model = fields[0] if fields else None
+    panel = fields[1] if len(fields) > 1 else None
+    # the INI names no scaler field, so the card supplies it (16i's mark walk
+    # reads the scaler from the block; the offsets do not reach it)
+    scaler = card.scaler or None
+    code = None
+    if model:
+        v = ver.split(b"\xff")[0].decode("ascii", "replace")
+        code = f"e{v}" if v.isdigit() else v or None
+    return Record(model=model or None, panel=panel or None,
+                  scaler=scaler or None,
+                  version=f"FW.{ver.split(b'\xff')[0].decode('ascii','replace')}"
+                  if ver.strip(b"\xff") else None,
+                  code=code)
+
+
 def parse_bin_record(data: bytes) -> Record:
     """Pull the record block out of a firmware image.
 

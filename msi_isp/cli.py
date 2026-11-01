@@ -485,6 +485,69 @@ def cmd_simulate(args):
     return 0
 
 
+def cmd_models(args):
+    """Show the model cards - the per-monitor contract, and the vendor's INI."""
+    from . import models
+    if args.from_ini:
+        card = models.from_ini_file(args.from_ini)
+        print(f"card read from {args.from_ini}:")
+        print(f"  {card.model}  panel {card.panel or '-'}  scaler {card.scaler}")
+        print(f"  record    : version @{card.version_addr:#07x} "
+              f"len {card.version_len}, model @{card.model_pos:#07x}")
+        print(f"  gate      : model={int(card.check_model)} "
+              f"version={int(card.check_version)} "
+              f"checksum={int(card.check_checksum)}")
+        print(f"  transport : slave {card.slave7:#04x}, page {card.page}, "
+              f"type {card.device_type:#04x}, {card.banks} x "
+              f"{card.bank_size // (1024 * 1024)} MiB banks")
+        print(f"  timing    : {card.after_command_ms} ms/command, "
+              f"{card.retry_count} retries, {card.after_reset_ms} ms after reset")
+        known = models.MODELS.get(card.model)
+        if known is not None:
+            same = known.contract == card.contract
+            print("  vs the built-in card for this model: "
+                  + ("identical contract" if same else "DIFFERS - the INI is newer"))
+            if not same:
+                for a, b, label in ((known.version_addr, card.version_addr, "version addr"),
+                                    (known.page, card.page, "page"),
+                                    (known.after_command_ms, card.after_command_ms, "settle"),
+                                    (known.retry_count, card.retry_count, "retries"),
+                                    (known.slave7, card.slave7, "slave")):
+                    if a != b:
+                        print(f"      {label:12} card {a:#06x}  ini {b:#06x}")
+        return 0
+    if args.model:
+        card = models.lookup(args.model)
+    else:
+        for name, card in models.MODELS.items():
+            mark = "  (alias)" if card.model != name else ""
+            print(f"{name:28} {card.scaler:9} slave {card.slave7:#04x} "
+                  f"page {card.page:3} {card.capacity_bytes // (1024 * 1024)} MiB "
+                  f"record @{card.version_addr:#07x}{mark}")
+        distinct = len({id(c) for c in models.MODELS.values()})
+        print(f"\n  {len(models.MODELS)} names, {distinct} distinct cards. "
+              "A new monitor is a ModelCard, or a vendor IspSetting.ini "
+              "(--from-ini).")
+        return 0
+    print(f"{card.model}  panel {card.panel or '-'}  scaler {card.scaler}")
+    print(f"  record    : version @{card.version_addr:#07x} len {card.version_len}, "
+          f"model @{card.model_pos:#07x}")
+    print(f"  gate      : model={int(card.check_model)} "
+          f"version={int(card.check_version)} checksum={int(card.check_checksum)}")
+    print(f"  transport : slave {card.slave7:#04x}, page {card.page}, "
+          f"type {card.device_type:#04x}, inactive bank base "
+          f"{card.inactive_base:#08x}")
+    print(f"  timing    : {card.after_command_ms} ms/command, "
+          f"{card.retry_count} retries, {card.after_reset_ms} ms after reset, "
+          f"{card.after_ddcci_ms} ms after DDCCI")
+    print(f"  version   : {','.join(f'0x{b:02X}' for b in card.version_cmd)} "
+          f"(string at index {card.version_index}, {card.version_read} B)")
+    print("  flash chip: ask the panel - msi-isp chips (the card does not fix it)")
+    if args.ini:
+        print("\n" + card.ini_text().rstrip())
+    return 0
+
+
 def cmd_chips(args):
     """Ask the panel which flash chip is fitted, and name its Flash.dat record."""
     from . import flashdat
@@ -773,6 +836,13 @@ def main(argv=None):
                      help="a Flash.dat part number (sets capacity + identity)")
     sim.add_argument("--addr", type=lambda x: int(x, 0), default=0xF800,
                      help="where to erase/program (default: the record block)")
+    md = sub.add_parser("models", help="the per-monitor contract: list, show, "
+                                       "or read a vendor IspSetting.ini")
+    md.add_argument("--model", help="one model string, e.g. 'MAG 341CQ X28'")
+    md.add_argument("--from-ini", dest="from_ini",
+                    help="read a vendor IspSetting.ini and show its card")
+    md.add_argument("--ini", action="store_true",
+                    help="print the card back out as a vendor INI")
     ch = sub.add_parser("chips", help="identify the fitted flash chip and print "
                                       "its vendor record (read-only)")
     ch.add_argument("--slave", type=lambda x: int(x, 0), default=0x22,
@@ -836,6 +906,7 @@ def main(argv=None):
      "slaves": cmd_slaves, "ladder": cmd_ladder, "flashdat": cmd_flashdat,
      "simulate": cmd_simulate,
      "record": cmd_record, "flashread": cmd_flashread, "chips": cmd_chips,
+     "models": cmd_models,
      "pipeline": cmd_pipeline,
      "backup": cmd_backup, "write": cmd_write,
      "shell": cmd_shell, "tui": cmd_tui}[args.cmd](args)
