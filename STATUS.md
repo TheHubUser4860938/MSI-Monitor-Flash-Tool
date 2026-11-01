@@ -2123,3 +2123,62 @@ WRITTEN (make purpose DECLARATIVE, not tribal knowledge):
 Nothing else was cut: core lib, kernel module, tests, docs, vendor-facing
 runbooks all have live roles (audit 15l + queue). Suite unchanged; all
 gates re-run green.
+
+## Session 16a (2026-11-01) — GHIDRA DAY: the ISP engine read by a decompiler; ABI corroborated, three new surfaces, one slot conflict opened
+
+Toolchain now live: Ghidra **12.1.2** at `/opt/ghidra` over the ghidra-mcp
+bridge (208 tools). Imported `vendor/PlugIn/WinIspPlugIn.dll` (2,789 functions)
+and `vendor/Comm/Comm_Aux.dll` into project `epson` (`~/epson-ghidra/epson`);
+renames are saved in the project. Full notes + every address:
+**`re/ghidra_isp_engine.md`**. Monitor untouched; zero bytes sent.
+
+CORROBORATED (decompiler agrees with the capstone corpus): `get_flash_type`
+`0x1d560` == our `Flash_GetType`; the flash ops really do run through the core's
+comm-object vtable (`SetCommInterface 0x10008700` -> `DAT_10249d10`), so the
+plugin carries **no slave addresses** at all.
+
+NEW SURFACES (proven, addresses in the notes):
+- **The `0xd21` origin is named**: `Isp_HandShakeByBootType 0x1001ba20` returns
+  `0xd21` when `DAT_1024a2f0 == 1`; the caller's log string is
+  "HandShakeBeforeEnterIspModeByBootType fail". The 12 % Proton failure is this
+  handshake, not the wire.
+- **The bank selector**: `IspFlash 0x10008520` runs only for
+  `DAT_1024a2d4 in {4,5,6,7,0x11,0x1a,0x1b}`; `0x1a` = background bank
+  (`Isp_DoIsp_Background 0x1003bcb0`), `0x1b` = foreground **with no engine call
+  at all** (log only). The dual-bank stage now has its switch.
+- **`Flash_GetInfo 0x1000da90`** returns the chip **name** (SSO string at `+4`)
+  and **capacity at `+0x18` in 64 KB units**, used as the bounds check —
+  the vendor's own counterpart to our JEDEC `0x9F` gate.
+- **`Flash_Dump 0x100239b0`** = the backup ladder end to end (type ->
+  handshake -> enter ISP -> get type -> get info -> `Flash_Read 0x1003eda0`
+  with a **bank byte + 16-bit offset** packed in one uint32 -> INI `Sleep`),
+  plus a **528-byte config block** (`DAT_1024a430`) and a **Flash Data Map**
+  region table (`DAT_1024a108`) — the strongest `Flash.dat` binding yet found.
+- **Comm_Aux from code, not INI**: `GetCommID 0x1003afd0` -> `return 1`;
+  `GetNativePageLength 0x1003b050` -> **16**; `GetI2CPageLength 0x1003b030` ->
+  `GetPrivateProfileIntW(AUX_I2CPageLen, **default 0x20**)` (32 is built in, the
+  INI only agrees). `I2CWrite 0x1003b060` and siblings are lazy-init + **a retry
+  loop in the comm layer** (flag `DAT_1021ae20`, count `DAT_1021ae24`) —
+  `Facts.ISP_PIPELINE`'s retries are not core-only.
+
+CONFLICT OPENED (checkable, not a vibe): slot **`+0x14`** has two readings —
+14i's "32-byte page I2C transfer (payload movement)" vs this session's
+"device-type query" (result compared to 3 / 8 / 0xe / 0x13 in the dump and
+enter paths). Ghidra elides arguments without prototypes, so the pseudocode
+cannot settle it. **Settle by the push sequences in the disassembly at the two
+call sites** (`0x10023aaa` region vs the register-window primitive sites).
+
+NEXT STRIKES (ordered): (1) `FUN_1003a3e0` — the write primitive: the 16-byte
+client-side message assembly + the NVAPI call = the exact bytes `nvrm.py`
+emits; (2) the updater `.exe` — find the `SetCommInterface` call site, recover
+the vtable, publish **slot <-> Comm_Aux export** (the ABI our transport must
+satisfy); (3) `Flash_Read` internals vs the `0x22` register ladder and the INI's
+`0x6F` (8-bit = 7-bit `0x37`) mailbox question; (4) the 528-byte block vs
+`vendor/PlugIn/Flash.dat`.
+
+TOOLCHAIN GOTCHAS (so the next window does not re-learn them):
+`import_file(auto_analyze=true)` reports success and leaves **1 function** —
+`run_analysis` is the pass that works (813 ms, +1,201); for Comm_Aux even that
+stayed at 1, seed it with `create_function` at each export RVA. `save_program`
+can fail `Unable to lock due to active transaction` — retry. The bridge's
+`batch_decompile` wants `0x`-prefixed addresses.

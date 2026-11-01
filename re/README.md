@@ -15,6 +15,16 @@ discipline (session 15h) means claims should stay checkable against bytes.
 | `dump.py`, `dumpfn.py`, `dumpd.py`, `pdump.py` | function/export dumpers |
 | `strs.py`, `fsum.py`, `steps.py` | string extraction, immediate summaries, decision-surface skeletons (how the ISP pipeline was decoded — session 14f) |
 
+**Ghidra path (session 16a, 2026-11-01):** Ghidra 12.1.2 (`/opt/ghidra`) driven
+over the ghidra-mcp bridge — a decompiler over `WinIspPlugIn.dll` (2,789
+functions) and `Comm_Aux.dll`, imported into project `epson`
+(`~/epson-ghidra/epson`) with the engine renames saved in the project.
+Findings: **`re/ghidra_isp_engine.md`**. It corroborates `Facts.ISP_PIPELINE`
+and does not replace these dumps — the capstone corpus stays the primary
+source for packet shapes. Gotchas: `import_file(auto_analyze=true)` leaves 1
+function (call `run_analysis` after); Comm_Aux needs `create_function` at each
+export RVA; `save_program` may hit an active transaction (retry).
+
 ## Dump-file prefixes (verified against file headers, audit 15l)
 
 | prefix | content |
