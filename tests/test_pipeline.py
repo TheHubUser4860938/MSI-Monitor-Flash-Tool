@@ -32,11 +32,19 @@ class TestSequence(unittest.TestCase):
     def test_the_exit_is_the_shared_mccs_command(self):
         self.assertEqual(PIPELINE[-1].payload, bytes([Facts.EXIT_ISP_CMD]))
 
-    def test_exactly_two_steps_have_undecoded_wire_forms(self):
-        """The honest gap list: the two core-vtable slots from 16a."""
-        self.assertEqual([s.name for s in PIPELINE if s.pending],
-                         ["set background flash write time",
-                          "enter ISP mode (type 8)"])
+    def test_no_step_has_an_undecoded_wire_form(self):
+        """The gap list is empty as of 16p: 16m named the two core-vtable
+        slots (WritePWM2SPIDev) and 16o/16p gave their bytes - the packet to
+        door 0x9C. What is NOT proven is the pairing of control 0x45 with
+        enter-mode, which 16m's arithmetic infers; the label says so."""
+        self.assertEqual([s.name for s in PIPELINE if s.pending], [])
+
+    def test_the_two_former_gaps_cite_their_new_receipts(self):
+        for name in ("set background flash write time",
+                     "enter ISP mode (type 8)"):
+            st = next(s for s in PIPELINE if s.name == name)
+            self.assertIn("16m", st.why, name)
+            self.assertIn("0x9C", st.why + st.payload.hex(), name)
 
     def test_every_step_carries_its_evidence(self):
         for s in PIPELINE:
@@ -80,7 +88,7 @@ class TestWalk(unittest.TestCase):
         self.assertEqual(rep.pending, [])                 # not reached yet
         rep2 = run_pipeline(FakeBus(reads=[b"\x8a"] * 8),
                             sleep=lambda ms: None)
-        self.assertIn("enter ISP mode (type 8)", rep2.pending)
+        self.assertEqual(rep2.pending, [])       # 16p closed both forms
 
 
 if __name__ == "__main__":

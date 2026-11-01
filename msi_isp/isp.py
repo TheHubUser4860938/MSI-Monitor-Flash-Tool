@@ -482,3 +482,102 @@ def flash_read_at(bus, addr: int, n: int, slave7: int = 0x37,
     if verbose:
         print(f"  RX  {data.hex(' ') if data else '(no reply)'}")
     return data
+
+
+def isp_write_packet(bus, reg: int, payload: bytes, slave7: int = 0x37,
+                     verbose: bool = False) -> None:
+    """Write a packet through the ISP data window (16p).
+
+    The write ladder is Comm.dll FUN_10003c80, the twin of the read ladder
+    16k shipped as flash_read_at. Its shape:
+
+        0xF2 <- (rd(0xF2) & 0x7f)          clear bit 7, keep the page
+        0x55 <- (rd(0x55) | 0x80)          command port, bit 7
+        delay 0x20
+        0x57 <- (rd(0x57) & 0xfc)          width port, low two bits clear
+        0x58 <- 0xE7                       bank, mode-0 value
+        delay 0x20
+        0x5E <- reg                        THE WINDOW: the register number
+        0x55 <- 0xC1                       write command
+        0x5E <- payload[0..n-1]            up to 16 bytes per transaction
+        0x55 <- (2*n - 0x40) & 0xff        the trigger, LENGTH-ENCODED
+
+    So the data port is a window, not a register: the first byte written to it
+    names the register and the rest is that register's payload. The trigger
+    byte is arithmetic in the byte count, which is why a 16-byte transaction
+    commits with 0xE0 (2*16-0x40) and a 4-byte packet header with 0x88.
+    """
+    from . import Facts
+    regs = Facts.ISP_BOARD_REGS
+    payload = bytes(payload)
+    if not payload:
+        raise IspError("an ISP packet needs at least the register byte")
+    n = len(payload)
+    if n > 16:
+        raise IspError(f"the ISP write window takes 16 bytes, got {n}")
+
+    def w(port: int, val: int) -> None:
+        if verbose:
+            print(f"  TX  {port:#04x} <- {val & 0xFF:#04x}")
+        bus.write(slave7, bytes([port & 0xFF, val & 0xFF]), warmup=False)
+
+    def r1(port: int) -> int:
+        bus.write(slave7, bytes([port & 0xFF]), warmup=False)
+        d = bus.read(slave7, 1, warmup=False)
+        return d[0] if d else 0
+
+    w(regs["addr_port"], r1(regs["addr_port"]) & 0x7F)
+    w(regs["cmd_port"], r1(regs["cmd_port"]) | 0x80)
+    time.sleep(0.032)
+    w(regs["width_port"], r1(regs["width_port"]) & 0xFC)
+    w(regs["bank_port"], 0xE7)
+    time.sleep(0.032)
+    w(regs["data_port"], reg)                       # the window names its register
+    w(regs["cmd_port"], 0xC1)                        # write command
+    for b in payload:
+        w(regs["data_port"], b)
+    w(regs["cmd_port"], (2 * n - 0x40) & 0xFF)       # the length-encoded trigger
+
+
+def packet_bytes(control: int, arg1: int, arg2: int,
+                 data: bytes = b"") -> bytes:
+    """The PWM2SPI packet: [control, arg1, arg2, SUM] + data (16o).
+
+    The checksum is the 8-bit SUM of the three header bytes, read out of the
+    leaf's CONCAT13(sum, header) - arithmetic, not a mask.
+    """
+    head = bytes([control & 0xFF, arg1 & 0xFF, arg2 & 0xFF])
+    return head + bytes([sum(head) & 0xFF]) + bytes(data)
+
+
+def program_page_at(bus, addr: int, data: bytes, slave7: int = 0x37,
+                    page: int = 32, verbose: bool = False) -> int:
+    """Program one page the way WriteFlashData does (16n, 16p).
+
+    Packet [0x40, addr>>16, addr, sum] to the write door 0x9C, then the page
+    bytes, in 16-byte window transactions. `page` defaults to the INI's
+    AUX_I2CPageLen = 32, which is what GetI2CPageLength() returns for this
+    board.
+    """
+    if len(data) > page:
+        raise IspError(f"a page is {page} bytes, got {len(data)}")
+    addr &= 0xFFFFFF
+    head = packet_bytes(0x40, (addr >> 16) & 0xFF, addr & 0xFF)
+    sent = 0
+    for chunk in _chunks(head + bytes(data), 16):
+        isp_write_packet(bus, 0x9C, chunk, slave7=slave7, verbose=verbose)
+        sent += len(chunk)
+    return sent
+
+
+def sector_erase_at(bus, addr: int, bank: int = 0, slave7: int = 0x37,
+                    verbose: bool = False) -> None:
+    """Erase one sector: packet [0x42, addr&0xff, bank&0xff, sum], no data."""
+    isp_write_packet(bus, 0x9C,
+                     packet_bytes(0x42, addr & 0xFF, bank & 0xFF),
+                     slave7=slave7, verbose=verbose)
+
+
+def _chunks(buf: bytes, size: int):
+    for i in range(0, len(buf), size):
+        yield buf[i:i + size]

@@ -1832,3 +1832,36 @@ PWM2SPI_PACKET = {
                        "erase pairs 0x42 with the erase opcode) - the pairing "
                        "is inference, the packet shape is read off the binary",
 }
+
+
+# ---- 16p: the write ladder - the data port is a WINDOW --------------------
+# Comm.dll FUN_10003c80 is the twin of FUN_10003990 (16k's flash_read_at):
+#   0xF2 <- rd(0xF2) & 0x7f          clear bit 7, keep the page
+#   0x55 <- rd(0x55) | 0x80          command port bit 7
+#   delay 0x20
+#   0x57 <- rd(0x57) & 0xfc          width, low two bits clear
+#   0x58 <- 0xE7                     bank (the mode-0 value the read ladder uses)
+#   delay 0x20
+#   0x5E <- reg                      THE WINDOW: the first byte names a register
+#   0x55 <- 0xC1                     write command
+#   0x5E <- payload...               up to 16 bytes per transaction
+#   0x55 <- (2*n - 0x40) & 0xff      the trigger, LENGTH-ENCODED
+# Two things that only the wire tells you: the data port is not a register but
+# a window (write [reg, data...] through it), and the commit byte is arithmetic
+# in the byte count - a 4-byte packet header commits with 0xC8, a full 16-byte
+# transaction with 0xE0. Shipped as isp_write_packet, packet_bytes,
+# program_page_at, sector_erase_at.
+ISP_WRITE_LADDER = {
+    "site": "Comm.dll RVA 0x3c80 (the twin of 0x3990, 16k)",
+    "window": "0x5E - the first byte names the register, the rest is its payload",
+    "command": {"write": 0xC1, "read": 0xC1},
+    "trigger": "(2 * n - 0x40) & 0xff - a 4-byte packet commits with 0xC8, a "
+               "16-byte transaction with 0xE0",
+    "max_per_transaction": 16,
+    "bank_mode0": 0xE7,
+    "code": "msi_isp/isp.py isp_write_packet / packet_bytes / program_page_at "
+            "/ sector_erase_at",
+    "live": "msi-isp pipeline walks 4 steps on i2c-dev: the two packet steps "
+            "send 45 0c 00 51 and 45 01 00 46, then 'get flash type' stops at "
+            "0x22 (EIO) - the same wall as before, now with decoded packets",
+}

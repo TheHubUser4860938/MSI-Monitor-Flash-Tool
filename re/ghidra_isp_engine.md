@@ -1096,3 +1096,64 @@ pairing is inference (the erase pairs `0x42` with its erase opcode, and the
 A25L020 record carries `0x02`); the packet shape is read off the binary.
 
 Facts: `PWM2SPI_PACKET`.
+---
+
+# Session 16p — the write ladder: the data port is a window, and the trigger counts bytes
+
+16o ended with the packet grammar and one question left: how a packet gets onto
+the wire. The answer is Comm.dll `FUN_10003c80`, the twin of `FUN_10003990`
+(16k's `flash_read_at`):
+
+```
+0xF2 <- rd(0xF2) & 0x7f        clear bit 7, keep the page
+0x55 <- rd(0x55) | 0x80        command port, bit 7
+delay 0x20
+0x57 <- rd(0x57) & 0xfc        width, low two bits clear
+0x58 <- 0xE7                   bank (the mode-0 value the read ladder uses)
+delay 0x20
+0x5E <- reg                    THE WINDOW: the first byte names a register
+0x55 <- 0xC1                   write command
+0x5E <- payload ...            up to 16 bytes per transaction
+0x55 <- (2*n - 0x40) & 0xff    the trigger, LENGTH-ENCODED
+```
+
+Two facts only the wire gives you:
+
+1. **The data port is a window, not a register.** Writing `0x5E` first names a
+   register and the following bytes are *that register's* payload. That is why
+   16o's "packet to port `0x9C`" is a single ladder, not two buses.
+2. **The commit byte is arithmetic in the byte count.** A 4-byte packet header
+   commits with `0xC8`; a full 16-byte transaction with `0xE0`. Nothing in the
+   register names hints at this.
+
+Shipped: `isp_write_packet`, `packet_bytes`, `program_page_at`,
+`sector_erase_at` in `msi_isp/isp.py`, with a recording-bus test suite
+(`tests/test_write_ladder.py`) that pins the port order, the window semantics,
+the chunk limit of 16, and the trigger arithmetic — no hardware needed.
+
+## The pipeline's gap list is empty
+
+`set background flash write time` and `enter ISP mode (type 8)` both have a
+**name** (16m: the slot arithmetic maps them to the PWM2SPI write primitive) and
+a **byte shape** (16o/16p: `[control, arg1, arg2, sum]` to door `0x9C`). Their
+`pending` flags are off, and the labels say what is inferred: the pairing of
+control `0x45` with the enter-mode call is 16m's arithmetic — two independent
+spot checks, not a wire capture.
+
+Live on i2c-dev the walk is:
+
+```
+ok    enter ISP                        f8
+ok    settle
+ok    set background flash write time  45 0c 00 51
+ok    enter ISP mode (type 8)          45 01 00 46
+STOP  get flash type                   [Errno 5] Input/output error
+reached step 5 of 8
+```
+
+Same wall as before — step 5 is the `0x22` register file, which no NVIDIA lane
+answers — but the four steps that do run now run with decoded packets, and the
+program shape that has been the project's open problem since 2026-10-17 is
+implemented, not sketched.
+
+Facts: `ISP_WRITE_LADDER`.

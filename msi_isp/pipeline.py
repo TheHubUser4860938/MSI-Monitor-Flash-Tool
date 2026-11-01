@@ -35,7 +35,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from . import Facts
-from .isp import I2CTarget, ScalerBus
+from .isp import I2CTarget, ScalerBus, packet_bytes
 
 
 @dataclass(frozen=True)
@@ -64,13 +64,20 @@ PIPELINE: tuple[Step, ...] = (
     Step("settle", "sleep", ms=Facts.VENDOR_INI["dual_bank"]
          ["time_after_command_ms"],
          why="slot +0x94(200) and INI ulTimeAfterCommand (16a, 16g)"),
-    Step("set background flash write time", "write", DDCI, b"\x45\x0c",
-         pending=True,
+    Step("set background flash write time", "packet", DDCI,
+         payload=packet_bytes(0x45, 0x0C, 0x00),
          why="slot +0x21c(0x45, 0xc, DAT_1024a3b4, 0, 0) on the type-8 "
-             "branch (16a); the two bytes are the decoded args, the framing "
-             "is the open part"),
-    Step("enter ISP mode (type 8)", "write", DDCI, b"\x01", pending=True,
-         why="slot +0x124(1) (16a)"),
+             "branch (16a); 16m's arithmetic names that slot WritePWM2SPIDev "
+             "and 16o/16p give the shape: the packet [control, arg1, arg2, "
+             "sum] to door 0x9C. The third byte is the time value the plugin "
+             "loads from its config - 0x00 is the shipped default we send"),
+    Step("enter ISP mode (type 8)", "packet", DDCI,
+         payload=packet_bytes(0x45, 0x01, 0x00),
+         why="slot +0x124(1) (16a), which 16m's arithmetic maps to the "
+             "PWM2SPI write primitive: the packet [0x45, 0x01, 0, sum] to "
+             "door 0x9C, no data phase (16o/16p). The pairing of control 0x45 "
+             "with the enter-mode call is 16m's arithmetic (2 of 2 spot "
+             "checks), not a wire capture"),
     Step("get flash type", "read", MCU, count=1,
          why="Flash_GetType 0x1001d560 (16a, matches ISP_PIPELINE 0x1d560)"),
     Step("chip identity", "read", MCU, count=3,
@@ -137,6 +144,11 @@ def run_pipeline(bus, addr=0, size=32, verbose=False, sleep=None,
                 res.reply = bytes([int(exit_isp(bus))])
             elif st.op == "sleep":
                 nap(st.ms / 1000.0)
+            elif st.op == "packet":
+                from .isp import isp_write_packet
+                isp_write_packet(bus, 0x9C, st.payload,
+                                 slave7=st.slave7, verbose=verbose)
+                res.reply = st.payload
             elif st.op == "write":
                 sb.word_write(I2CTarget(st.name, st.slave7),
                               int.from_bytes(st.payload[:2], "little"),

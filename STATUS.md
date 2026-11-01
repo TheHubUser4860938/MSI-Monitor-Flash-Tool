@@ -2691,3 +2691,34 @@ erase pairs 0x42 with its erase opcode; the A25L020 record carries 0x02); the
 
 Facts: PWM2SPI_PACKET.
 Gates: ruff clean, **294 unit tests OK** (+8). Notes: re/ghidra_isp_engine.md (16o).
+
+## Session 16p (2026-11-01) — the write ladder: the data port is a window, the trigger counts bytes, and the pipeline has no pending steps left
+
+16o's last question — how a packet gets onto the wire — is Comm.dll
+FUN_10003c80, the twin of FUN_10003990 (16k's flash_read_at):
+0xF2 ← rd&0x7f; 0x55 ← rd|0x80; delay 0x20; 0x57 ← rd&0xfc; 0x58 ← 0xE7;
+delay 0x20; **0x5E ← reg**; 0x55 ← 0xC1; **0x5E ← payload…** (≤16 bytes);
+**0x55 ← (2n − 0x40) & 0xff**.
+
+Two facts only the wire gives: (1) **the data port is a window, not a
+register** — the first byte names a register and the rest is its payload, which
+is why 16o's "packet to port 0x9C" is one ladder, not two buses; (2) **the
+commit byte is arithmetic in the count** — a 4-byte header commits with 0xC8, a
+full 16-byte transaction with 0xE0.
+
+Shipped as `isp_write_packet`, `packet_bytes`, `program_page_at`,
+`sector_erase_at`, pinned by a new recording-bus suite (tests/test_write_ladder.py)
+— port order, window semantics, the 16-byte chunk limit, the trigger arithmetic,
+no hardware needed.
+
+**The pipeline's gap list is now empty.** Steps 3 and 4 have a name (16m's slot
+arithmetic: the PWM2SPI write primitive) and a byte shape (16o/16p: the packet
+to door 0x9C), so both `pending` flags are off — with the labels saying what is
+inferred (control 0x45 paired with enter-mode is 16m's arithmetic, 2 of 2 spot
+checks, not a wire capture). Live on i2c-dev: enter ISP (f8) → settle → `45 0c
+00 51` → `45 01 00 46` → STOP at step 5 "get flash type" (EIO on 0x22). Same
+wall, decoded packets — and the program shape that has been the open problem
+since 2026-10-17 is now implemented, not sketched.
+
+Facts: ISP_WRITE_LADDER.
+Gates: ruff clean, **309 unit tests OK** (+15). Notes: re/ghidra_isp_engine.md (16p).
