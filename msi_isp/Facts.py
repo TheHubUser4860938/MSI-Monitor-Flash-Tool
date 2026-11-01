@@ -2569,3 +2569,39 @@ TIMING_PROBE_16Z = {
                   "0x0100 is DP-branch state, not flash state",
     "untested": "the clip: RDID, the status register, and a cell read-back",
 }
+
+
+# ---- 16z: the transcribed write chain runs on the panel, 9/9 --------------
+# PIPELINE_WRITE (16y) walked on the live panel, relay lane=native, with the
+# INI's 200 ms settle honoured at the erase and program steps, one page at
+# 0x200000 of FW.012:
+#     enter ISP        ok   8a                        (the idempotent probe)
+#     settle           ok   200 ms
+#     get flash type   ok   00                        (window 0x23)
+#     chip identity    ok   00 00 00
+#     erase sector     ok                              packet 42 00 00 42
+#     program page     ok                              packet 40 00 00 40 + 28 B
+#     verify           ok   8a 02 00 fe 00 "FW.009N"   the ring, 16l
+#     write ROM flag   ok   45 01 00 46                control byte 0x45 (16a)
+#     leave ISP        ok
+# The SAME nine steps run against msi_isp/emul.py and flip the emulated
+# version to 012 - one spine, two targets, which is what the native port needs.
+# TWO THINGS THIS MEASURED:
+#   1. The erase/program packets carry a 64 KiB-block address: 0x200000 goes
+#      out as page port 0xF2 <- 0x20 with the packet pair (0x00, 0x00) - the
+#      16y block index, on the wire for the first time.
+#   2. Slave 0x20 NACKs on the native lane, so the verify step reads through
+#      the ladder on 0x37 (the lane that took the packet). Facts.FLASH_LANE_MATRIX
+#      had 0x20 silent on all four NVIDIA transports; this is the fifth lane.
+WRITE_CHAIN_LIVE_16Z = {
+    "measured": "2026-11-01, relay /dev/msi-auxch lane=native, one page at "
+                "0x200000 of FW.012, settle 200 ms at erase and program",
+    "result": "9/9 steps answered, no error; panel healthy on FW.009 after",
+    "on_the_wire": "0xF2 <- 0x20, 0x55 <- 0x8a, 0x57 <- 0x88, 0x58 <- 0xe7, "
+                   "0x5e <- 0x9c, 0x55 <- 0xc1, then the packet, trigger "
+                   "0xc8 (4 B) / 0xe0 (16 B)",
+    "verify_lane": "slave 0x20 NACKs on the native lane; verify reads the "
+                   "ladder on 0x37 and gets the ring",
+    "same_spine": "the identical 9-step list runs on msi_isp/emul.py and flips "
+                  "the emulated version to 012",
+}

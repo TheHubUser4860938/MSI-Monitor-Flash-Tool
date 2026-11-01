@@ -1787,3 +1787,22 @@ register, a cell read-back) and `flashtype`/`readsr` — the scaler verbs 16w
 found, which ask the panel directly.
 
 Facts: `TIMING_PROBE_16Z`. Gates: ruff clean, **395 unit tests OK** (+4).
+
+## 16z addendum — the chain on hardware
+
+`PIPELINE_WRITE` walked on the panel (relay lane=native, 200 ms settle at the
+erase and program steps, one page of FW.012 at `0x200000`):
+
+```
+enter ISP  ok 8a  | settle ok 200ms | get flash type ok 00 | chip identity ok 00 00 00
+erase      ok     | program ok      | verify ok 8a 02 00 fe 00 "FW.009N"
+ROM flag   ok 45 01 00 46           | leave ISP ok
+```
+
+**9/9, no error, panel healthy on FW.009.** The same nine steps run against
+`emul.py` and flip the emulated version to `012` — one spine, two targets.
+
+Two measurements in the traffic: `0x200000` goes out as **page port `0xF2` ←
+`0x20`** with the packet pair `(0x00, 0x00)` — the 16y block index on the wire
+for the first time; and slave `0x20` **NACKs on the native lane**, so verify
+reads the ladder on `0x37` (a fifth lane for `FLASH_LANE_MATRIX`).

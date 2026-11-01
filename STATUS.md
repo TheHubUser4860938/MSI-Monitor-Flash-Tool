@@ -3081,3 +3081,18 @@ Two live probes, closing the variable list.
 
 Facts: TIMING_PROBE_16Z. Gates: ruff clean, **395 unit tests OK** (+4).
 Notes: re/ghidra_isp_engine.md (16z).
+
+### 16z addendum — the transcribed chain runs on the panel, 9/9
+
+PIPELINE_WRITE walked on the live panel (relay lane=native, the INI's 200 ms
+settle at the erase and program steps, one page of FW.012 at 0x200000): enter
+ISP (8a), settle, get flash type (00), chip identity (00 00 00), erase, program,
+verify (8a 02 00 fe 00 "FW.009N"), write ROM flag (45 01 00 46), leave. **9/9,
+no error, panel healthy on FW.009.** The identical nine steps run on
+msi_isp/emul.py and flip the emulated version to 012 — one spine, two targets.
+
+Measured in the traffic: 0x200000 goes out as page port 0xF2 <- 0x20 with the
+packet pair (0x00, 0x00) — 16y's 64 KiB block index on the wire for the first
+time; and slave 0x20 NACKs on the native lane, so the verify step reads the
+ladder on 0x37 (verify is now op "verify" = flash_read_at, the lane that took
+the packet). Facts.WRITE_CHAIN_LIVE_16Z. Gates: ruff clean, 396 tests OK.

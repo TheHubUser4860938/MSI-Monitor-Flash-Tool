@@ -333,6 +333,11 @@ class TestWritePipeline(unittest.TestCase):
         self.assertEqual(m.flash_bank(0, 0xF800, 3), b"012")
         self.assertEqual(m.version, "012")
 
+    def test_the_same_chain_ran_on_the_panel(self):
+        w = Facts.WRITE_CHAIN_LIVE_16Z
+        self.assertIn("9/9 steps answered", w["result"])
+        self.assertIn("0xF2 <- 0x20", w["on_the_wire"])
+
     def test_the_erase_plan_counts_from_the_image(self):
         plan = pipeline.erase_plan(1_835_008)                 # FW.012
         self.assertEqual(plan["sector_count"], 448)           # 4 KiB sectors

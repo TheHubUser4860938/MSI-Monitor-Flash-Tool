@@ -126,9 +126,11 @@ PIPELINE_WRITE: tuple[Step, ...] = (
     Step("program page", "program", DDCI, count=32, ms=200,
          why="FUN_1003e2a0(record[4] << 0x10, len) (16y) - the address is a "
              "64 KiB block index, so the top bits ride the page port"),
-    Step("verify", "read", FLASH, count=32,
-         why="FUN_10021040's pair: the ROM-flag step follows a read-back; the "
-             "engine's own verify is Flash_Read at the programmed address (16a)"),
+    Step("verify", "verify", DDCI, count=32,
+         why="FUN_10021040's pair: the ROM-flag step follows a read-back. The "
+             "engine's own verify is Flash_Read at the programmed address "
+             "(16a); on the wire that is the read ladder 16k, which answers on "
+             "the lane that took the packet (0x20 NACKs on the native lane)"),
     Step("write ROM flag", "packet", DDCI, payload=packet_bytes(0x45, 0x01, 0x00),
          why="FUN_10021040 logs 'Write Rom Flag Fail!, ErrorCode: 0x%x' and "
              "'Not need isp flag!' (16y) - THIS is the bank switch the INI's "
@@ -214,6 +216,9 @@ def run_pipeline(bus, addr=0, size=32, verbose=False, sleep=None,
                 if st.ms:
                     nap(st.ms / 1000.0)          # ulTimeAfterCommand (16z)
                 res.reply = b"\x00" * 4
+            elif st.op == "verify":
+                from .isp import flash_read_at
+                res.reply = flash_read_at(bus, addr, st.count, slave7=st.slave7)
             elif st.op == "program":
                 from .isp import program_page_at
                 data = image[addr:addr + st.count] if image else b""
