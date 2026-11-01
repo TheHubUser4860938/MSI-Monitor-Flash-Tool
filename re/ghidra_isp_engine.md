@@ -1253,3 +1253,55 @@ and the panel keeps running — and **unproven at the cell level**, because the
 ISP register file is behind the branch tunnel on the NVIDIA lanes.
 
 Facts: `DUAL_BANK`, `PILOT_WRITE`.
+---
+
+# Session 16s — why the ISP slaves are mute, and the four ways around it
+
+The question: "the DRM AUX bridge has no allow-list — how do you fix it?"
+
+**The mechanism, from our own measurements.** The sink's DP branch bridges a
+fixed set of I2C addresses onto the AUX channel — `0x30` (branch), `0x37`
+(DDC/CI), `0x50` (EDID), plus `0x4A/0x4B` — and 16f proved that set belongs to
+**the sink**, not the host: all four NVIDIA transports show the same six
+slaves. The ISP slaves (`0x22` register file, `0x20` burst engine, `0x35`
+mailbox) sit on the scaler's *internal* I2C bus, and the branch maps them
+selectively.
+
+So "no allow-list in DRM" is not a driver property to fix; it is the branch's
+address map, and the lever is the path that drives the branch.
+
+## The four routes, ranked
+
+1. **A non-NVIDIA box (Intel/AMD).** `drm_dp_i2c` forwards the address byte in
+   the AUX write with no host-side filtering, and RM's `NV_I2C_INFO_V3` does the
+   same — so if the map is wider under a different bridge, that is where it
+   shows. One command: `msi-isp --bus N probe`.
+2. **The HDMI input of this panel.** 15h measured `0x35` dead there too, which
+   says the map is input-independent — re-testing with a cable is free and it is
+   the measurement that separates "the host bridge filters" from "the sink maps
+   six addresses".
+3. **The CH341A clip on the SPI chip.** Bypasses the branch entirely, reads all
+   4 MiB including the skip-list regions. Certain, and the original plan.
+4. **The vendor's USB ISP board.** The plugin's USB path
+   (`SendUsbPacket`, `ReceiveUsbPacket`, `ConfigProgramFlash`,
+   `CompleteIspFlowInISPBoard` — all in 16m's `COMM_API`) is how MSI's own
+   engineers reach the file.
+
+## What was measured today, and what shipped
+
+Three grammars, one panel, all address-independent on `0x37`:
+
+| grammar | registers | reply |
+|---|---|---|
+| port ladder (16k) | `0xF2`, `0x55`, `0x57`, `0x58`, `0x5E` | the 32-byte MCCS window |
+| Flash.dat script (16m) | `0x60`, `0x61`, `0x64`, `0x65`, `0x66` | the same frame |
+| 16-bit window | `0x841`, `0x842`, `0x845` | zeros on the tunnel lane |
+
+A differential sweep on the native lane — snapshot, write a packet to door
+`0x9C`, snapshot again — changed **0 of 1024** DPCD addresses.
+
+Shipped: `flash_read_script` and `msi-isp flashread --grammar {ports,script}`,
+so a borrowed box exercises both vendor surfaces in one command each. The
+grammar is no longer something to remember; it is a flag.
+
+Facts: `ISP_WINDOW_RING` (16q), `DUAL_BANK`/`PILOT_WRITE` (16r).

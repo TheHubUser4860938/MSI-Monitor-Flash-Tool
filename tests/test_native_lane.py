@@ -155,6 +155,55 @@ class TestLaneIsSelectable(unittest.TestCase):
         self.assertEqual(set(nvbus.LANES), {"i2c", "native", "bulk"})
 
 
+class TestScriptGrammar(unittest.TestCase):
+    """16s: the Flash.dat script grammar is a second, independent surface."""
+
+    def test_the_script_grammar_is_selectable(self):
+        import inspect
+
+        from msi_isp import cli
+        from msi_isp.cli import main  # noqa: F401
+        src = inspect.getsource(cli.cmd_flashread)
+        self.assertIn("script", src)
+        self.assertIn("flash_read_script", src)
+
+    def test_the_script_writes_the_templates_six_registers(self):
+        from msi_isp.isp import flash_read_script
+
+        class Rec:
+            def __init__(self):
+                self.w = []
+
+            def write(self, a, b, warmup=False):
+                self.w.append(bytes(b))
+
+            def read(self, a, n, warmup=False):
+                return bytes(n)
+
+        bus = Rec()
+        flash_read_script(bus, 0x1234, 64)
+        pairs = [(x[0], x[1]) for x in bus.w if len(x) == 2]
+        self.assertEqual(pairs, [(0x60, 0x38), (0x61, 0x3B), (0x64, 0x34),
+                                 (0x65, 0x28), (0x66, 0x40), (0x60, 0x39)])
+
+    def test_the_length_is_capped_at_the_templates_page(self):
+        from msi_isp.isp import flash_read_script
+
+        class Rec:
+            def __init__(self):
+                self.w = []
+
+            def write(self, a, b, warmup=False):
+                self.w.append(bytes(b))
+
+            def read(self, a, n, warmup=False):
+                return bytes(n)
+
+        bus = Rec()
+        flash_read_script(bus, 0, 128)
+        self.assertIn((0x66, 0x40), [(x[0], x[1]) for x in bus.w if len(x) == 2])
+
+
 if __name__ == "__main__":
     unittest.main()
 

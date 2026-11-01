@@ -2792,3 +2792,36 @@ program, read the marker back.
 
 Facts: DUAL_BANK, PILOT_WRITE.
 Gates: ruff clean, **324 unit tests OK** (+11). Notes: re/ghidra_isp_engine.md (16r).
+
+## Session 16s (2026-11-01) — why the ISP slaves are mute, and the four ways around it
+
+The owner asked how to fix the "DRM AUX bridge has no allow-list" problem. The
+mechanism, from our own measurements: the sink's DP branch bridges a fixed set
+of I2C addresses onto the AUX channel (0x30, 0x37, 0x50, plus 0x4A/0x4B), and
+16f proved that set belongs to the **sink** — all four NVIDIA transports show
+the same six slaves. The ISP slaves (0x22 register file, 0x20 burst engine, 0x35
+mailbox) are on the scaler's internal bus, which the branch maps selectively. So
+the lever is the path that drives the branch, not a driver setting.
+
+Four routes, ranked: (1) a non-NVIDIA box — `drm_dp_i2c` forwards the address
+byte with no host-side filtering, and RM's NV_I2C_INFO_V3 does the same, so
+`msi-isp --bus N probe` is the one-command test; (2) the panel's HDMI input —
+15h measured 0x35 dead there too, so the map looks input-independent, and a
+cable re-test is free and it is the measurement that separates host-filter from
+sink-map; (3) the CH341A clip, which bypasses the branch and reads all 4 MiB
+including the skip-list regions; (4) the vendor's USB ISP board, the plugin's USB
+path (SendUsbPacket / ReceiveUsbPacket / ConfigProgramFlash /
+CompleteIspFlowInISPBoard, all in 16m's COMM_API).
+
+Measured today: three grammars, one panel, all address-independent on 0x37 —
+the port ladder (0xF2/0x55/0x57/0x58/0x5E) gives the 32-byte MCCS window, the
+Flash.dat script (0x60/0x61/0x64/0x65/0x66) gives the same frame, and the 16-bit
+window (0x841/0x842/0x845) reads zeros on the tunnel lane. A differential sweep
+on the native lane — snapshot, write to door 0x9C, snapshot again — changed 0 of
+1024 DPCD addresses.
+
+Shipped: `flash_read_script` + `msi-isp flashread --grammar {ports,script}`, so
+a borrowed box exercises both vendor surfaces in one command each — the grammar
+is a flag now, not a memory.
+
+Gates: ruff clean, **327 unit tests OK** (+3). Notes: re/ghidra_isp_engine.md (16s).

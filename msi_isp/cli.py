@@ -334,7 +334,7 @@ def cmd_flashread(args):
     copy sits at 0x2F7AA and FW.012's at 0xF806 in the .bin files, so those
     two addresses are the defaults to try.
     """
-    from .isp import flash_read_at
+    from .isp import flash_read_at, flash_read_script
     addrs = [int(a, 0) for a in args.addr.split(",")]
     with _bus(args) as bus:
         if hasattr(bus, "unlock"):
@@ -347,8 +347,12 @@ def cmd_flashread(args):
                   f"{status:#04x})")
         for a in addrs:
             try:
-                d = flash_read_at(bus, a, args.count, slave7=args.slave,
-                                  verbose=args.verbose)
+                if args.grammar == "script":
+                    d = flash_read_script(bus, a, args.count, slave7=args.slave,
+                                          verbose=args.verbose)
+                else:
+                    d = flash_read_at(bus, a, args.count, slave7=args.slave,
+                                      verbose=args.verbose)
             except Exception as exc:
                 print(f"  {a:#08x}: {exc}")
                 continue
@@ -653,6 +657,9 @@ def main(argv=None):
                     help="7-bit slave that speaks the ISP port grammar "
                          "(default 0x37 = the INI's 0x6F; 0x22 is the other "
                          "candidate, 16f)")
+    fr.add_argument("--grammar", choices=("ports", "script"), default="ports",
+                    help="ports = the 0xF2/0x55/0x5E ladder (16k); script = the "
+                         "Flash.dat byte-index phases 0x60/0x61/0x64-0x66 (16m)")
     fr.add_argument("--isp", action="store_true",
                     help="enter ISP mode first (the vendor reaches the port "
                          "file from inside ISP mode; 16f)")

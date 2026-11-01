@@ -589,3 +589,41 @@ def sector_erase_at(bus, addr: int, bank: int = 0, slave7: int = 0x37,
 def _chunks(buf: bytes, size: int):
     for i in range(0, len(buf), size):
         yield buf[i:i + size]
+
+
+def flash_read_script(bus, addr: int, n: int, slave7: int = 0x37,
+                      opcode: int = 0x3B, mode: int = 0x28,
+                      verbose: bool = False) -> bytes:
+    """One flash read in the Flash.dat SCRIPT grammar (16m), not the port grammar.
+
+    The A25L020 template - the script the A25L032M on this board inherits - is
+    three phases on the byte-index registers:
+
+        06,60,38   arm            CTRL   = 0x38
+        06,61,3b   command        OPCODE = 0x3B (fast read, quad out)
+        06,64,lo   address        ADDR
+        06,65,28   io class       MODE   = 0x28
+        06,66,40   length         LEN    = 0x40 (64 bytes)
+        06,60,39   trigger        CTRL   = 0x39
+
+    This is the grammar the vendor's own Windows path uses, and it is a
+    different surface from the 0xF2/0x55/0x5E port ladder of 16k: on this panel
+    BOTH answer on 0x37 and BOTH are address-independent (16k, 16s), so the
+    grammar is not the lever - the slave is. Kept because on a box where the
+    branch maps more addresses, the script grammar is the one the vendor is
+    proven against.
+    """
+    length = min(n, 0x40)
+    def w(reg: int, val: int) -> None:
+        if verbose:
+            print(f"  TX  {reg:#04x} <- {val & 0xFF:#04x}")
+        bus.write(slave7, bytes([reg & 0xFF, val & 0xFF]), warmup=False)
+
+    w(0x60, 0x38)                       # arm
+    w(0x61, opcode)                     # the flash command
+    w(0x64, addr & 0xFF)                # ADDR (the script's one-byte address phase)
+    w(0x65, mode)                       # MODE
+    w(0x66, length)                     # LEN
+    w(0x60, 0x39)                       # trigger
+    time.sleep(0.02)
+    return bus.read(slave7, n, warmup=False)
