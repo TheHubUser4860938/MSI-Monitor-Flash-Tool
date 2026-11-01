@@ -485,6 +485,47 @@ def cmd_simulate(args):
     return 0
 
 
+def cmd_chips(args):
+    """Ask the panel which flash chip is fitted, and name its Flash.dat record."""
+    from . import flashdat
+    from .isp import identify, rdid
+    bus = _bus(args)
+    try:
+        if args.ladder:
+            id3 = rdid(bus, slave7=args.slave)
+            print(f"register probe (0x60 <- 0x46, 0x61 <- 0x9f, 0x60 <- 0x47, "
+                  f"read 0x67-0x69): {' '.join(f'{b:02x}' for b in id3)}")
+            try:
+                rec = flashdat.find_by_id(bytes(id3))
+            except KeyError as e:
+                print(f"  no record: {e.args[0]} - these are window bytes "
+                      f"(16t), not an ID answer")
+                return 0
+            print(f"  -> {rec.name}  {rec.manufacturer}  "
+                  f"{rec.capacity_bytes // 1024} KiB  {rec.banks} bank(s)")
+            return 0
+        try:
+            rec, got = identify(bus, slave7=args.slave)
+        except Exception as e:
+            print(f"no Flash.dat record answered the ID walk: {e}")
+            return 0
+        print(f"chip: {rec.name}  ({rec.manufacturer})")
+        print(f"  id        : {got.hex(' ')} on opcode {rec.id_opcode:#04x}")
+        print(f"  capacity  : {rec.capacity_bytes // 1024} KiB, {rec.banks} x 2 MiB bank(s)")
+        print(f"  modes     : A={rec.mode_a} B={rec.mode_b}  class {rec.class_id:#04x}")
+        if rec.script:
+            print(f"  script    : {len(rec.script)} statements, {len(rec.phases())} phases")
+            for i, ph in enumerate(rec.phases(), 1):
+                cmds = [st.args[1] for st in ph if st.kind == "command"]
+                print(f"      phase {i}: " + (", ".join(f"{c:#04x}" for c in cmds)
+                                              or "(address/strobe only)"))
+        else:
+            print("  script    : (none - this part runs on the defaults)")
+        return 0
+    finally:
+        bus.close()
+
+
 def cmd_probe(args):
     with _bus(args) as bus:
         if getattr(args, "lane", "i2c") == "native":
@@ -732,6 +773,13 @@ def main(argv=None):
                      help="a Flash.dat part number (sets capacity + identity)")
     sim.add_argument("--addr", type=lambda x: int(x, 0), default=0xF800,
                      help="where to erase/program (default: the record block)")
+    ch = sub.add_parser("chips", help="identify the fitted flash chip and print "
+                                      "its vendor record (read-only)")
+    ch.add_argument("--slave", type=lambda x: int(x, 0), default=0x22,
+                    help="the ISP register-file slave (default 0x22)")
+    ch.add_argument("--ladder", action="store_true",
+                    help="use the register probe (0x60/0x61) instead of walking "
+                         "the ID-opcode candidates")
     fd = sub.add_parser("flashdat", help="the vendor's per-chip flash script "
                                          "library (safe, no panel needed)")
     fd.add_argument("--chip", help="one part number, e.g. A25L020")
@@ -787,7 +835,7 @@ def main(argv=None):
     {"info": cmd_info, "verify": cmd_verify, "probe": cmd_probe,
      "slaves": cmd_slaves, "ladder": cmd_ladder, "flashdat": cmd_flashdat,
      "simulate": cmd_simulate,
-     "record": cmd_record, "flashread": cmd_flashread,
+     "record": cmd_record, "flashread": cmd_flashread, "chips": cmd_chips,
      "pipeline": cmd_pipeline,
      "backup": cmd_backup, "write": cmd_write,
      "shell": cmd_shell, "tui": cmd_tui}[args.cmd](args)

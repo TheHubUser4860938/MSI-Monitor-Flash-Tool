@@ -2639,3 +2639,48 @@ STATUS_REGISTER_16Z = {
                "in between",
     "verbs": "readsr 12, writesr 13, srstatus 10 (SCALER_VERBS, 16w)",
 }
+
+
+# ---- 16z(c): the vendor's chip identification, natively - and the 8th mute --
+# Flash_GetType's reader (FUN_1001caf0) is the identity sequence, in registers:
+#     write 0x60 <- 0x46 ; write 0x61 <- 0x9F (RDID) ; write 0x60 <- 0x47 (strobe)
+#     delay 20 ms        ; read 0x67, 0x68, 0x69          -> three ID bytes
+# and a second phase on the same bank (0x60 <- 0x5a, 0x61 <- 0xab, address in
+# 0x65/0x66, strobe 0x60 <- 0x5b, read 0x67..) - the read-with-address
+# transaction. The ISP-board branch is the same shape on 0x83/0x84 in and
+# 0x8a/0x8b/0x8c out, which is 16b's "8-bit legacy" register pair, confirmed.
+# The register-write primitive is comm slot +0xf0 with (reg, value), and the
+# register-READ is slot +0xf8 with (reg, &out) - so 16w's `ScalerRun` at +0xf0
+# is a register write in the wrapper's naming, and WriteRegEx is its member
+# coordinate. Both namespaces are right about the same call.
+#
+# THE TABLE IS NOT KEYED BY THE 3-BYTE ID. 150 records reduce to 110 distinct
+# (manufacturer, capacity ID, ID opcode) probes, and among the fifteen 4 MiB
+# parts two pairs collide: c2 20 16 is MX25L3206E (opcode 0xbf) AND MX25L32XX
+# (0xbc); ef 40 16 is W25Q32 AND W25Q32JVSSIQ, the latter's record expecting
+# byte 1 = 0x60. So identification is two-step: issue the RECORD's opcode,
+# compare the bytes the record expects. Shipped as flashdat.candidates() +
+# match_id() + isp.identify(), and the `chips` verb.
+#
+# ON THE PANEL the register probe answers 00 80 0f - which is the window stream
+# at offsets 0x67/0x68/0x69 (16t measured 0x60 = 05 21 00 04 2b 04 09 00 80 0f,
+# so 0x67 = 00, 0x68 = 80, 0x69 = 0f, exactly). The strobe changes nothing
+# visible: the EIGHTH mute variable is chip identity, from the DP side. The
+# clip answers it directly, and the tool now knows which record to load when it
+# does - which is the multi-monitor path: probe RDID, match the record, run the
+# record's script.
+CHIP_ID_16Z = {
+    "sequence": "0x60 <- 0x46, 0x61 <- 0x9F, 0x60 <- 0x47, 20 ms, read "
+                "0x67/0x68/0x69 (FUN_1001caf0, called by Flash_GetType)",
+    "board_branch": "0x83 <- x, 0x84 <- 0x9F, 0x83 <- 0x47, read 0x8a/0x8b/0x8c "
+                    "- 16b's 8-bit legacy pair, confirmed",
+    "primitives": "comm slot +0xf0 = write reg (reg, value); slot +0xf8 = read "
+                  "reg (reg, &out)",
+    "table": "150 records, 110 distinct (mfr, capacity ID, ID opcode) probes",
+    "twins": "c2 20 16 = MX25L3206E (op bf) and MX25L32XX (op bc); ef 40 16 = "
+             "W25Q32 and W25Q32JVSSIQ (the latter expects byte1 = 0x60)",
+    "panel": "the register probe answers 00 80 0f = the window bytes at 0x67-0x69 "
+             "(16t's stream) - identity is the eighth mute variable",
+    "shipped": "flashdat.candidates/match_id/find_by_id, isp.probe_id/rdid/"
+               "identify, and the `chips` verb (with --ladder)",
+}

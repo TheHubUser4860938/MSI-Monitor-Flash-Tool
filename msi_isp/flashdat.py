@@ -69,7 +69,8 @@ import re
 from dataclasses import dataclass
 
 __all__ = ["CAPACITY_CODE", "DEFAULT_PATH", "MANUFACTURERS", "ChipRecord",
-           "Statement", "chip_names", "find", "parse"]
+           "Statement", "candidates", "chip_names", "find", "find_by_id",
+           "match_id", "parse"]
 
 DEFAULT_PATH = "vendor/PlugIn/Flash.dat"
 
@@ -125,6 +126,7 @@ class ChipRecord:
     offset: int
     mfr_id: int
     class_id: int
+    cap_id: int                    # RDID byte 2 - the capacity ID (hdr[2])
     capacity_code: int
     capacity_bytes: int
     mode_a: int
@@ -204,9 +206,74 @@ def parse(path: str = DEFAULT_PATH) -> list[ChipRecord]:
         script = _script(tail[csv_at:]) if csv_at >= 0 else ()
         recs.append(ChipRecord(
             name=name, offset=start, mfr_id=hdr[0], class_id=hdr[1],
-            capacity_code=hdr[3], capacity_bytes=cap, mode_a=mode_a,
+            cap_id=hdr[2], capacity_code=hdr[3], capacity_bytes=cap,
+            mode_a=mode_a,
             mode_b=mode_b, id_opcode=id_op, id_expect=id_exp, script=script))
     return recs
+
+
+def find_by_id(id_bytes: bytes, path: str = DEFAULT_PATH) -> ChipRecord:
+    """The vendor's own lookup: the RDID answer keys the record table.
+
+    FUN_1001caf0 reads three ID bytes (16z) and the record header is
+    `manufacturer, class, capacity_code_hi, capacity_code_lo` - so byte 0 is
+    the manufacturer and byte 2 is the capacity code, which is exactly the
+    pair that identifies a part across vendors (c2 20 16 = Macronix 32 Mbit,
+    ef 40 16 = Winbond 32 Mbit, 1c 30 16 = ESMT 32 Mbit).
+
+    Matching is on (manufacturer, capacity code); the class byte is the
+    tie-breaker, because several vendors ship the same capacity under
+    different class codes.
+    """
+    recs = parse(path)
+    mfr = id_bytes[0]
+    cap = id_bytes[2] if len(id_bytes) > 2 else None
+    hits = [r for r in recs if r.mfr_id == mfr
+            and (cap is None or r.cap_id == cap)]
+    if not hits:
+        raise KeyError(f"no Flash.dat record for id {id_bytes.hex(' ')}")
+    if len(id_bytes) > 1:
+        for r in hits:
+            if r.class_id == id_bytes[1]:
+                return r
+    return hits[0]
+
+
+def candidates(path: str = DEFAULT_PATH) -> list[ChipRecord]:
+    """The distinct probes: (manufacturer, capacity ID, ID opcode).
+
+    16z: the 3-byte RDID does NOT key the table. `c2 20 16` is both
+    MX25L3206E (id opcode 0xbf) and MX25L32XX (0xbc); `ef 40 16` is W25Q32 and
+    W25Q32JVSSIQ, told apart only by the record's expected bytes (0x60). So
+    identification is a two-step match - issue the RECORD's opcode, compare the
+    bytes it expects - and the probe set is one per (mfr, cap, opcode) triple.
+    """
+    seen, out = set(), []
+    for r in parse(path):
+        key = (r.mfr_id, r.cap_id, r.id_opcode)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(r)
+    return out
+
+
+def match_id(id_bytes: bytes, rec: ChipRecord) -> bool:
+    """Does this record's identity agree with the bytes the chip answered?
+
+    The record's `id_expect` field carries the vendor's own mask/value pair
+    (e.g. `00 60 00 00 00 60` for W25Q32JVSSIQ): a non-zero byte must match.
+    """
+    if not rec.mfr_id:                              # the "Default" placeholder
+        return False
+    if len(id_bytes) < 1 or id_bytes[0] != rec.mfr_id:
+        return False
+    if len(id_bytes) > 2 and rec.cap_id and id_bytes[2] != rec.cap_id:
+        return False
+    for i, want in enumerate(rec.id_expect):
+        if want and i < len(id_bytes) and id_bytes[i] != want:
+            return False
+    return True
 
 
 def find(name: str, path: str = DEFAULT_PATH) -> ChipRecord:

@@ -238,6 +238,24 @@ class TestProgramAndErase(unittest.TestCase):
             st = next(s for s in pipeline.PIPELINE_WRITE if s.name == name)
             self.assertEqual(st.ms, 200, name)
 
+    def test_the_identity_sequence_is_the_decompiled_one(self):
+        bus = RecordingBus()
+        rdid(bus, slave7=0x22)
+        pairs = bus.pairs
+        self.assertEqual(pairs[0], (0x60, 0x46))       # arm
+        self.assertEqual(pairs[1], (0x61, 0x9F))       # RDID
+        self.assertEqual(pairs[2], (0x60, 0x47))       # strobe
+
+    def test_the_id_table_needs_the_records_opcode(self):
+        c = Facts.CHIP_ID_16Z
+        self.assertEqual(c["table"].split()[1], "records,")
+        self.assertIn("110 distinct", c["table"])
+        self.assertIn("MX25L32XX", c["twins"])
+
+    def test_the_eighth_mute_variable_is_identity(self):
+        self.assertIn("00 80 0f", Facts.CHIP_ID_16Z["panel"])
+        self.assertIn("eighth mute variable", Facts.CHIP_ID_16Z["panel"])
+
     def test_the_status_register_is_the_seventh_mute_variable(self):
         f = Facts.STATUS_REGISTER_16Z
         self.assertIn("0x00 idle", f["native"])

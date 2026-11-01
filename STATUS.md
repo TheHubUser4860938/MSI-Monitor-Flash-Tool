@@ -3118,3 +3118,34 @@ trigger, data phase, command class, timing, status), and the clip's first read,
 because RDID and RDSR answer there with no DP branch in between.
 
 Facts: STATUS_REGISTER_16Z. Gates: ruff clean, **402 unit tests OK** (+6).
+
+### 16z(c) — the vendor's chip identification, natively; identity is the eighth mute variable
+
+Flash_GetType's reader FUN_1001caf0 is the identity sequence in registers, not
+packets: 0x60 <- 0x46, 0x61 <- 0x9F (RDID), 0x60 <- 0x47 (strobe), 20 ms, read
+0x67/0x68/0x69 — then a second phase (0x60 <- 0x5a, 0x61 <- 0xab, address in
+0x65/0x66, strobe 0x60 <- 0x5b, read 0x67) which is the read-with-address
+transaction. The ISP-board branch is the same shape on 0x83/0x84 in,
+0x8a/0x8b/0x8c out: 16b's "8-bit legacy" pair, confirmed. The primitives are
+comm slot +0xf0 = write reg (reg, value) and +0xf8 = read reg (reg, &out) — so
+16w's ScalerRun at +0xf0 is a register write in the wrapper's naming; both
+namespaces describe the same call. And this is the Flash.dat grammar
+(06,60,<cmd> / 06,61,<val>, 16w) on the wire.
+
+THE TABLE IS NOT KEYED BY THE ID: 150 records -> 110 distinct
+(mfr, capacity ID, ID opcode) probes, and two of the fifteen 4 MiB parts
+collide: c2 20 16 is MX25L3206E (opcode bf) AND MX25L32XX (bc); ef 40 16 is
+W25Q32 AND W25Q32JVSSIQ (the latter's record expects byte 1 = 0x60). So
+identification is two-step: issue the record's opcode, compare the bytes the
+record expects. Shipped as flashdat.candidates/match_id/find_by_id,
+isp.probe_id/rdid/identify, and the new `chips` verb (--ladder for the register
+probe). The record's third ID byte is header byte 2 (new field cap_id), which
+explains the (n+1, n) capacity pair: n+1 is the RDID capacity byte.
+
+ON THE PANEL the register probe answers 00 80 0f — the window stream at
+0x67-0x69 (16t measured 0x60 = 05 21 00 04 2b 04 09 00 80 0f). The strobe
+changes nothing: chip identity is the EIGHTH mute variable from the DP side, and
+the clip's first read. The tool now carries the whole chain for a second
+monitor: RDID -> record -> the record's script, with no MSI model named in code.
+
+Facts: CHIP_ID_16Z. Gates: ruff clean, **406 unit tests OK** (+4).

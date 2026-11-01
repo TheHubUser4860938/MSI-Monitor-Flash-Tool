@@ -486,7 +486,8 @@ def flash_read_at(bus, addr: int, n: int, slave7: int = 0x37,
 
 def isp_write_packet(bus, reg: int, payload: bytes, slave7: int = 0x37,
                      bank: int = 0, mode: int = 1, page: int | None = None,
-                     settle_ms: int = 0, verbose: bool = False) -> None:
+                     settle_ms: int = 0, delay_ms: int = 32,
+                     verbose: bool = False) -> None:
     """Write a packet through the ISP data window (16p).
 
     The write ladder is Comm.dll FUN_10003c80, the twin of the read ladder
@@ -536,12 +537,12 @@ def isp_write_packet(bus, reg: int, payload: bytes, slave7: int = 0x37,
         # (16k); the write path did not.
         w(regs["addr_port"], page & 0x7F)
     w(regs["cmd_port"], r1(regs["cmd_port"]) | 0x80)
-    time.sleep(0.032)
+    time.sleep(delay_ms / 1000.0)                   # the decompile's 0x20
     w(regs["width_port"], r1(regs["width_port"]) & 0xFC)
     # The bank port IS the bank select: width_values' pair differs in one bit
     # (0xe7 vs 0xef, bank_bit 0x08) - 16a's board record, 16r's reading.
     w(regs["bank_port"], 0xE7 if bank == 0 else 0xEF)
-    time.sleep(0.032)
+    time.sleep(delay_ms / 1000.0)
     w(regs["data_port"], reg)                       # the window names its register
     w(regs["cmd_port"], 0xC1)                        # write command
     for b in payload:
@@ -632,6 +633,78 @@ def write_status(bus, value: int, slave7: int = 0x37, bank: int = 0,
                                              bytes([value & 0xFF])),
                      slave7=slave7, bank=bank, mode=mode, page=page,
                      verbose=verbose)
+
+
+#: the identity registers, read out of WinIspPlugIn FUN_1001caf0 (16z).
+#: The DP/PWM2SPI bank is 0x60 command + 0x61 value, strobed by 0x60 <- 0x47,
+#: and the answer lands in 0x67, 0x68, 0x69. The ISP-board bank is the same
+#: shape on 0x83/0x84 in, 0x8a/0x8b/0x8c out (16b's "8-bit legacy" regs).
+RDID_CMD_PORT = 0x60
+RDID_VALUE_PORT = 0x61
+RDID_STROBE = 0x47
+RDID_ARM = 0x46
+RDID_OPCODE = 0x9F
+RDID_OUT_PORTS = (0x67, 0x68, 0x69)
+
+
+def rdid(bus, slave7: int = 0x22, verbose: bool = False) -> tuple[int, int, int]:
+    """Read the flash chip's JEDEC identity, the way Flash_GetType does.
+
+    16z, from FUN_1001caf0 (called by Flash_GetType 0x1001d560): the vendor
+    writes register 0x60 <- 0x46, 0x61 <- 0x9F (RDID), 0x60 <- 0x47 to strobe,
+    waits (FUN_1001c4c0(0, 20000)), then reads 0x67, 0x68, 0x69. This is the
+    Flash.dat grammar (`06,60,<cmd>` / `06,61,<val>`) on the wire, and it is
+    the only probe that asks the CHIP a question - the answer keys the
+    vendor's own record table (flashdat.find_by_id), which is what makes the
+    tool work for a monitor whose part we have never seen.
+    """
+    def w(port: int, val: int) -> None:
+        if verbose:
+            print(f"  TX  {port:#04x} <- {val:#04x}")
+        bus.write(slave7, bytes([port & 0xFF, val & 0xFF]), warmup=False)
+
+    def r1(port: int) -> int:
+        bus.write(slave7, bytes([port & 0xFF]), warmup=False)
+        d = bus.read(slave7, 1, warmup=False)
+        return d[0] if d else 0
+
+    # 2-byte port writes: the form the native lane takes (16t); a 3-byte word
+    # write at these indices NACKs.
+    w(RDID_CMD_PORT, RDID_ARM)
+    w(RDID_VALUE_PORT, RDID_OPCODE)
+    w(RDID_CMD_PORT, RDID_STROBE)
+    time.sleep(0.02)                                  # the decompile's 20 ms
+    out = tuple(r1(port) for port in RDID_OUT_PORTS)
+    return (out[0], out[1], out[2])
+
+
+def probe_id(bus, opcode: int, slave7: int = 0x22, n: int = 3,
+             delay_ms: int = 32, verbose: bool = False) -> bytes:
+    """Ask the chip for an ID with a specific opcode: packet [op,0,0,SUM],
+    then read n bytes. 16z: each Flash.dat record carries its OWN id opcode
+    (0x9f RDID, and 0xbf/0xff/0xa0/0xbc/0xfc/0x9c/0x7f per vendor), because
+    the 3-byte answer is not unique across parts."""
+    from . import Facts
+    isp_write_packet(bus, 0x9C, packet_bytes(opcode, 0x00, 0x00),
+                     slave7=slave7, delay_ms=delay_ms, verbose=verbose)
+    bus.write(slave7, bytes([Facts.ISP_BOARD_REGS["data_port"]]), warmup=False)
+    return bus.read(slave7, n, warmup=False)
+
+
+def identify(bus, slave7: int = 0x22, delay_ms: int = 32, verbose: bool = False):
+    """The vendor's chip identification, run natively.
+
+    One probe per distinct (manufacturer, capacity ID, ID opcode) triple in
+    Flash.dat (16z's `candidates`), each answered by `match_id`. This is how
+    the tool supports a monitor whose part nobody has read yet: it asks, the
+    record answers, and the script that follows is the vendor's own."""
+    from . import flashdat
+    for rec in flashdat.candidates():
+        got = probe_id(bus, rec.id_opcode, slave7=slave7, delay_ms=delay_ms,
+                       verbose=verbose)
+        if got and flashdat.match_id(got, rec):
+            return rec, got
+    raise IspError("no Flash.dat record matched any ID probe")
 
 
 def sector_erase_at(bus, addr: int, slave7: int = 0x37, bank_select: int = 0,

@@ -18,9 +18,11 @@ from msi_isp.isp import (
     enter_isp,
     exit_isp,
     flash_read_at,
+    identify,
     isp_write_packet,
     packet_bytes,
     program_page_at,
+    rdid,
     read_status,
     sector_erase_at,
     write_status,
@@ -123,7 +125,41 @@ class TestBridgePackets(unittest.TestCase):
         isp_write_packet(self.m, 0x9C, packet_bytes(CMD_RDID, 0, 0),
                          slave7=self.m.slave)
         self.assertEqual(self.m.read(self.m.slave, 3), rec.mfr_id.to_bytes(1, "big")
-                         + bytes([rec.class_id, rec.capacity_code]))
+                         + bytes([rec.class_id, rec.cap_id]))
+
+    def test_the_packet_rdid_and_the_register_rdid_agree(self):
+        """16z: Flash_GetType's reader uses the register grammar (0x60 <- 0x46,
+        0x61 <- 0x9F, 0x60 <- 0x47, read 0x67/0x68/0x69); the packet path uses
+        control 0x9F. The model answers both with the same three bytes."""
+        id3 = rdid(self.m, slave7=0x22)
+        isp_write_packet(self.m, 0x9C, packet_bytes(CMD_RDID, 0, 0),
+                         slave7=self.m.slave)
+        self.assertEqual(bytes(id3), self.m.read(self.m.slave, 3))
+
+    def test_identify_recovers_the_chip_from_its_own_id_bytes(self):
+        """identify() is the vendor's algorithm: probe with a record's ID
+        opcode, match the bytes it expects (16z)."""
+        for name in ("W25Q32", "EN25QH32A", "GD25Q32C", "P25Q32H", "XM25QH32C"):
+            m = EmulatedMonitor(chip=name)
+            rec, _got = identify(m, slave7=0x22, delay_ms=0)
+            self.assertEqual((rec.mfr_id, rec.cap_id), (m.flash.jedec[0],
+                                                        m.flash.jedec[2]), name)
+
+    def test_the_id_table_has_twins_the_probe_cannot_separate(self):
+        """16z, a limit worth knowing before a second monitor is supported:
+        MX25L3206E (id op 0xbf) and MX25L32XX (0xbc) answer the same three
+        bytes, and so do W25Q32 and W25Q32JVSSIQ. The record's opcode is the
+        discriminator, and a model that answers both alike cannot tell them."""
+        a, b = flashdat.find("MX25L3206E"), flashdat.find("MX25L32XX")
+        self.assertEqual((a.mfr_id, a.class_id, a.cap_id),
+                         (b.mfr_id, b.class_id, b.cap_id))
+        self.assertNotEqual(a.id_opcode, b.id_opcode)
+        m = EmulatedMonitor(chip="MX25L32XX")
+        rec, _ = identify(m, slave7=0x22, delay_ms=0)
+        self.assertEqual(rec.name, "MX25L3206E")        # the first twin probed
+
+    def test_the_probe_set_is_far_smaller_than_the_table(self):
+        self.assertEqual(len(flashdat.candidates()), 110)
 
     def test_the_bank_port_selects_the_2_mebibyte_half(self):
         isp_write_packet(self.m, 0x9C, packet_bytes(CMD_PP, 0x00, 0x10, b"\x77"),

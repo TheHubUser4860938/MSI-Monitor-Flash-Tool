@@ -54,6 +54,12 @@ DATA_PORT = 0x5E
 RESET_PORT = 0x5D
 PACKET_DOOR = 0x9C                 # the window byte that opens a packet
 STATUS_PORT = 0x9D                 # read back after a commit (16t's leaf ack)
+#: the ports the ladder drives. On slave 0x22 these share ONE byte-addressable
+#: space with the window (16u/16t), so a write there is both a register write
+#: and a window write, and a read answers from whichever was last touched.
+LADDER_PORTS = {ADDR_PORT, CMD_PORT, WIDTH_PORT, BANK_PORT, DATA_PORT,
+                RESET_PORT, PACKET_DOOR, STATUS_PORT}
+
 
 #: control byte -> what the bridge does with it. All four are read out of the
 #: vendor's own leaves (16m erase 0xC7/0xA0, 16n program 0x40 @0x7cf0, sector
@@ -273,9 +279,20 @@ class IspBridge:
         elif control == CMD_CONTROL:
             self.isp_mode = True                      # enter ISP / bg write time
         else:
-            self.log.append(("packet", "unmodelled", control))
+            # Every other control byte in Flash.dat is an ID opcode - 0xbf,
+            # 0xff, 0xa0, 0xbc, 0xfc, 0x9c, 0x7f (16w) - and the part answers
+            # with its identity bytes. The model does not distinguish them:
+            # that is a real limit, and 16z's twin test records it.
+            self.reply = bytearray(self.flash.jedec)
+            self.log.append(("packet", "id", control))
 
     def read(self, n: int) -> bytes:
+        if self.reply:
+            # An ID answer (RDID, RDSR, a vendor opcode) is consumed by the
+            # next read, whichever lane asks.
+            out = bytes(self.reply[:n])
+            self.reply = self.reply[n:]
+            return out
         if self.pointer == DATA_PORT:
             return self.flash.read(self.bank_base + self.read_addr, n)
         if self.pointer == STATUS_PORT:
@@ -324,6 +341,9 @@ class EmulatedMonitor:
     slave: int = 0x37
     tick_ms: float = 1.0
     ops: int = 0
+    _on_bridge: bool = False
+    _mcu_ptr: int = 0x23
+    _burst_addr: int = 0
 
     def status(self) -> int:
         """The RDSR byte the bridge will answer with next (16w's readsr)."""
@@ -341,7 +361,7 @@ class EmulatedMonitor:
         cap = rec.capacity_bytes if rec else 4 * 1024 * 1024
         self.flash = SpiFlash(capacity=cap, banks=2,
                               jedec=bytes([rec.mfr_id, rec.class_id,
-                                           rec.capacity_code]) if rec
+                                           rec.cap_id]) if rec
                                   else b"\xc2\x20\x16")
         self.bridge = IspBridge(self.flash)
         self.slave = Facts.ISP_HANDSHAKE_SLAVE7
@@ -358,6 +378,9 @@ class EmulatedMonitor:
         self.mcu[0x0019:0x0021] = bytes.fromhex("0000000000000007")
         self.mcu[0x0059:0x0061] = bytes.fromhex("0000000000000005")
         self.mcu[0x0020] = 0x07                  # 16w: offset 0x20 answers 07
+        # 16z: the identity registers. 0x60 is the command port, 0x61 the
+        # value, and a strobe (0x60 <- 0x47) makes 0x67/0x68/0x69 answer RDID.
+        self.mcu[0x0067:0x006a] = self.flash.jedec
         if image:
             self.flash.data[:len(image)] = image
 
@@ -383,10 +406,23 @@ class EmulatedMonitor:
             else:
                 raise MonitorError(f"slave {addr7:#04x}: {len(buf)}-byte write")
         elif addr7 == 0x22:
+            if len(buf) == 1:
+                if buf[0] in LADDER_PORTS:          # point the ladder
+                    self.bridge.point_at(buf[0])
+                    self._on_bridge = True
+                else:                               # point the window
+                    self._mcu_ptr = buf[0]
+                    self._on_bridge = False
+                return
+            if len(buf) == 2 and buf[0] in LADDER_PORTS:
+                self.bridge.write_port(buf[0], buf[1])     # the ladder, 16k
+                self._on_bridge = True
+                return
             reg = int.from_bytes(buf[:2], "little")
             self.mcu[reg:reg + len(buf) - 2] = buf[2:]
             self._bridge_mcu(reg, buf[2:])
             self._mcu_ptr = reg
+            self._on_bridge = False
         elif addr7 == 0x20:
             if len(buf) == 3:                    # read_burst's [hi, mid, lo]
                 self._burst_addr = int.from_bytes(buf, "big")
@@ -410,6 +446,8 @@ class EmulatedMonitor:
                 return out
             return self.bridge.read(n)
         if addr7 == 0x22:
+            if getattr(self, "_on_bridge", False):
+                return self.bridge.read(n)
             reg = getattr(self, "_mcu_ptr", 0x23)
             return bytes(self.mcu[reg:reg + n])
         if addr7 == 0x20:
@@ -426,6 +464,9 @@ class EmulatedMonitor:
         value through the 0x22 window selects the bank (16r's reading)."""
         if reg == BANK_PORT and payload:
             self.bridge.bank = (1 if (payload[0] & 0x08) else 0)
+        if reg == 0x60 and payload and payload[0] == 0x47:
+            # the RDID strobe (16z): the answer lands in 0x67..0x69
+            self.mcu[0x0067:0x006a] = self.flash.jedec
 
     @property
     def active_bank(self) -> int:
