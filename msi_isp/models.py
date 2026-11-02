@@ -48,6 +48,11 @@ class ModelCard:
     panel: str = ""                    # the panel beside it ("TPO340QH1-")
     scaler: str = "RTD2711"
     device_type: int = 8               # IspFlash's branch selector (16z)
+    # 8 = the SPI chain (PIPELINE_WRITE); 0x1a = the VCP background protocol;
+    # 0x1b = the foreground path, which needs no ISP call at all (16ab).
+    @property
+    def flash_path(self) -> str:
+        return {0x1a: "background", 0x1b: "foreground"}.get(self.device_type, "spi")
     slave7: int = 0x37                 # the INI's 0x6F, 7-bit
     page: int = 32                     # AUX_I2CPageLen == GetI2CPageLength()
     banks: int = 2
@@ -66,6 +71,8 @@ class ModelCard:
     after_reset_ms: int = 10000        # ulTimeAfterReset
     after_ddcci_ms: int = 3000         # ulDelayTimeAfterDdcciWrite
     switch_flag: bool = True           # bSwitchFLag - the dual-bank switch
+    copy_wait_ms: int = 8000           # ulTimeWaitCopyBank - the background
+                                       # path's bank-copy wait (16ab)
     isp_mode: int = 1                  # enumIspMode
     boot_code_type: int = 1            # enumBootCodeType
     comm_id: int = 1                   # enumCommID
@@ -81,7 +88,8 @@ class ModelCard:
         return (self.version_addr, self.version_len, self.model_pos,
                 self.check_model, self.check_version, self.check_checksum,
                 self.slave7, self.page, self.device_type, self.banks,
-                self.capacity_bytes, self.after_command_ms, self.retry_count,
+                self.capacity_bytes, self.device_type, self.after_command_ms,
+                self.retry_count,
                 self.after_reset_ms, self.after_ddcci_ms, self.switch_flag,
                 self.isp_mode, self.boot_code_type, self.version_cmd,
                 self.version_index, self.version_read)
@@ -123,7 +131,7 @@ class ModelCard:
             "enumDigitalSignatureType": "0", "enumSWDigitalSignatureMode": "0",
             "enumBootCodeType": str(self.boot_code_type),
             "enumIspMode": str(self.isp_mode), "bWaitCopyBank": "0",
-            "ulTimeWaitCopyBank": "8000",
+            "ulTimeWaitCopyBank": str(self.copy_wait_ms),
             "ulTimeAfterCommand": str(self.after_command_ms),
             "ulCommandRetryCount": str(self.retry_count),
             "ulTimeAfterReset": str(self.after_reset_ms),

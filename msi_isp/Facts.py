@@ -2684,3 +2684,55 @@ CHIP_ID_16Z = {
     "shipped": "flashdat.candidates/match_id/find_by_id, isp.probe_id/rdid/"
                "identify, and the `chips` verb (with --ladder)",
 }
+
+
+# ---- 16ab: the background flash path - a second protocol, on the ISP VCPs ---
+# `IspFlash` (RVA 0x8520) picks the path by device type (16z): 0x1a ->
+# Isp_DoIsp_Background (0x1003bcb0), 0x1b -> foreground (no ISP call), anything
+# else -> Isp_DoIsp, the SPI chain (16y). The X28 is type 8, so this panel uses
+# the SPI chain - and the background chain is what another model in the family
+# will ask for. Its own log strings number it:
+#     "1.Chang To Background Fw Update Mode"
+#     "2.Send Backgroudn FW Update Start Command"
+#     "Send Backgroudn FW Update Set Packet len"
+#     "3.Send Backgroudn FW Update Write Data Command"   ("Write data packet: %d")
+#     "4. Send Backgroudn FW Update Finish Command"
+#     "5. Send Backgroudn FW Update Exit Command"
+# and a project-ID step in between ("Get Project ID Addr", "Verify Project ID
+# Addr"), each step closed by the same poll helper FUN_1002aa00 ("Polling Status
+# Fail!!!"). The whole chain runs under the INI's ulTimeWaitCopyBank = 8000 ms.
+#
+# THE WIRE IS VCP-SHAPED, NOT PACKET-SHAPED. The calls are
+#     slot +0x54 (slave8, vcp, count, &out)     - a read
+#     slot +0x13c (slave8, vcp, count, *data)   - a write
+#     slot +0x74 (slave8, ...)                  - the write-data step
+# with 8-bit slaves 0x6A (= 7-bit 0x35, the ISP mailbox slave of 16e), 0x3A
+# (= 7-bit 0x1D) and 0x6E (= 7-bit 0x37, our DDC/CI slave). Entering background
+# mode writes VCP 0x71 with the bytes 0x77 0x31 0x02 - "w1" and a mode - and the
+# status comes back on VCP 0x31.
+#
+# A NAMING-LAYER NOTE that 16w predicted: slot +0x54 is named
+# `GetNativePageLength` by the loader's table, and here it is called with four
+# arguments as a register read. Both are true: the loader's names describe the
+# DLL export, the plugin uses the wrapper's slot as a generic VCP read. Slot
+# names are labels on the wrapper, not contracts on the call.
+BACKGROUND_PROTOCOL_16AB = {
+    "spine": "Isp_DoIsp_Background 0x1003bcb0, seven steps, each closed by the "
+             "poll FUN_1002aa00",
+    "steps": "1 enter background mode (FUN_1002a480) -> get+verify project id "
+             "(FUN_1002a600) -> 2 start (FUN_1002abd0) -> set packet length "
+             "(FUN_1002acb0) -> 3 write data, N packets (FUN_1002ade0) -> "
+             "4 finish (FUN_1002b0c0) -> 5 exit (FUN_1002b1f0)",
+    "enter_mode": "write VCP 0x71 = 77 31 02 ('w1' + mode) on slave 0x6E/0x37; "
+                  "status read on VCP 0x31 from slave 0x6A/0x35",
+    "start": "VCP 0x31 with value 1 on slave 0x3A/0x1D, then Sleep(param+0xc)",
+    "slaves": "0x35 (8-bit 0x6A, the ISP mailbox of 16e), 0x1D (0x3A), "
+              "0x37 (0x6E, DDC/CI)",
+    "poll": "FUN_1002aa00 - 'Polling Status Fail!!!'; the INI's "
+            "ulTimeWaitCopyBank = 8000 ms is the copy-bank wait",
+    "device_types": "0x1a background, 0x1b foreground, else the SPI chain - the "
+                    "X28 is 8",
+    "naming_note": "slot +0x54 (16w: GetNativePageLength) is called here with "
+                   "(slave, vcp, count, &out) - the slot names are labels on the "
+                   "wrapper, not contracts on the call",
+}

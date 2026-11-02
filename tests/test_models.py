@@ -2,7 +2,7 @@
 import pathlib
 import unittest
 
-from msi_isp import models
+from msi_isp import Facts, models
 from msi_isp.models import MODELS, X28, ModelCard, from_ini, lookup, replace
 
 LIVE_INI = pathlib.Path(
@@ -149,6 +149,57 @@ class TestCardReadsABin(unittest.TestCase):
         self.assertEqual((rec.model, rec.version), ("MPG 274QRD", "FW.021"))
         with self.assertRaises(ValueError):
             record.parse_bin_record(bytes(img))       # no 'MAG ' run to find
+
+
+class TestFlashPath(unittest.TestCase):
+    """16ab: the device type selects the protocol, and that is card data."""
+
+    def test_type_8_is_the_spi_chain(self):
+        self.assertEqual(X28.flash_path, "spi")
+
+    def test_type_1a_is_the_background_protocol(self):
+        self.assertEqual(replace(X28, device_type=0x1a).flash_path, "background")
+
+    def test_type_1b_is_the_foreground_path(self):
+        self.assertEqual(replace(X28, device_type=0x1b).flash_path, "foreground")
+
+    def test_the_device_type_is_part_of_the_contract(self):
+        self.assertNotEqual(replace(X28, device_type=0x1a).contract,
+                            X28.contract)
+
+    def test_the_copy_wait_is_the_inis_bank_copy_timeout(self):
+        self.assertEqual(X28.copy_wait_ms, 8000)
+        self.assertIn("ulTimeWaitCopyBank = 8000", X28.ini_text())
+
+
+class TestBackgroundPipeline(unittest.TestCase):
+    """16ab: the seven-step background chain, as data."""
+
+    def test_the_chain_has_the_vendors_seven_steps(self):
+        import msi_isp.pipeline as pl
+        self.assertEqual([s.name for s in pl.PIPELINE_BACKGROUND],
+                         ["enter background mode", "verify project id",
+                          "background start", "set packet length",
+                          "write data", "background finish", "background exit"])
+
+    def test_the_enter_step_writes_the_w1_command(self):
+        import msi_isp.pipeline as pl
+        st = pl.PIPELINE_BACKGROUND[0]
+        self.assertEqual(st.payload[:3], b'qw1')   # VCP 0x71, then 'w1'
+        self.assertIn("0x6E", st.why)
+
+    def test_the_undecoded_steps_are_marked_not_guessed(self):
+        import msi_isp.pipeline as pl
+        pending = [s.name for s in pl.PIPELINE_BACKGROUND if s.pending]
+        self.assertEqual(pending, ["verify project id", "set packet length",
+                                   "background finish", "background exit"])
+
+    def test_the_fact_names_the_polling_helper(self):
+        self.assertIn("FUN_1002aa00", Facts.BACKGROUND_PROTOCOL_16AB["poll"])
+
+    def test_the_fact_records_the_naming_layer_caveat(self):
+        self.assertIn("labels on the",
+                      Facts.BACKGROUND_PROTOCOL_16AB["naming_note"])
 
 
 class TestCardForPanel(unittest.TestCase):

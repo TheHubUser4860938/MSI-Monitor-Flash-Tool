@@ -3189,3 +3189,41 @@ the built-in card).
 
 Gates: ruff clean, **433 unit tests OK** (+27 over 16z). Facts unchanged: the card
 is code, the measurements stay in Facts.
+
+## Session 16ab (2026-11-01) — the second flash protocol: the background path, on VCPs
+
+Chasing `ispcopy` turned up that the family has TWO flash protocols, chosen by
+the device type IspFlash reads (16z): 0x1a -> Isp_DoIsp_Background (0x1003bcb0)
+over VCP commands; 0x1b -> foreground, no ISP call; else (8, our X28) ->
+Isp_DoIsp, the SPI chain (16y). The X28 uses SPI; a second monitor may ask for
+the background chain, so it is now decoded.
+
+The chain is numbered by its own log strings: 1 "Chang To Background Fw Update
+Mode" (FUN_1002a480) -> "Get/Verify Project ID Addr" (FUN_1002a600) -> 2 "Send
+Backgroudn FW Update Start Command" (FUN_1002abd0) -> "Set Packet len"
+(FUN_1002acb0) -> 3 "Write Data Command" (FUN_1002ade0, logs "Write data packet:
+%d") -> 4 "Finish" (FUN_1002b0c0) -> 5 "Exit" (FUN_1002b1f0). Every step closes
+with the same poll helper FUN_1002aa00 ("Polling Status Fail!!!"), and the INI's
+ulTimeWaitCopyBank = 8000 is this path's bank-copy wait — the number behind the
+ispcopy verb.
+
+The wire is VCP-shaped, not packet-shaped: slot +0x54 (slave8, vcp, count, &out)
+reads, slot +0x13c writes. Slaves 0x6A (7-bit 0x35, the ISP mailbox of 16e), 0x3A
+(0x1D), 0x6E (0x37, DDC/CI). Entering background mode writes VCP 0x71 = 77 31 02
+("w1" + mode); status reads VCP 0x31; start is VCP 0x31 = 1 on 0x3A then
+Sleep(param+0xc).
+
+This confirms 16w's naming caveat from the other side: slot +0x54 is named
+GetNativePageLength by the loader and is called here with FOUR arguments as a
+register read. Both are true — the loader's name describes the DLL export, the
+plugin uses the wrapper's slot as a generic VCP read. Slot names are labels on
+the wrapper, not contracts on the call.
+
+Shipped: pipeline.PIPELINE_BACKGROUND — 7 steps, 3 with decoded wire bytes and 4
+marked pending (project-id check, packet length, finish, exit payloads follow the
+0x31 = 1/2/3 pattern but are unconfirmed). It runs end to end on the emulator.
+The card gains device_type -> flash_path (spi/background/foreground) and
+copy_wait_ms (8000), and device_type is now part of the contract: same numbers,
+different protocol, not the same card.
+
+Facts: BACKGROUND_PROTOCOL_16AB. Gates: ruff clean, **443 unit tests OK** (+10).

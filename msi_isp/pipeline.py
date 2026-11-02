@@ -140,6 +140,35 @@ PIPELINE_WRITE: tuple[Step, ...] = (
              "in FUN_1001dfa0 + FUN_1001fa90 (16y)"),
 )
 
+#: The background path (16ab) - the OTHER flash protocol in the same tool, used
+#: by device type 0x1a. It speaks VCPs on the ISP slaves, not SPI packets, and
+#: the INI's ulTimeWaitCopyBank = 8000 ms is its copy-bank wait. Steps whose
+#: packet bytes are decoded are marked; the rest are the honest open list.
+PIPELINE_BACKGROUND: tuple[Step, ...] = (
+    Step("enter background mode", "packet", DDCI,
+         payload=packet_bytes(0x71, 0x77, 0x31, b"\x02"),
+         why="FUN_1002a480: slot +0x13c writes VCP 0x71 = 'w1' + mode 02 on "
+             "slave 0x6E; status is read on VCP 0x31 from 0x6A (16ab)"),
+    Step("verify project id", "read", MCU, count=3,
+         why="FUN_1002a600: 'Get Project ID Addr' then 'Verify Project ID "
+             "Addr' - the image's project id is checked before writing (16ab)",
+         pending=True),
+    Step("background start", "packet", DDCI, payload=packet_bytes(0x31, 0x01, 0x00),
+         why="FUN_1002abd0 step 2: VCP 0x31 = 1 on slave 0x3A (0x1D), then the "
+             "INI's per-command sleep (16ab)"),
+    Step("set packet length", "packet", DDCI, payload=packet_bytes(0x31, 0x00, 0x00),
+         why="FUN_1002acb0: 'Send Backgroudn FW Update Set Packet len' - 3 "
+             "bytes of length, then the poll (16ab)", pending=True),
+    Step("write data", "program", DDCI, count=32, ms=200,
+         why="FUN_1002ade0 step 3: the packet loop, logged 'Write data packet: "
+             "%d', polled per packet (16ab)"),
+    Step("background finish", "packet", DDCI, payload=packet_bytes(0x31, 0x02, 0x00),
+         why="FUN_1002b0c0 step 4 (16ab)", pending=True),
+    Step("background exit", "packet", DDCI, payload=packet_bytes(0x31, 0x03, 0x00),
+         why="FUN_1002b1f0 step 5, then the poll (16ab)", pending=True),
+)
+
+
 #: the reset is its own export, not a step in the chain: ResetMCUExport
 #: (RVA 0x8cd0) = InitCommunication -> Isp_HandShakeByBootType ->
 #: Isp_EnterISPMode -> FUN_1001b860, and the INI waits 10000 ms.

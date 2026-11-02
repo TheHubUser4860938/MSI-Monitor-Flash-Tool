@@ -1902,3 +1902,65 @@ file and diffs its contract against the built-in card.
 
 Gates: ruff clean, **433 unit tests OK** (+27 over 16z). Facts: unchanged —
 the card is code, the measurements stay in `Facts`.
+---
+
+# Session 16ab — the second flash protocol: the background path, on VCPs
+
+`ispcopy` was the verb to chase, and the answer is that the family has **two
+flash protocols**, chosen by the device type `IspFlash` reads (16z):
+
+| device type | path | transport |
+|---|---|---|
+| `0x1a` | `Isp_DoIsp_Background` (0x1003bcb0) | **VCP commands on the ISP slaves** |
+| `0x1b` | foreground — no ISP call at all | — |
+| else (**8, our X28**) | `Isp_DoIsp` (0x10034000) | SPI packets through door `0x9C` |
+
+So the X28 uses the SPI chain (16y), and a second monitor may well ask for the
+background chain — which is why it is worth decoding now.
+
+## The chain, numbered by its own log strings
+
+```
+1  FUN_1002a480  "1.Chang To Background Fw Update Mode"
+   FUN_1002a600  "Get Project ID Addr"  /  "Verify Project ID Addr"
+2  FUN_1002abd0  "2.Send Backgroudn FW Update Start Command"
+   FUN_1002acb0  "Send Backgroudn FW Update Set Packet len"
+3  FUN_1002ade0  "3.Send Backgroudn FW Update Write Data Command"  "Write data packet: %d"
+4  FUN_1002b0c0  "4. Send Backgroudn FW Update Finish Command"
+5  FUN_1002b1f0  "5. Send Backgroudn FW Update Exit Command"
+```
+
+Every step closes with the same poll helper `FUN_1002aa00` ("Polling Status
+Fail!!!"), and the INI's `ulTimeWaitCopyBank = 8000` is this path's bank-copy
+wait — the number behind the `ispcopy` verb.
+
+## The wire is VCP-shaped, not packet-shaped
+
+```
+slot +0x54   (slave8, vcp, count, &out)    read
+slot +0x13c  (slave8, vcp, count, *data)   write
+slaves: 0x6A (= 7-bit 0x35, the ISP mailbox of 16e), 0x3A (0x1D), 0x6E (0x37, DDC/CI)
+entering background mode: write VCP 0x71 = 77 31 02   i.e. "w1" + mode
+status:                   read  VCP 0x31
+start:                    VCP 0x31 = 1 on 0x3A, then Sleep(param+0xc)
+```
+
+**A naming-layer confirmation 16w predicted:** slot `+0x54` is named
+`GetNativePageLength` by the loader's table and is called here with **four**
+arguments as a register read. Both readings are correct — the loader's name
+describes the DLL export, the plugin uses the wrapper's slot as a generic VCP
+read. Slot names are labels on the wrapper, not contracts on the call.
+
+## Shipped
+
+`pipeline.PIPELINE_BACKGROUND` — 7 steps in that order; **3 carry decoded wire
+bytes, 4 are marked `pending`** (the project-id check, the packet length, the
+finish and exit payloads, which follow the `0x31 = 1/2/3` pattern but are not
+confirmed). It runs end to end on the emulator.
+
+The card gains `device_type → flash_path` (`spi` / `background` / `foreground`)
+and `copy_wait_ms` (the INI's 8000), and `device_type` is now part of the
+contract — two monitors on the same numbers but different protocols are not the
+same card.
+
+Facts: `BACKGROUND_PROTOCOL_16AB`. Gates: ruff clean, **443 unit tests OK** (+10).
