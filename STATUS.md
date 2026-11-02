@@ -3227,3 +3227,66 @@ copy_wait_ms (8000), and device_type is now part of the contract: same numbers,
 different protocol, not the same card.
 
 Facts: BACKGROUND_PROTOCOL_16AB. Gates: ruff clean, **443 unit tests OK** (+10).
+
+## Session 16ac (2026-11-01) — the record block: where it lives, how it is read, how it is written
+
+Two bins, two addresses, one law. FW.012 keeps its record at 0xF800, FW.009 at
+0x2F800 — both are (block << 16) + 0xF800: the record sits 2 KiB below the end of a
+64 KiB block. The INI's BinVersionAddress = 0xF800 is the block-0 instance, so the
+general form of "read the INI" is to scan the blocks — record.find_records.
+
+The vendor packs the same address into ONE DWORD. FUN_1001f640 is the general
+flash-read helper and spells it out: Flash_Read(param_3 >> 0x10 & 0xff, param_3 &
+0xffff, param_4, param_1) — bank/block high, offset low — and RecordFWVersion's
+mode-2 arm reads its config dword (DAT_1024bed8) with exactly that split. The
+ladder has always had the same three axes: bank bit on 0x58, 64 KiB page on 0xF2
+(7 bits = 8 MiB), 16-bit offset through the data window. isp.flash_read_at was
+missing two of them; it now takes page= and bank=.
+
+THE BANK AND THE MODE ARE SEPARABLE. width_values pairs a width byte with a bank
+byte (mode 0 -> 0xE7, modes 1/2 -> 0xEF), and I had been reading that as one axis.
+It is the ladder's order of writing, not a law: a record read needs mode 1's
+16-bit offset with bank 0, and the write ladder has always taken the two apart.
+Pinned on a synthetic two-bank image.
+
+RECORDFWVERSION (export, RVA 0x38850) has FIVE ways to ask; enumVersionRecordMode
+picks the reader and the X28's card is 2: 1 FUN_10038750 "Read One Bank Boot User
+Defined Version", 2 FUN_100383f0 "Read User Defined End With 0xFF", 3 FUN_10034c90
+"read HP hw revision", 4 FUN_10036280 "read HP 4 bytes version", 5 FUN_100375f0
+"ReadUserDefinedVersionOfHPAricaVersion". Mode 2 verbatim: slot +0x10c,
+Isp_EnterISPMode(), Flash_Read(bank, addr, 0x1e, buf), end the string at the first
+0xff within the 30 bytes, slot +0x10c again. 30 bytes is all that path wants — it
+reads the VERSION and 0xff is its field separator, not the block's end; 0x60 reads
+the whole record.
+
+The plugin names five fields and writes them to ISPVersion.txt: FWVersion,
+ReadVersion, ProjectID, SubVersion, CurrentBank. Three are not in the block at
+0xF800 — they are the plugin's version record; CurrentBank is the software twin of
+the ROM flag the chain writes (16y's FUN_10021040). The recorded flag byte is
+`value | 6`, and `value | 2` when the sibling field is non-zero — the low bit is
+not the writer's to set. Keys: IspSetting.ini carries enumRecordVerMode,
+enumVersionRecordMode, bResetAfterRecordVer (FUN_1002f230); IspUserDefined.txt
+[UserDefinedInfo] carries RecordModelMode / RecordPanelMode / RecordVersionMode
+beside ModelName / PanelName / CapabilityInfo / Version, each with an Ignore* twin
+(FUN_10027870).
+
+Byte-level layout, confirmed on both bins: -1 'e'; 0 version digits (3); 3 0xff;
+4 flag (0x03 in BOTH); 5 0xff; 6 model; then panel; then the 0xaf one-byte field;
+then scaler; then 4 x 0xff and the checksum blob.
+
+Shipped: record.RecordBlock / find_records / parse_record_at / decode_record /
+encode_record (byte-exact round trip on BOTH bins); pack_addr / split_addr /
+split_flash_addr; read_chip_record (mode 2 on the wire — agrees with the image read
+for block 0 and block 2 on the emulator); patch_image + with_version — THE RECORD
+WRITE: a version bump is a 2-byte change in one 64 KiB block and reads back through
+the ladder; models.ModelCard.record_addr(block) — the card supplies the page offset,
+the image supplies the block. Verb: msi-isp record --chip [--block N], --blocks,
+--set-version NNN --out.
+
+LIVE, ON THE PANEL: record --chip --block 0 answers with the sticky ring —
+8a 02 00 fe 00 "FW.009N" 00..00 bf, repeating every 32 bytes (the page length).
+That is the last version reply, not flash bytes: the record block on the chip is
+still unproven and the clip remains the falsifier. What is new is that the address
+is expressible — page 2 + 0xF800 is FW.009's record and the ladder can name it.
+
+Facts: RECORD_WIRE_16AC. Gates: ruff clean, **470 unit tests OK** (+27).
