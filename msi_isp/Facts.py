@@ -2736,3 +2736,55 @@ BACKGROUND_PROTOCOL_16AB = {
                    "(slave, vcp, count, &out) - the slot names are labels on the "
                    "wrapper, not contracts on the call",
 }
+
+# ---- 16ac: where the record lives, and how the plugin reads and writes it --
+# Two bins, two addresses, one law. FW.012 keeps its record block at 0xF800 and
+# FW.009 at 0x2F800 - both are (block << 16) + 0xF800, so the record sits 2 KiB
+# below the end of a 64 KiB block. The INI's BinVersionAddress (0xF800) is the
+# block-0 instance of the same shape; a model whose record is in block 2 needs
+# the block, which the INI does not name. Scanning the blocks is the general
+# form of reading the INI, and `record.find_records` does it.
+#
+# THE VENDOR PACKS THE SAME ADDRESS INTO ONE DWORD. FUN_1001f640 is the general
+# flash-read helper and it spells the arithmetic out:
+#     Flash_Read(param_3 >> 0x10 & 0xff,   # bank / block
+#                param_3 & 0xffff,         # offset inside it
+#                param_4,                  # length
+#                param_1)                  # destination
+# and RecordFWVersion's mode-2 arm reads its config dword (DAT_1024bed8) with
+# exactly that split. The ladder's three ports are the same three axes: the bank
+# bit on 0x58, the 64 KiB page on 0xF2 (7 bits = 8 MiB), the 16-bit offset
+# through the data window.
+RECORD_WIRE_16AC = {
+    "spine": "RecordFWVersion (export, RVA 0x38850) -> one of five version "
+             "readers -> ISP Flash_Read -> ISPVersion.txt",
+    "packed_address": "(block << 16) | page_offset; FUN_1001f640's own "
+                      "arithmetic, and the record block's address in both bins "
+                      "we hold (0xF800, 0x2F800)",
+    "modes": "enumVersionRecordMode picks the reader: 1 FUN_10038750 'Read One "
+             "Bank Boot User Defined Version'; 2 FUN_100383f0 'Read User "
+             "Defined End With 0xFF'; 3 FUN_10034c90 'read HP hw revision'; "
+             "4 FUN_10036280 'read HP 4 bytes version'; 5 FUN_100375f0 "
+             "'ReadUserDefinedVersionOfHPAricaVersion'. The X28's card is 2.",
+    "mode_2_wire": "slot +0x10c, Isp_EnterISPMode(), Flash_Read(bank, addr, "
+                   "0x1e, buf), then end the string at the first 0xff within "
+                   "0x1e bytes, then slot +0x10c again. 30 bytes is all that "
+                   "path wants: it reads the VERSION, and 0xff is its field "
+                   "separator - not the block's end",
+    "fields": "the plugin names five: FWVersion, ReadVersion, ProjectID, "
+              "SubVersion, CurrentBank - and writes them to ISPVersion.txt. "
+              "Three of the five (ProjectID, SubVersion, CurrentBank) are not "
+              "in the block at 0xF800; CurrentBank is the software twin of the "
+              "ROM flag the chain writes (16y's FUN_10021040)",
+    "flag_arithmetic": "the recorded flag byte is `value | 6`, and `value | 2` "
+                       "when the sibling field is non-zero (FUN_10038850, "
+                       "0x10038d..) - so the low bit is not the writer's to set",
+    "ini_keys": "IspSetting.ini: enumRecordVerMode, enumVersionRecordMode, "
+                "bResetAfterRecordVer (FUN_1002f230). IspUserDefined.txt "
+                "[UserDefinedInfo]: RecordModelMode, RecordPanelMode, "
+                "RecordVersionMode beside ModelName / PanelName / "
+                "CapabilityInfo / Version, with Ignore* twins (FUN_10027870)",
+    "write_side": "no separate ISP command: the record is bytes inside a 64 KiB "
+                  "block and the chain programs whole blocks (16y), so a "
+                  "version bump is a write to ONE block - FW.009's is block 2",
+}

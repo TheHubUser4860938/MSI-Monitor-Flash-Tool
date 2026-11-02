@@ -296,11 +296,60 @@ def cmd_record(args):
     number in its message ("error code: 0x45") is the ScalerType, not the
     reason; the reason is this compare.
     """
+    from . import models
     from . import record as rec
+    card = models.lookup(args.model) if args.model else models.X28
+    if args.chip:
+        # 16ac: the plugin's mode-2 read, on the wire - ISP Flash_Read of the
+        # block at (block << 16) + 0xF800, ended at the first 0xff.
+        with _bus(args) as bus:
+            r = rec.read_chip_record(bus, block=args.block, slave7=card.slave7,
+                                     bank_size=card.bank_size,
+                                     verbose=args.verbose)
+        if r is None:
+            sys.exit("no record block answered at that address")
+        print(f"# the record block on the chip, at {r.offset:#08x} "
+              f"(block {r.block}, page offset {r.page_offset:#07x})")
+        print(f"  version   : FW.{r.version}   code {r.code}")
+        print(f"  flag      : {r.flag:#04x}")
+        print(f"  model     : {r.model!r}")
+        print(f"  panel     : {r.panel!r}")
+        print(f"  scaler    : {r.scaler!r}")
+        print(f"  wire form : Flash_Read(bank {r.offset // card.bank_size}, "
+              f"page {r.offset // rec.RECORD_BLOCK % (card.bank_size // rec.RECORD_BLOCK)},"
+              f" {r.offset % rec.RECORD_BLOCK:#07x}) - FUN_100383f0, 16ac")
+        return
     if not args.bin:
-        sys.exit("record needs --bin /path/to/firmware.bin")
+        sys.exit("record needs --bin /path/to/firmware.bin (or --chip)")
     with open(args.bin, "rb") as fh:
         data = fh.read()
+    if args.blocks:
+        recs = rec.find_records(data)
+        print(f"# record blocks in {args.bin}: {len(recs)}")
+        for r in recs:
+            print(f"  block {r.block} @ {r.offset:#08x} (page offset "
+                  f"{r.page_offset:#07x})  FW.{r.version}  code {r.code}  "
+                  f"flag {r.flag:#04x}")
+            print(f"      model {r.model!r}  panel {r.panel!r}  scaler {r.scaler!r}")
+        if not recs:
+            print("  none - no 64 KiB block carries a record at page offset "
+                  f"{rec.RECORD_PAGE_OFFSET:#07x}")
+        return
+    if args.set_version:
+        recs = rec.find_records(data)
+        if not recs:
+            sys.exit("no record block to write in this image")
+        r = recs[0]
+        new = rec.with_version(r, args.set_version)
+        out = rec.patch_image(data, new)
+        with open(args.out or args.bin, "wb") as fh:
+            fh.write(out)
+        n = sum(1 for a, c in zip(data, out) if a != c)
+        print(f"# record write (16ac): FW.{r.version} -> FW.{new.version} "
+              f"in block {new.block} @ {new.offset:#08x}")
+        print(f"  {n} byte(s) changed; the chain programs that one 64 KiB block")
+        print(f"  wrote {args.out or args.bin}")
+        return
     try:
         b = rec.parse_bin_record(data)
     except ValueError as exc:
@@ -882,6 +931,18 @@ def main(argv=None):
     rg.add_argument("--ignore", default="",
                     help="comma list of fields to skip, the way the INI's "
                          "Ignore* switches do: model,version")
+    rg.add_argument("--chip", action="store_true",
+                    help="read the record block off the chip through the ISP "
+                         "ladder (the plugin's mode-2 read, 16ac)")
+    rg.add_argument("--blocks", action="store_true",
+                    help="list every record block in the image - each 64 KiB "
+                         "block, at page offset 0xF800 (16ac)")
+    rg.add_argument("--set-version", dest="set_version", metavar="NNN",
+                    help="write a new version into the image's record block "
+                         "(with --out; the digits, e.g. 013)")
+    rg.add_argument("--block", type=lambda s: int(s, 0), default=0,
+                    help="which 64 KiB block to read with --chip (default 0)")
+    rg.add_argument("--model", help="model card to read/write under (default X28)")
     pl = sub.add_parser("pipeline", help="walk MSI's decoded flash pipeline "
                                          "(enter ISP -> ID -> read -> exit)")
     pl.add_argument("--size", type=lambda s: int(s, 0), default=32,

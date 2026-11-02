@@ -287,3 +287,246 @@ def _ascii_tail(raw: bytes, start: int = 0) -> str | None:
         elif out:
             break
     return out.decode("ascii", "ignore").strip() or None
+
+
+#: the record block, byte by byte, measured at the same page offset in both
+#: bins we hold (16ac). FW.012 keeps it at 0xF800, FW.009 at 0x2F800 - both are
+#: `block * 0x10000 + 0xF800`, so the record sits 2 KiB below the end of a
+#: 64 KiB block. The INI's BinVersionAddress (0xF800) is the block-0 instance.
+RECORD_PAGE_OFFSET = 0xF800
+RECORD_BLOCK = 0x10000
+
+
+@dataclass(frozen=True)
+class RecordBlock:
+    """One record block, decoded by field - the plugin's own field names.
+
+    Offsets are relative to the version field, which is what the INI calls
+    BinVersionAddress:
+
+        -1   0x65 'e'      the code prefix; the code is 'e' + version (16i)
+         0   3 bytes       FWVersion - the version digits ("012")
+         3   0xff
+         4   1 byte        a flag: 0x03 in both bins
+         5   0xff
+         6   N, 0xff       the model name (the gate's field)
+             +, 0xff       the panel name
+             +, 0xff 0xaf  a one-byte field, always 0xaf here (16i)
+             +, 0xff       the scaler ("RTD2711")
+             +  4 x 0xff   padding, then the checksum blob
+
+    The plugin's `RecordFWVersion` (FUN_10038850) speaks five named fields -
+    ReadVersion, ProjectID, FWVersion, CurrentBank, SubVersion - and writes
+    them out to `ISPVersion.txt`. Three of the five are not in this block:
+    ProjectID, SubVersion and CurrentBank are the plugin's version record, and
+    `CurrentBank` is its notion of which bank is active - the software twin of
+    the ROM flag the chain writes (16y's FUN_10021040).
+    """
+    offset: int                        # absolute, at the version field
+    block: int                         # which 64 KiB block it lives in
+    version: str
+    code: str
+    flag: int
+    model: str
+    panel: str
+    marker: int                        # the 0xaf byte
+    scaler: str
+
+    @property
+    def page_offset(self) -> int:
+        return self.offset % RECORD_BLOCK
+
+
+def _field_text(field: bytes) -> str:
+    """One 0xff-separated record field as text, trimmed at the first
+    separator and at any NUL padding (16ac; distinct from `_text`, which
+    strips control bytes from a field that carries no separators)."""
+    return field.split(b"\xff")[0].split(b"\x00")[0].decode("ascii", "replace")
+
+
+def parse_record_at(data: bytes, at: int) -> RecordBlock | None:
+    """Decode one record block at an absolute version offset, if it has shape."""
+    if at < 1 or at + 8 > len(data):
+        return None
+    if data[at - 1:at] != b"e":
+        return None
+    ver = _field_text(data[at:at + 8])
+    if not ver.isdigit():
+        return None
+    flag = data[at + 4] if at + 5 <= len(data) else 0
+    rest = data[at + 6:]
+    fields = [_field_text(f) for f in rest.split(b"\xff") if f.strip(b"\x00")]
+    if not fields:
+        return None
+    model = fields[0]
+    panel = fields[1] if len(fields) > 1 else ""
+    marker = 0xAF
+    scaler = ""
+    for f in fields[2:]:
+        if f.strip() == "\xaf":
+            continue
+        if f.startswith(("RTD", "MST", "GN")):
+            scaler = f
+            break
+    return RecordBlock(offset=at, block=at // RECORD_BLOCK, version=ver,
+                       code="e" + ver, flag=flag, model=model, panel=panel,
+                       marker=marker, scaler=scaler)
+
+
+def find_records(data: bytes) -> list[RecordBlock]:
+    """Every record block in an image: each 64 KiB block, at page offset 0xF800.
+
+    16ac: this is how the tool finds a record on a model nobody has dumped -
+    FW.012 keeps it in block 0 (0xF800), FW.009 in block 2 (0x2F800), and the
+    INI names only the block-0 address. Scanning the blocks is the general
+    form of reading the INI.
+    """
+    out = []
+    for blk in range((len(data) + RECORD_BLOCK - 1) // RECORD_BLOCK):
+        at = blk * RECORD_BLOCK + RECORD_PAGE_OFFSET
+        rec = parse_record_at(data, at)
+        if rec:
+            out.append(rec)
+    return out
+
+
+def encode_record(rec: RecordBlock) -> bytes:
+    """The block, byte for byte - what a record write puts on the chip."""
+    body = (b"e" + rec.version.encode("ascii", "replace") + b"\xff"
+            + bytes([rec.flag]) + b"\xff"
+            + rec.model.encode("ascii", "replace") + b"\xff"
+            + rec.panel.encode("ascii", "replace") + b"\xff"
+            + bytes([rec.marker]) + b"\xff"
+            + rec.scaler.encode("ascii", "replace") + b"\xff")
+    return body
+
+
+# ---- 16ac: the record's address, and reading/writing it on the chip -------
+# The vendor packs a flash address into ONE dword: (block << 16) | offset.
+# FUN_1001f640 is the general read helper, and it spells the arithmetic out:
+#     Flash_Read(param_3 >> 0x10 & 0xff, param_3 & 0xffff, param_4, param_1)
+# i.e. bank/block = the high half, offset = the low half, then length, then the
+# destination. `RecordFWVersion`'s mode-2 arm reads the version the same way,
+# from DAT_1024bed8, 30 bytes, and ends the string at the first 0xff - which is
+# exactly the shape of the record block at (block << 16) + 0xF800 (16ac).
+RECORD_READ_LEN = 0x1E           # mode 2 asks for 30 bytes, then stops at 0xff
+
+
+def pack_addr(block: int, page: int = RECORD_PAGE_OFFSET) -> int:
+    """The vendor's packed flash address: (block << 16) | page offset."""
+    return ((block & 0xFF) << 16) | (page & 0xFFFF)
+
+
+def split_addr(packed: int) -> tuple[int, int]:
+    """Undo it: (block, page offset). The inverse of `pack_addr`."""
+    return ((packed >> 16) & 0xFF, packed & 0xFFFF)
+
+
+def split_flash_addr(addr: int, bank_size: int = 2 * 1024 * 1024) -> tuple:
+    """A flash address as the ladder sees it: (bank, page, offset).
+
+    Three axes, three ports: the bank bit on 0x58 (0xE7 / 0xEF), the 64 KiB
+    page on 0xF2 (7 bits, so 8 MiB of reach), and the 16-bit offset through the
+    data window (16k, 16w, 16ac). `bank_size` comes from the model card - the
+    X28's 4 MiB part is two 2 MiB banks (16r).
+    """
+    bank, rem = divmod(addr, bank_size)
+    page, off = divmod(rem, RECORD_BLOCK)
+    return bank, page, off
+
+
+def read_chip_record(bus, block: int = 0, page: int = RECORD_PAGE_OFFSET,
+                     slave7: int = 0x37, length: int = 0x60,
+                     bank_size: int = 2 * 1024 * 1024,
+                     verbose: bool = False) -> RecordBlock | None:
+    """Read one record block off the chip - the plugin's mode-2 version read.
+
+    The wire form is FUN_100383f0 verbatim: enter ISP mode, `Flash_Read(bank,
+    addr, 0x1e, buf)`, then end the string at the first 0xff. Our `Flash_Read`
+    is 16k's read ladder, and the block index rides the page port 0xF2 (16ac:
+    `flash_read_at(page=)`), which is the same 64 KiB paging the write ladder
+    uses for 0x200000 (`0xF2 <- 0x20`, 16w).
+
+    One byte of over-read on purpose: the version field starts with the 'e' one
+    byte BELOW the INI's address (16i: the code is 'e' + digits), so the read
+    starts at page-1 and decodes from the 'e'. The `offset` that comes back is
+    the version field, the same convention `parse_record_at` uses.
+    """
+    from . import isp
+    addr = pack_addr(block, page)
+    bank, pg, off = split_flash_addr(addr - 1, bank_size)
+    data = isp.flash_read_at(bus, off, length + 1, slave7=slave7, mode=1,
+                             page=pg, bank=bank, verbose=verbose)
+    if not data:
+        return None
+    return decode_record(data, at=addr)
+
+
+def decode_record(data: bytes, at: int = 0,
+                  sep: int = 0xFF) -> RecordBlock | None:
+    """Decode an already-read record block - the chip's answer, not a file.
+
+    `parse_record_at` reads from an image; this reads the buffer the ISP ladder
+    returned. `sep` is the field separator, which is also the terminator the
+    vendor's mode-2 read stops at - and it ends the VERSION field, not the
+    block, so the fields after it stay readable. (16ac: the mode-2 read asks
+    for 30 bytes because the version is all that path wants.)
+    """
+    if not data.startswith(b"e"):
+        return None
+    parts = data.split(bytes([sep]))
+    ver = _field_text(parts[0][1:])          # 'e012' -> '012'
+    if not ver.isdigit():
+        return None
+    # parts[1] is the one-byte flag (0x03 in both bins); the fields the gate
+    # reads start at parts[2] (16i's layout, 16ac's byte-level confirmation)
+    flag = parts[1][0] if len(parts) > 1 and parts[1] else 0x03
+    rest = [_field_text(f) for f in parts[2:] if f.strip(b"\x00")]
+    model = rest[0] if rest else ""
+    panel = rest[1] if len(rest) > 1 else ""
+    scaler = next((f for f in rest[2:] if f.startswith(("RTD", "MST", "GN"))),
+                  "")
+    block, _ = split_addr(at)
+    return RecordBlock(offset=at, block=block, version=ver, code="e" + ver,
+                       flag=flag, model=model, panel=panel, marker=0xAF,
+                       scaler=scaler)
+
+
+def patch_image(data: bytes, rec: RecordBlock) -> bytes:
+    """Write a record block into an image, at (block << 16) + page offset.
+
+    This is the record WRITE, offline: the chain programs whole 64 KiB blocks
+    (16y), so changing a version means splicing the record into the image and
+    programming the block that carries it. FW.012's record is in block 0,
+    FW.009's in block 2 - so a version bump is a write to one block, not to the
+    whole bank.
+    """
+    body = encode_record(rec)
+    at = rec.offset if rec.offset % RECORD_BLOCK == RECORD_PAGE_OFFSET else \
+        pack_addr(rec.block, RECORD_PAGE_OFFSET)
+    # `offset` is the VERSION field; the block's leading 'e' sits one byte
+    # below it (16i), which is why encode_record starts with 'e' and lands at
+    # offset - 1.
+    at -= 1
+    out = bytearray(data)
+    if len(out) < at + len(body):
+        out.extend(b"\xff" * (at + len(body) - len(out)))
+    out[at:at + len(body)] = body
+    return bytes(out)
+
+
+def with_version(rec: RecordBlock, version: str,
+                 flag: int | None = None) -> RecordBlock:
+    """A copy of a record with a new version - the write side of the gate.
+
+    `version` is the digits the block carries ("012"), not the MCCS string
+    ("FW.012"); the 'e' prefix is the block's, not the caller's.
+    `flag` defaults to the plugin's own arithmetic: `value | 6`, and `value | 2`
+    when the sibling field is non-zero (FUN_10038850).
+    """
+    v = version.lstrip("FW.").lstrip("fw.").strip()
+    if flag is None:
+        flag = rec.flag
+    return RecordBlock(offset=rec.offset, block=rec.block, version=v,
+                       code="e" + v, flag=flag, model=rec.model,
+                       panel=rec.panel, marker=rec.marker, scaler=rec.scaler)

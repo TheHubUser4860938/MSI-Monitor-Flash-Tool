@@ -202,6 +202,20 @@ class TestBackgroundPipeline(unittest.TestCase):
                       Facts.BACKGROUND_PROTOCOL_16AB["naming_note"])
 
 
+class TestRecordAddress(unittest.TestCase):
+    """16ac: the card gives the page offset; the block belongs to the image."""
+
+    def test_block_0_is_the_inis_address(self):
+        self.assertEqual(X28.record_addr(0), 0xF800)
+
+    def test_a_block_2_record_is_the_fw009_shape(self):
+        self.assertEqual(X28.record_addr(2), 0x2F800)
+
+    def test_the_page_offset_survives_the_block(self):
+        for blk in (0, 1, 5, 31):
+            self.assertEqual(X28.record_addr(blk) & 0xFFFF, X28.version_addr)
+
+
 class TestCardForPanel(unittest.TestCase):
     def test_no_bus_gives_the_default_card(self):
         self.assertIs(models.card_for_panel(), X28)

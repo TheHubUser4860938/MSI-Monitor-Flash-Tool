@@ -430,7 +430,8 @@ def mailbox_ladder(bus, slave7: int | None = None, token: int | None = None,
 
 
 def flash_read_at(bus, addr: int, n: int, slave7: int = 0x37,
-                  mode: int = 1, verbose: bool = False) -> bytes:
+                  mode: int = 1, page: int | None = None,
+                  bank: int | None = None, verbose: bool = False) -> bytes:
     """One flash read through the vendor's ISP port grammar (16d, 16k).
 
     The ladder is Comm.dll FUN_10003990 verbatim, on the byte-index ports of
@@ -462,13 +463,27 @@ def flash_read_at(bus, addr: int, n: int, slave7: int = 0x37,
         return d[0] if d else 0
 
     addr &= 0xFFFFFF
-    hi = r1(regs["addr_port"])
-    w(regs["addr_port"], hi & 0x7F)                 # clear bit 7, keep the page
+    if page is None:
+        w(regs["addr_port"], r1(regs["addr_port"]) & 0x7F)  # clear bit 7, keep the page
+    else:
+        # 16ac: the page port is the 64 KiB block index, 7 bits = 8 MiB of
+        # reach. The vendor packs it into one dword - (block << 16) | offset
+        # (FUN_1001f640: `Flash_Read(param_3 >> 0x10 & 0xff, param_3 & 0xffff,
+        # ...)`) - which is the same address the record block lives at:
+        # FW.009's record is (2 << 16) + 0xF800.
+        w(regs["addr_port"], page & 0x7F)
     w(regs["cmd_port"], r1(regs["cmd_port"]) | 0x80)   # set bit 7 of the command port
     time.sleep(0.032)                             # the decompile's 0x20 delay
-    width, bank = regs["width_values"][mode]
+    width, bank_val = regs["width_values"][mode]
+    if bank is not None:
+        # 16ac: the two axes are separable. The board record's width_values
+        # couples them (mode 0 -> 0xE7, modes 1/2 -> 0xEF) because that is the
+        # order the ladder walks them, but the write ladder has always taken
+        # `bank` and `mode` apart, and a record read needs bank 0 with a
+        # 16-bit offset - mode 1's width, mode 0's bank.
+        bank_val = 0xE7 if bank == 0 else 0xEF
     w(regs["width_port"], width)
-    w(regs["bank_port"], bank)
+    w(regs["bank_port"], bank_val)
     w(regs["data_port"], addr & 0xFF)                # offset, low byte
     if mode:
         w(regs["data_port"], (addr >> 8) & 0xFF)     # offset, high byte

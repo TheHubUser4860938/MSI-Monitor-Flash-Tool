@@ -80,6 +80,17 @@ class ModelCard:
     graphics_type: int = 1             # AUX_GraphicsType (1 = NVIDIA)
     extra: dict = field(default_factory=dict)   # keys we pass through untouched
 
+    def record_addr(self, block: int = 0) -> int:
+        """The record block's address in a flash image - the vendor's own
+        packing, `(block << 16) | version_addr` (16ac).
+
+        `version_addr` is the page offset inside a 64 KiB block, which is what
+        the INI's BinVersionAddress names. The block is a property of the
+        IMAGE, not of the model: FW.012 keeps its record in block 0 and FW.009
+        in block 2, same page offset, and the INI cannot tell you which.
+        """
+        return (block << 16) | self.version_addr
+
     @property
     def contract(self) -> tuple:
         """The fields that decide a flash - not the names. Two cards with the
