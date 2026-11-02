@@ -3290,3 +3290,45 @@ still unproven and the clip remains the falsifier. What is new is that the addre
 is expressible — page 2 + 0xF800 is FW.009's record and the ladder can name it.
 
 Facts: RECORD_WIRE_16AC. Gates: ruff clean, **470 unit tests OK** (+27).
+
+## Session 16ad (2026-11-02) — the background protocol, payload by payload
+
+16ab decoded the chain's shape and left four payloads pending. All four are
+decoded, and one of 16ab's guesses was wrong.
+
+VCP 0x31 is the channel and the first data byte is a SUB-OPCODE: 1 start
+(FUN_1002abd0), 2 finish (FUN_1002b0c0), 4 exit (FUN_1002b1f0), 5 project-id
+address (FUN_1002a600), 7 packet length (FUN_1002acb0). Every step opens with the
+poll FUN_1002aa00, and a failed poll sends the abort value 4 — finish writes 2 on
+success, 4 on a poll failure; exit writes 4 always. CORRECTION IN PUBLIC: 16ab
+shipped exit = 3 from the tidy 1/2/3 pattern; it is 4. The other three guesses
+stand.
+
+THE WRAPPER SLOTS, settled by a second witness: +0x54 GetNativePageLength is the
+VCP READ (slave, vcp, count, &out); +0x58 I2CWrite is the VCP WRITE; +0x74
+I2CWordRead is the word-shaped write with a 0 flag (the finish/exit form); +0x13c
+/+0x140 the enter-mode write; +0x10c ReadContinuousMcuReg the bookends of a flash
+read (16ac's mode-2 arm). Slot names are labels on the wrapper, not contracts on
+the call — 16w's law, now with two independent chains agreeing.
+
+THE SURPRISE: "Set Packet len" is a READ. FUN_1002acb0 logs that name and calls
+the read slot with (0x3A, 0x31, 3, &buf), preloading sub-opcode 7 and the config's
+two bytes at +0x18/+0x19. The MONITOR answers its own packet length, so the
+write-data loop's chunk size is a device property, not a config constant. The step
+is gated on config +0x14.
+
+Project id (FUN_1002a600), gated on config +0x10: GetVCP 0x31 sub 5 (1 byte),
+Sleep(config+0xc * 40), SetVCP 0x31 with 6 bytes, and the reply's first byte must
+be 0x11 followed by a length byte and a 4-byte id, checked against the image
+("Verify Project ID Addr").
+
+Shipped: isp.vcp_read / isp.vcp_write (the two primitives);
+PIPELINE_BACKGROUND with all 7 steps decoded and 0 pending (packet length is a
+read, exit carries 4); pipeline.BG (7-bit 0x1D = 8-bit 0x3A) and pipeline.MB
+(0x35 = 0x6A); the emulator's two background slaves, answering sub-opcode 5 with
+the 0x11 marker + length + id and 7 with the monitor's packet length — a model,
+labelled, since the X28 is type 8 and nothing on this panel speaks 0x1D; and the
+verb msi-isp pipeline --chain {read,spi,background,foreground,auto} --simulate,
+where auto asks the model card's device_type (16z's selector).
+
+Facts: BACKGROUND_WIRE_16AC. Gates: ruff clean, **488 unit tests OK** (+18).

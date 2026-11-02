@@ -715,13 +715,47 @@ def cmd_ladder(args):
 
 
 def cmd_pipeline(args):
-    """Walk the vendor's decoded pipeline on this transport, step by step."""
-    from .pipeline import PIPELINE, run_pipeline
-    with _bus(args) as bus:
+    """Walk the vendor's decoded pipeline on this transport, step by step.
+
+    `--chain` picks which of the three decoded chains: `read` (the 8-step probe),
+    `spi` (the 9-step type-8 flash write, 16y) and `background` (the 7-step VCP
+    protocol type-0x1a models use, 16ab/16ac). `--simulate` runs it against the
+    emulator instead of the panel - which is how the background chain gets walked
+    on a box whose panel speaks the SPI chain.
+    """
+    import contextlib
+
+    from .pipeline import PIPELINE, PIPELINE_BACKGROUND, PIPELINE_WRITE, run_pipeline
+    chain = args.chain
+    if chain == "auto":
+        # the card's device type is the selector the vendor uses (16z): 8 -> the
+        # SPI chain, 0x1a -> background, 0x1b -> foreground. A card is a default,
+        # so the chosen chain is printed - never assumed silently.
+        from . import models
+        try:
+            card = (models.lookup(args.model) if args.model
+                    else models.card_for_panel(None))
+        except KeyError as exc:
+            sys.exit(f"{exc} - msi-isp models lists the registry")
+        chain = card.flash_path
+        print(f"# chain from the card for {card.model!r}: {chain}")
+    steps = {"read": PIPELINE, "spi": PIPELINE_WRITE,
+             "background": PIPELINE_BACKGROUND,
+             "foreground": PIPELINE}[chain]
+    if args.simulate:
+        from .emul import EmulatedMonitor
+        ctx = contextlib.nullcontext(EmulatedMonitor(image=b"\xff" * 0x20000))
+        where = "the emulator"
+    else:
+        ctx = _bus(args)
+        where = None
+    with ctx as bus:
         if hasattr(bus, "unlock"):
             bus.unlock("pipeline")
-        print(f"# vendor pipeline on {_busname(bus, args)}")
-        rep = run_pipeline(bus, size=args.size, verbose=True)
+        print(f"# vendor pipeline ({args.chain}) on {where or _busname(bus, args)}")
+        rep = run_pipeline(bus, size=args.size, verbose=not args.simulate,
+                           steps=steps,
+                           image=b"\x5a" * 4096 if args.simulate else None)
         for r in rep.results:
             state = "ok" if r.ok else "STOP"
             detail = ((r.reply.hex(" ")[:48] + ("…" if len(r.reply) > 48 else ""))
@@ -733,9 +767,8 @@ def cmd_pipeline(args):
             print("\nwhole pipeline answered")
         if rep.pending:
             print("wire form still pending for: " + ", ".join(rep.pending))
-        n = len(rep.results)
-        if n < len(PIPELINE):
-            print(f"reached step {n} of {len(PIPELINE)}")
+        if len(rep.results) < len(steps):
+            print(f"reached step {len(rep.results)} of {len(steps)}")
 
 
 def cmd_backup(args):
@@ -947,6 +980,12 @@ def main(argv=None):
                                          "(enter ISP -> ID -> read -> exit)")
     pl.add_argument("--size", type=lambda s: int(s, 0), default=32,
                     help="bytes to read in the flash-page step (default 32)")
+    pl.add_argument("--chain", choices=("read", "spi", "background", "foreground",
+                                        "auto"), default="read",
+                    help="which decoded chain to walk; 'auto' asks the model card")
+    pl.add_argument("--model", help="model card for --chain auto")
+    pl.add_argument("--simulate", action="store_true",
+                    help="run it against the emulator, not the panel")
     b = sub.add_parser("backup", help="dump scaler SPI flash (read-only)")
     b.add_argument("--out", required=True)
     b.add_argument("--size", type=lambda s: int(s, 0),

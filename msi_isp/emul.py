@@ -47,6 +47,8 @@ __all__ = ["EmulatedMonitor", "IspBridge", "MonitorError", "SpiFlash"]
 
 #: the ports the vendor's ladder drives (Facts.ISP_BOARD_REGS, Comm 0x3990/0x3c80)
 ADDR_PORT = 0xF2
+BG_SLAVE = 0x1D                      # 8-bit 0x3A - the background VCP slave (16ab)
+MB_SLAVE = 0x35                      # 8-bit 0x6A - the ISP mailbox, status side
 CMD_PORT = 0x55
 WIDTH_PORT = 0x57
 BANK_PORT = 0x58
@@ -339,6 +341,14 @@ class EmulatedMonitor:
     bridge: IspBridge
     mcu: bytearray = field(default_factory=bytearray)
     slave: int = 0x37
+    # 16ab/16ac: the BACKGROUND protocol's VCP slaves (device type 0x1a). A
+    # model, not a measurement - the X28 is type 8, so nothing on this panel
+    # answers 0x1D; the numbers here are the shapes the decompile names.
+    bg_project_id: bytes = b"\x11\x22\x33\x44"   # the value behind sub-opcode 5
+    bg_packet_len: int = 32                      # the answer to sub-opcode 7
+    bg_phase: int = 0                            # last sub-opcode written to 0x31
+    _bg_vcp: int = 0x31                          # the VCP the last call named
+    _bg_sub: int = 0                             # its sub-opcode (16ac)
     tick_ms: float = 1.0
     ops: int = 0
     _on_bridge: bool = False
@@ -423,6 +433,21 @@ class EmulatedMonitor:
             self._bridge_mcu(reg, buf[2:])
             self._mcu_ptr = reg
             self._on_bridge = False
+        elif addr7 in (BG_SLAVE, MB_SLAVE):
+            # VCP-shaped: [opcode, vcp, ...]. 0x51 arms a read (the third byte is
+            # the SUB-OPCODE: 1 start, 2 finish, 4 exit, 5 project id, 7 packet
+            # length - 16ac); 0x52 writes the value beside the VCP.
+            if len(buf) < 2:
+                raise MonitorError(f"background vcp: {len(buf)}-byte write")
+            if buf[0] == 0x51:
+                self._bg_vcp = buf[1]
+                self._bg_sub = buf[2] if len(buf) > 2 else 0
+                self._bg_armed = True
+            else:
+                self._bg_vcp = buf[1]
+                self._bg_sub = buf[2] if len(buf) > 2 else 0
+                if buf[1] == 0x31:
+                    self.bg_phase = self._bg_sub
         elif addr7 == 0x20:
             if len(buf) == 3:                    # read_burst's [hi, mid, lo]
                 self._burst_addr = int.from_bytes(buf, "big")
@@ -453,7 +478,28 @@ class EmulatedMonitor:
         if addr7 == 0x20:
             at = getattr(self, "_burst_addr", 0)
             return self.flash.read(at, n)
+        if addr7 in (BG_SLAVE, MB_SLAVE):
+            return self._bg_answer(n)
         raise MonitorError(f"the emulator has no slave {addr7:#04x}")
+
+    def _bg_answer(self, n: int) -> bytes:
+        """A background-protocol VCP answer, chosen by sub-opcode (16ac).
+
+        A MODEL, labelled: the X28 is device type 8 and speaks the SPI chain, so
+        nothing on this panel answers 0x1D. What is modelled is the shape the
+        decompile names - sub-opcode 5 answers the project id behind a 0x11
+        marker and a length byte, 7 answers the monitor's own packet length, and
+        start/finish/exit answer 'ok'.
+        """
+        sub = self._bg_sub
+        if sub == 5:                       # 'Get Project ID Addr'
+            body = bytes([0x11, len(self.bg_project_id)]) + bytes(self.bg_project_id)
+        elif sub == 7:                     # 'Send ... Set Packet len' - a READ
+            body = bytes([0x07, self.bg_packet_len & 0xFF,
+                          (self.bg_packet_len >> 8) & 0xFF])
+        else:
+            body = bytes([0x00])           # 1 start, 2 finish, 4 exit: ok
+        return (body * 8)[:n]
 
     def close(self) -> None:
         pass

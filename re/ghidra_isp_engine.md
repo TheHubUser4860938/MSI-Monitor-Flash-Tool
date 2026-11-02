@@ -2067,3 +2067,82 @@ the address is now expressible: page 2 + `0xF800` is FW.009's record, and the
 ladder can name it.
 
 Facts: `RECORD_WIRE_16AC`. Gates: ruff clean, **470 unit tests OK** (+27).
+---
+
+# Session 16ad — the background protocol, payload by payload
+
+16ab decoded the background chain's shape and left **four payloads pending**. All
+four are decoded, and one of 16ab's guesses was wrong.
+
+## VCP 0x31 is the channel; the first data byte is a sub-opcode
+
+| sub-opcode | step | helper |
+|---|---|---|
+| 1 | start | `FUN_1002abd0` |
+| 2 | finish | `FUN_1002b0c0` |
+| 4 | exit | `FUN_1002b1f0` |
+| 5 | project-id address | `FUN_1002a600` |
+| 7 | packet length | `FUN_1002acb0` |
+
+Every step opens with the poll `FUN_1002aa00`, and a failed poll sends the **abort
+value 4** — finish writes 2 on success and 4 on a poll failure; exit writes 4
+always. **Correction, in public: 16ab shipped exit = 3, from the tidy 1/2/3
+pattern. It is 4.** The other three guesses (1, 2, and the enter-mode bytes) stand.
+
+## The wrapper slots, settled by a second witness
+
+The loader's names (16w) read against these bodies:
+
+| slot | loader name | what the plugin calls it with |
+|---|---|---|
+| `+0x54` | GetNativePageLength | the **VCP read** — `(slave, vcp, count, &out)` |
+| `+0x58` | I2CWrite | the **VCP write** — `(slave, vcp, count, *data)` |
+| `+0x74` | I2CWordRead | the **word-shaped write** — `(slave, vcp, 1, &v, 0)`, the finish/exit form |
+| `+0x13c` / `+0x140` | AutoDetectSlaveAddr / DDCCIWrite | the enter-mode write |
+| `+0x10c` | ReadContinuousMcuReg | the bookends of a flash read (16ac's mode-2 arm) |
+
+Slot names are labels on the wrapper, not contracts on the call — 16w's law, now
+with two independent chains agreeing.
+
+## The surprise: "Set Packet len" is a READ
+
+`FUN_1002acb0` logs `"Send Backgroudn FW Update Set Packet len"` and calls the
+**read** slot: `(0x3A, 0x31, 3, &buf)`, preloading the buffer with sub-opcode 7
+and the config's two bytes at `+0x18/+0x19`. **The monitor answers its own packet
+length**, so the write-data loop's chunk size is a device property, not a config
+constant. The step is gated on config `+0x14`: a model that leaves it 0 never asks.
+
+## Project id, step by step (`FUN_1002a600`)
+
+```
+if (config +0x10 != 0):                                  # gated
+    GetVCP 0x31 sub 5, 1 byte                            # "Get Project ID Addr"
+    Sleep(config +0xc  *  40)
+    SetVCP 0x31, 6 bytes
+    reply[0] must be 0x11 ; reply[1] = length ; reply[2:] = 4-byte id
+    "Get Project ID Addr Fail.Data Error 0x%X" if the buffer is too small
+    then "Verify Project ID Addr" against the image
+```
+
+## Shipped
+
+- `isp.vcp_read` / `isp.vcp_write` — the two primitives the chain is built from.
+- `pipeline.PIPELINE_BACKGROUND` — all 7 steps decoded, **0 pending**; the
+  `packet length` step is a read, `background exit` carries 4.
+- `pipeline.BG` (7-bit `0x1D` = 8-bit `0x3A`) and `pipeline.MB` (`0x35` = `0x6A`).
+- Emulator: the two background slaves answer — sub-opcode 5 returns the
+  `0x11`-marker + length + id, 7 returns the monitor's packet length, the rest
+  answer ok. A model, labelled: the X28 is type 8, so nothing on this panel speaks
+  0x1D.
+- Verb: `msi-isp pipeline --chain {read,spi,background,foreground,auto}` and
+  `--simulate`. `auto` asks the model card's `device_type` (16z's selector).
+
+```
+$ msi-isp pipeline --chain background --simulate
+  ok  enter background mode / verify project id / background start
+  ok  packet length          07 20 00      <- the device's answer, 32
+  ok  write data / background finish 31 02 / background exit 31 04
+whole pipeline answered
+```
+
+Facts: `BACKGROUND_WIRE_16AC`. Gates: ruff clean, **488 unit tests OK** (+18).

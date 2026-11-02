@@ -2788,3 +2788,51 @@ RECORD_WIRE_16AC = {
                   "block and the chain programs whole blocks (16y), so a "
                   "version bump is a write to ONE block - FW.009's is block 2",
 }
+
+
+# ---- 16ac: the background protocol's wire form, step by step --------------
+# 16ab decoded the chain's shape (seven steps, VCP-shaped, one poll helper) and
+# left four payloads marked pending. All four are decoded now, and one of 16ab's
+# guesses was wrong: the exit command is 4, not 3.
+#
+# VCP 0x31 is the background channel and the first data byte is a SUB-OPCODE:
+#     1  start   (FUN_1002abd0)      2  finish  (FUN_1002b0c0)
+#     4  exit    (FUN_1002b1f0)      5  project-id address (FUN_1002a600)
+#     7  packet length (FUN_1002acb0)
+# The same channel carries the status: a step opens with the poll FUN_1002aa00,
+# and a failed poll sends the ABORT value - finish writes 2 on success and 4 on
+# a poll failure, exit writes 4 always.
+#
+# THE WRAPPER SLOTS, settled from the loader's own table (16w) read against these
+# bodies: +0x54 GetNativePageLength is the VCP READ (write the code, read n);
+# +0x58 I2CWrite is the VCP WRITE (n bytes beside the code); +0x74 I2CWordRead is
+# the word-shaped write the finish and exit use with a fifth argument of 0;
+# +0x13c AutoDetectSlaveAddr and +0x140 DDCCIWrite are the enter-mode write;
+# +0x10c ReadContinuousMcuReg opens and closes a flash read (16ac's mode-2 arm).
+# The names describe the DLL export, not the call site - which is the 16w law
+# restated with a second witness.
+#
+# THE SURPRISE: "Set Packet len" is a READ. FUN_1002acb0 logs the name and calls
+# the read slot with (0x3A, 0x31, 3, &buf), preloading the buffer with 7 and the
+# config's two bytes at +0x18/+0x19. The MONITOR answers its packet length, so
+# the write-data loop's chunk size is a device property, not a config constant -
+# and the step is gated on config +0x14, so a model that leaves it 0 never asks.
+BACKGROUND_WIRE_16AC = {
+    "sub_opcodes": "VCP 0x31: 1 start, 2 finish, 4 exit, 5 project-id address, "
+                   "7 packet length; the poll opens every step and a failed poll "
+                   "writes the abort value 4",
+    "project_id": "GetVCP 0x31 sub 5 (1 byte) -> SetVCP 0x31 with 6 bytes -> the "
+                  "reply's first byte must be 0x11, then a length byte and a "
+                  "4-byte id, checked against the image ('Verify Project ID "
+                  "Addr'); gated on config +0x10, and it sleeps 40 * param+0xc ms",
+    "packet_len": "GetVCP 0x31 sub 7, THREE bytes read - the monitor's answer, "
+                  "not a written constant; gated on config +0x14 (16ac)",
+    "finish": "FUN_1002b0c0: slot +0x74 (0x3A, 0x31, 1, &2, 0); on a poll "
+              "failure (0x3A, 0x31, 1, &4, 0); then Sleep(param+0xc)",
+    "exit": "FUN_1002b1f0: slot +0x74 (0x3A, 0x31, 1, &4, 0) - always 4, pass "
+            "or fail (16ab guessed 3)",
+    "slots": "+0x54 read / +0x58 write / +0x74 word write with a 0 flag / "
+             "+0x13c +0x140 the mode write / +0x10c the flash-read bookends",
+    "correction": "16ab shipped 'background exit = 0x31 = 3'. It is 4. The other "
+                  "three guesses (1, 2, and the enter-mode bytes) stand.",
+}

@@ -55,6 +55,8 @@ class Step:
 
 
 DDCI = 0x37                        # the type-8 lane: INI slave 0x6F
+BG = 0x1D                          # 8-bit 0x3A: the background VCP slave (16ab)
+MB = 0x35                          # 8-bit 0x6A: the ISP mailbox, status side
 FLASH = 0x20                       # the ReadFlashData burst engine
 MCU = 0x22                         # the register file behind it
 
@@ -144,28 +146,40 @@ PIPELINE_WRITE: tuple[Step, ...] = (
 #: by device type 0x1a. It speaks VCPs on the ISP slaves, not SPI packets, and
 #: the INI's ulTimeWaitCopyBank = 8000 ms is its copy-bank wait. Steps whose
 #: packet bytes are decoded are marked; the rest are the honest open list.
+# VCP 0x31 is the background channel and the FIRST DATA BYTE is a sub-opcode
+# (16ac, from the four bodies): 1 start, 2 finish, 4 exit, 5 project-id address,
+# 7 packet length. Slot +0x54 is the wrapper's GetVCP (write the code, read n),
+# +0x58 its SetVCP (write n), +0x74 the word-shaped write the finish and exit
+# use with a 0 flag. Every step opens with the poll FUN_1002aa00.
 PIPELINE_BACKGROUND: tuple[Step, ...] = (
     Step("enter background mode", "packet", DDCI,
          payload=packet_bytes(0x71, 0x77, 0x31, b"\x02"),
          why="FUN_1002a480: slot +0x13c writes VCP 0x71 = 'w1' + mode 02 on "
              "slave 0x6E; status is read on VCP 0x31 from 0x6A (16ab)"),
-    Step("verify project id", "read", MCU, count=3,
-         why="FUN_1002a600: 'Get Project ID Addr' then 'Verify Project ID "
-             "Addr' - the image's project id is checked before writing (16ab)",
-         pending=True),
-    Step("background start", "packet", DDCI, payload=packet_bytes(0x31, 0x01, 0x00),
-         why="FUN_1002abd0 step 2: VCP 0x31 = 1 on slave 0x3A (0x1D), then the "
-             "INI's per-command sleep (16ab)"),
-    Step("set packet length", "packet", DDCI, payload=packet_bytes(0x31, 0x00, 0x00),
-         why="FUN_1002acb0: 'Send Backgroudn FW Update Set Packet len' - 3 "
-             "bytes of length, then the poll (16ab)", pending=True),
+    Step("verify project id", "vcpread", BG, payload=bytes([0x31, 0x05]), count=6,
+         why="FUN_1002a600: GetVCP 0x31 sub-opcode 5 ('Get Project ID Addr'), "
+             "then SetVCP 0x31 with 6 bytes; the reply's first byte must be 0x11 "
+             "and it carries a length byte and a 4-byte project id, which the "
+             "image is checked against ('Verify Project ID Addr') - 16ac"),
+    Step("background start", "vcp", BG, payload=bytes([0x31, 0x01]),
+         why="FUN_1002abd0 step 2: VCP 0x31 sub-opcode 1 on slave 0x3A/0x1D, "
+             "then Sleep(param+0xc) - the INI's per-command delay (16ab)"),
+    Step("packet length", "vcpread", BG, payload=bytes([0x31, 0x07]), count=3,
+         why="FUN_1002acb0: the log says 'Set Packet len' but the call is a READ "
+             "- GetVCP 0x31 sub-opcode 7, 3 bytes. The MONITOR answers its packet "
+             "length; the config's two bytes at +0x18/+0x19 are the preload. The "
+             "step is gated on config +0x14 (16ac)"),
     Step("write data", "program", DDCI, count=32, ms=200,
          why="FUN_1002ade0 step 3: the packet loop, logged 'Write data packet: "
-             "%d', polled per packet (16ab)"),
-    Step("background finish", "packet", DDCI, payload=packet_bytes(0x31, 0x02, 0x00),
-         why="FUN_1002b0c0 step 4 (16ab)", pending=True),
-    Step("background exit", "packet", DDCI, payload=packet_bytes(0x31, 0x03, 0x00),
-         why="FUN_1002b1f0 step 5, then the poll (16ab)", pending=True),
+             "%d', polled per packet (16ab). The 32 bytes are the page length; "
+             "the real length is the answer to the step above (16ac)"),
+    Step("background finish", "vcp", BG, payload=bytes([0x31, 0x02]),
+         why="FUN_1002b0c0 step 4: poll, then VCP 0x31 sub-opcode 2; on a poll "
+             "failure it writes 4 instead, and the success path ends with "
+             "Sleep(param+0xc) (16ac - 16ab guessed 2, correct)"),
+    Step("background exit", "vcp", BG, payload=bytes([0x31, 0x04]),
+         why="FUN_1002b1f0 step 5: poll, then VCP 0x31 sub-opcode 4 - always 4, "
+             "pass or fail (16ac; 16ab guessed 3, corrected)"),
 )
 
 
@@ -234,6 +248,16 @@ def run_pipeline(bus, addr=0, size=32, verbose=False, sleep=None,
                 res.reply = bytes([int(exit_isp(bus))])
             elif st.op == "sleep":
                 nap(st.ms / 1000.0)
+            elif st.op == "vcp":
+                from .isp import vcp_write
+                vcp_write(bus, st.payload[0], st.payload[1:], slave7=st.slave7,
+                          verbose=verbose)
+                res.reply = st.payload
+            elif st.op == "vcpread":
+                from .isp import vcp_read
+                res.reply = vcp_read(bus, st.payload[0], st.count,
+                                     slave7=st.slave7, preload=st.payload[1:],
+                                     verbose=verbose)
             elif st.op == "packet":
                 from .isp import isp_write_packet
                 isp_write_packet(bus, 0x9C, st.payload,

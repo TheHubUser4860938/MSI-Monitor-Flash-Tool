@@ -179,7 +179,7 @@ class TestBackgroundPipeline(unittest.TestCase):
         import msi_isp.pipeline as pl
         self.assertEqual([s.name for s in pl.PIPELINE_BACKGROUND],
                          ["enter background mode", "verify project id",
-                          "background start", "set packet length",
+                          "background start", "packet length",
                           "write data", "background finish", "background exit"])
 
     def test_the_enter_step_writes_the_w1_command(self):
@@ -188,11 +188,10 @@ class TestBackgroundPipeline(unittest.TestCase):
         self.assertEqual(st.payload[:3], b'qw1')   # VCP 0x71, then 'w1'
         self.assertIn("0x6E", st.why)
 
-    def test_the_undecoded_steps_are_marked_not_guessed(self):
+    def test_every_step_carries_a_decoded_wire_form(self):
+        """16ab shipped four pending payloads; 16ac decoded all four."""
         import msi_isp.pipeline as pl
-        pending = [s.name for s in pl.PIPELINE_BACKGROUND if s.pending]
-        self.assertEqual(pending, ["verify project id", "set packet length",
-                                   "background finish", "background exit"])
+        self.assertEqual([s.name for s in pl.PIPELINE_BACKGROUND if s.pending], [])
 
     def test_the_fact_names_the_polling_helper(self):
         self.assertIn("FUN_1002aa00", Facts.BACKGROUND_PROTOCOL_16AB["poll"])

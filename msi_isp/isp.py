@@ -572,6 +572,41 @@ def isp_write_packet(bus, reg: int, payload: bytes, slave7: int = 0x37,
         time.sleep(settle_ms / 1000.0)
 
 
+def vcp_read(bus, vcp: int, count: int = 1, slave7: int = 0x37,
+             opcode: int = 0x51, preload: bytes = b"",
+             verbose: bool = False) -> bytes:
+    """GetVCP `vcp` on `slave7`: write [opcode, vcp, preload], read `count`.
+
+    16ac: this is the shape the plugin's wrapper slot +0x54 carries - the
+    loader names the export `GetNativePageLength`, and the plugin calls the slot
+    as a VCP read with (slave8, vcp, count, &out). The background protocol
+    (device type 0x1a, 16ab) puts a SUB-OPCODE in the preload byte: VCP 0x31
+    answers 1 start, 2 finish, 4 exit, 5 project-id address, 7 packet length.
+    """
+    payload = bytes([opcode & 0xFF, vcp & 0xFF]) + bytes(preload)
+    if verbose:
+        print(f"  TX  {slave7:#04x} <- {payload.hex(' ')}")
+    bus.write(slave7, payload, warmup=False)
+    d = bus.read(slave7, count, warmup=False)
+    if verbose:
+        print(f"  RX  {d.hex(' ') if d else '(no reply)'}")
+    return d
+
+
+def vcp_write(bus, vcp: int, data: bytes, slave7: int = 0x37,
+              opcode: int = 0x52, verbose: bool = False) -> None:
+    """SetVCP `vcp` = `data` on `slave7` - the wrapper's +0x58 / I2CWrite.
+
+    The word-shaped twin is +0x74 (`I2CWordRead` by the loader's name), which
+    the finish and exit commands use with a fifth argument of 0; on the wire
+    both land as [opcode, vcp, data...].
+    """
+    payload = bytes([opcode & 0xFF, vcp & 0xFF]) + bytes(data)
+    if verbose:
+        print(f"  TX  {slave7:#04x} <- {payload.hex(' ')}")
+    bus.write(slave7, payload, warmup=False)
+
+
 def packet_bytes(control: int, arg1: int, arg2: int,
                  data: bytes = b"") -> bytes:
     """The PWM2SPI packet: [control, arg1, arg2, SUM] + data (16o).
