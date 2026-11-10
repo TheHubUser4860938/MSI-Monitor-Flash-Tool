@@ -42,8 +42,15 @@ use std::cell::Cell;
 
 use crate::bus::Bus;
 
-/// AUX burst size: `uStack_148 = 0x10` in every descriptor, and the chunk loops step by 0x10.
+/// AUX burst size the **plugin** uses: `uStack_148 = 0x10` in every descriptor, and the plugin's
+/// chunk loops step by 0x10. This is what msifw bursts by.
 pub const AUX_PAGE: usize = 16;
+
+/// The transport's ceiling: `GetI2CPageLength` reads `[Comm_AUX] AUX_I2CPageLen`, default
+/// **0x20 = 32**, and `I2CWriteEx` answers `0x807` above it (`Comm_Aux!0x1003a3e0`). The plugin
+/// never asks for more than 16, so the two are not in conflict — the ceiling is the looser bound,
+/// and a card can raise the transport to 32 for a wider burst.
+pub const AUX_PAGE_MAX: usize = 32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommError {
@@ -56,6 +63,8 @@ pub enum CommError {
     /// 0x807 / 0x808
     OverLength(usize),
     Io(std::io::ErrorKind),
+    /// The `EnterIspMode` loop ran out of tries — the plugin's own code 10.
+    EnterIsp,
 }
 
 impl std::fmt::Display for CommError {
@@ -66,6 +75,7 @@ impl std::fmt::Display for CommError {
             CommError::WriteFailed => write!(f, "0x803 write failed"),
             CommError::OverLength(n) => write!(f, "0x807 length {n} over the page maximum"),
             CommError::Io(k) => write!(f, "i2c io error: {k:?}"),
+            CommError::EnterIsp => write!(f, "10 enter ISP mode: no ack"),
         }
     }
 }
@@ -100,6 +110,9 @@ pub trait IComm: std::fmt::Debug {
     fn set_continuous_isp_slave(&self, slave: u8) -> Result<()>;
     fn set_speed(&self, khz: u16) -> Result<()>;
     fn reset_firmware(&self) -> Result<()>;
+    /// Slot 0x124 `EnterIspMode(retries)` — `WriteMcuReg(0x6f, 0x81)`, then read `0x6f` back and
+    /// accept when bit 7 is set, one millisecond apart. Ten tries; running out is code 10.
+    fn enter_isp_mode(&self, retries: u32) -> Result<()>;
     fn scaler_run(&self) -> Result<()>;
     fn scaler_stop(&self) -> Result<()>;
     fn smbus_vd_cmd_enable(&self) -> Result<()>;
@@ -260,6 +273,18 @@ impl IComm for AuxComm<'_> {
         self.bus
             .write(self.slave.get(), &[0xF7, 0x01])
             .map_err(|e| CommError::Io(e.kind()))
+    }
+
+    fn enter_isp_mode(&self, retries: u32) -> Result<()> {
+        for _ in 0..retries.max(1) {
+            self.write_reg(0x6f, 0x81)?;
+            let v = self.read_reg(0x6f)?;
+            if v & 0x80 != 0 {
+                return Ok(());
+            }
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        Err(CommError::EnterIsp)
     }
 
     fn scaler_run(&self) -> Result<()> {

@@ -74,6 +74,32 @@ i2c-1   NVIDIA i2c adapter 1 at 1:00.0 connected
 i2c-5   NVIDIA i2c adapter 6 at 1:00.0 -
 ```
 
+The first live session, 2026-11-10, on the X28 through `i2c-1` with
+`cards/MAG-341CQP-X28.ini`:
+
+```
+$ msifw status
+slave       0x49        isp mode    false     boot code   0x00
+mcu type    0x00        4-byte addr false     mcm flash   false     start bank  0
+
+$ msifw part
+part      Default       id  00,00,00,00,00,00,00,00,      capacity 1048576 (16 banks)
+```
+
+Three things that only hardware says:
+
+* The panel answers at **7-bit `0x49`** (8-bit `0x92`). `i2cdetect` sees exactly one endpoint, and
+  `0x37`, `0x6E`, `0x25` all NACK — so **the scaler exposes one address that serves both the ISP
+  register file and the DDC/CI VCP reads**. The plugin's constants (`0x6A`, `0x6E`, and
+  `ucSpecifiedSlave = 0x94`) are its own 8-bit conventions for a different link.
+* The poll's polarity: bit 0 of the command register is the **busy** flag and the plugin stops when
+  it goes **clear**. The port had it inverted, which the fake could not see.
+* `EnterIspMode` (`0x6F←0x81`, read back bit 7) does not ack here, and the register file reads
+  `0x00` across `0x60..0x7B`, so the RDID comes back `00,00,00` and the string-key lookup lands on
+  the row named `Default`. **Open:** whether the panel needs the vendor-defined DDC/CI command
+  enabled first, a page selected, or a cable-power state change. The `Default` row carries no read
+  command, which is why `dump` is currently blocked behind that.
+
 `inspect` on both shipped images, measured:
 
 ```

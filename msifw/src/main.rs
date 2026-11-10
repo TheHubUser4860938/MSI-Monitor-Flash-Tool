@@ -215,6 +215,8 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
             isp.slave = cli.slave;
             match &cli.cmd {
                 Cmd::Part => {
+                    isp.handshake()?;
+                    isp.detect_slave()?;
                     let p = isp.select_part(&table)?;
                     println!("part      {}", p.name);
                     println!("id        {}", p.key());
@@ -304,6 +306,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                     isp.handshake()?;
                     isp.detect_slave()?;
                     println!("slave       {:#04x}", isp.slave());
+                    println!("isp mode    {}", isp.isp_mode_acked());
                     println!("boot code   {:#04x}", isp.boot_code()?);
                     println!("mcu type    {:#04x}", isp.mcu_type()?);
                     println!("4-byte addr {}", isp.read_address_mode()?);

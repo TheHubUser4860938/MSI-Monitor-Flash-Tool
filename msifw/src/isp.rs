@@ -94,6 +94,8 @@ pub struct Isp<'a> {
     pub part: Option<FlashPart>,
     /// The scaler's address-width mode, read from `REG_HW_CONFIG` bit 3 (`FUN_1001db90`).
     pub four_byte_address: bool,
+    /// Set by the handshake: did `EnterIspMode` see the bridge acknowledge bit 7 of `0x6F`.
+    pub isp_mode_acked: bool,
 }
 
 impl<'a> Isp<'a> {
@@ -102,6 +104,7 @@ impl<'a> Isp<'a> {
             comm,
             cfg,
             slave: None,
+            isp_mode_acked: false,
             part: None,
             four_byte_address: false,
         }
@@ -149,6 +152,11 @@ impl<'a> Isp<'a> {
             self.comm.set_isp_slave(s)?;
         }
         self.comm.set_speed(self.cfg.isp_speed as u16)?;
+        // Step 4's actual entry: arm the bridge, and accept only when 0x6F answers with bit 7.
+        // A panel that is already in ISP mode answers without needing the arm, and this box's
+        // bridge reads 0 across the register file, so a miss is a note, not a stop: the boot-code
+        // poll below is the authoritative "is the scaler answering" test.
+        self.isp_mode_acked = self.comm.enter_isp_mode(10).is_ok();
         self.comm.scaler_run()?;
         let mut code = 0u8;
         for _ in 0..self.cfg.polling_count.max(1) {
@@ -204,6 +212,12 @@ impl<'a> Isp<'a> {
     }
 
     /// Step 5, `FUN_10016b00`: the boot code, read through the page window (page 1, offset 0xF4).
+    /// Whether `EnterIspMode` saw the bridge acknowledge bit 7 of `0x6F`. False on a panel that is
+    /// already in ISP mode, and on this box's bridge, which reads 0 across the register file.
+    pub fn isp_mode_acked(&self) -> bool {
+        self.isp_mode_acked
+    }
+
     pub fn boot_code(&mut self) -> Result<u8> {
         self.comm.write_byte(self.slave(), REG_PAGE, PAGE_BOOT)?;
         self.comm.read_byte(self.slave(), 0xF4)
@@ -725,6 +739,10 @@ mod tests {
             self.log(format!("CSLAVE {s:02x}"));
             Ok(())
         }
+        fn enter_isp_mode(&self, _retries: u32) -> Result<()> {
+            self.log(String::from("ISP"));
+            Ok(())
+        }
         fn set_speed(&self, khz: u16) -> Result<()> {
             *self.speed.borrow_mut() = khz;
             Ok(())
@@ -839,8 +857,8 @@ mod tests {
         let log = fake.taken();
         // Step 4's order: SetIspSlave(ucSpecifiedSlave) before the boot-code loop.
         assert_eq!(
-            &log[..5],
-            &["VD", "UNINIT", "INIT", "SLAVE 4a", "RUN"],
+            &log[..6],
+            &["VD", "UNINIT", "INIT", "SLAVE 4a", "ISP", "RUN"],
             "the plugin's open order"
         );
         assert!(
@@ -1071,7 +1089,7 @@ mod tests {
         let mut isp = Isp::new(&mut fake, &cfg);
         isp.flash_image(&t, &image, false).unwrap();
         let log = fake.taken();
-        assert_eq!(&log[..5], &["VD", "UNINIT", "INIT", "SLAVE 4a", "RUN"]);
+        assert_eq!(&log[..6], &["VD", "UNINIT", "INIT", "SLAVE 4a", "ISP", "RUN"]);
         assert_eq!(
             fake.count("REG 61=20"),
             2 * SECTORS_PER_BANK as usize,
@@ -1102,6 +1120,9 @@ mod tests {
             }
             fn ddcci_write(&self, _: u8, _: u8, _: &[u8]) -> Result<()> {
                 Err(CommError::Io(ErrorKind::TimedOut))
+            }
+            fn enter_isp_mode(&self, _: u32) -> Result<()> {
+                Ok(())
             }
             fn ddcci_read(&self, _: u8, _: u8, _: usize) -> Result<Vec<u8>> {
                 Err(CommError::Io(ErrorKind::TimedOut))

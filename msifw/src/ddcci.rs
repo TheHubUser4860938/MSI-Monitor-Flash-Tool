@@ -388,6 +388,9 @@ mod tests {
         fn set_speed(&self, _k: u16) -> Result<()> {
             Ok(())
         }
+        fn enter_isp_mode(&self, _retries: u32) -> Result<()> {
+            Ok(())
+        }
         fn reset_firmware(&self) -> Result<()> {
             Ok(())
         }
