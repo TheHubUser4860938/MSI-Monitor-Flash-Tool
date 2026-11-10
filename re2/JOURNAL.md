@@ -275,6 +275,72 @@ Crate `msifw/`, no runtime deps beyond `libc` + `clap`:
 `Settings::default()` (all zero) and `Settings::plugin_defaults()` (the read-site literals) are
 kept distinct on purpose: no INI at all gives zeros, a present section gives the defaults.
 
+## Step 12 — the INI is 19 sections, and the loader's literals are the defaults (DONE)
+
+`FUN_1002f230` (the 14 KB settings loader) reads **186 sites across 19 sections** through exactly
+two wrappers — `FUN_10041810` (string, 92 sites) and `FUN_100417a0` (int, 94 sites) — both thin
+layers over MFC `GetPrivateProfileStringW`. Ghidra elides their arguments, so this was rebuilt from
+`objdump -d` over `.text` with the UTF-16 literals read out of `.rdata`.
+
+Two consequences the port had wrong:
+
+* **Sections.** `[ISP_Basic]` carries 30 keys, `[ISP_User_Defined]` 30, `[ISP_CHECK_SETTING]` 14,
+  `[ISP_DualBank]` 13. A flat `[Settings]` read finds almost nothing.
+* **Base 0.** The int wrapper converts with `_wcstoi64(buf, 0, 0)`, so `0x…` is hex and a bare
+  number is decimal — which my parser already did.
+
+The default literals (each one is the `push`ed default at a read site, not a guess):
+`ucSpecifiedSlave 0x94` (the **8-bit** form of 0x4A — the wire takes the byte), `ulIspSpeed 200`,
+`ulDumpFlashLen 10`, `strDumpFileName dumpflash.bin`, `ulPollingCount 4500`, `ulCmdRetryCount 50`,
+`usPacketLen 32`, `ulSwitchToRomCodeDelay 800`, `ulTimeBeforeAcOn 2500`, `ulTimeWaitCopyBank 8000`,
+`ulReISPDelayTime 1000`, `ulRetryISPCount 10` / `…SectorISPCount 20` with sleeps 200 / 10,
+`enumActionType 4`, `enumEraseType 1`, `enumIspMode 1`, `ulMergeFwInfoLength 4`,
+`strWriteMergeFwInfo "1.2.3.4"`, `ProjectIDCountSetting 12`, `ICVersion 2`, `DelayTime 3`,
+`[ISP_BootFlag] ulAddr 0x4f8fe`, `ucszFlag[HEAD4] 0xaa55ffff`, `ucszFlag[TAIL4] 0xffffffff`,
+and the `bGet*CheckCHK` quartet **on**. `bNotSetSlave`, `bRetryISP`, `bSwitchFLag`,
+`bEnableISPChannel`, `bQisdaFactory`, `bHWISPSpeedUp` are all **off** by default.
+
+`IspSetting.ini` is **not** an export of the plugin: `SetSettingFilePath` is Comm.dll ordinal 136,
+and the plugin's built-in path is `<dir of WinOperateCScaler.dll>\IspSetting.ini`; the GUI uses
+`%TEMP%\ISPToolForMsi\IspSetting.ini`. A missing INI needs no special case — every read carries its
+own default, so the table above *is* the built-in configuration.
+
+## Step 13 — the Comm vtable is proven, not inferred (DONE)
+
+`DAT_10249d10` is a `CRsComm` object built by `FUN_10003640` (vftable `0x1020d6d4`), and **every
+slot is a thunk that tail-calls a function pointer `FUN_100057c0` filled with `GetProcAddress`** —
+155 of them. That closes the slot↔name edge that the earlier passes could only infer:
+
+`0x14 GetCommID · 0x30 SetIspSlave · 0x3c GetIspSlave · 0x44 SetDebugMode · 0x54 I2CWrite ·
+0x58 I2CRead · 0x5c I2CWriteByte · 0x60 I2CCurrentRead · 0x74 I2CWriteEx · 0x78 I2CReadEx ·
+0x94 SetI2CSpeed · 0xa0 SetWaitingMode · 0xa8 ReadReg · 0xac WriteReg · 0xb0 ReadRegs ·
+0xb4 WriteRegs · 0xb8 WriteRegBit · 0xc0 ReadRegEx · 0xc4 WriteRegEx · 0xd0 WriteRegBitEx ·
+0xf0 WriteMcuReg · 0xf4 WriteMcuRegBit · 0xf8 ReadMcuReg · 0x10c ReleaseDev · 0x110 NativeWrite ·
+0x114 NativeRead · 0x124 EnterIspMode · 0x12c SetSMBUSDataType · 0x13c DDCCIWrite ·
+0x140 DDCCIRead · 0x194 ReadFlashData · 0x21c SendUsbPacket · 0x220 ReceiveUsbPacket ·
+0x234 NeedSetMcuDefault`
+
+The prepare sequence, step by step with its wire traffic, is in `re2/findings-isp-steps.md`; the
+load-bearing additions to my model are: the **scaler type** is `ReadRegEx(0x00)` + `ReadRegEx(0x0F)`
+mapped through a table (out of range → 0xd0d); **MCM vs external** is one bit of a per-scaler
+register (`0x104b` bit 7 for scalers 0x36/0x42 → mode 1 MCM / 2 external); **4-byte address mode**
+is bit 5 (0x20) of MCU `0x77` (scaler window: `0x85a` bit 5), while the 3/4-byte *select* is bit 3;
+the **flash ID is 8 bytes** (logged `"0x%x,"` ×8), RDID via `0x60←0x46, 0x61←0x9F, 0x60←0x47`, poll
+bit 0, read `0x67/0x68/0x69`; `EnterIspMode(1)` is `WriteMcuReg(0x6f,0x81)` then read-back bit 7,
+10 tries, code 10 on exhaustion; the **SafeGuard byte-code** verbs are 0 Sleep · 1 ScalerRun ·
+2 ScalerStop · 3 WriteReg · 4 WriteRegBit · 5 ReadReg · 6 WriteMcuReg · 7 ReadMcuReg ·
+8 I2CWriteByte · 9 I2CRead · 0xc I2CCurrentRead · 0xd poll-MCU-bit · 0xe WritePortRegBit ·
+0xf WriteMcuRegBit · 0x10 WriteRegEx · 0x11 WriteRegBitEx · 0x12 ReadRegEx · 0x13
+WritePortRegBitEx · 0x14/0x15 Write/ReadRegsEx · 0x16/0x17 Write/ReadRegs · 0x18/0x19
+Write/ReadMcuRegs · 0x1a Write32BitRegEx; return 2 = malformed stream. My `A25L020` decode
+(`6,0x60,0x20` = WriteMcuReg(0x60, sector-erase)) is consistent with verb 6 being WriteMcuReg.
+
+The **boot flag** is a 1232-byte record starting with the signature `0xaa55`; bank 0's record is
+`{2, 0x7000}` and the XROM record `{2, 0x17000}`, and the flag is compared against the image at
+`bank + 0x7000`. Codes: 0xd08 bank range, 0xd0c SMBus, 0xd0d unknown scaler, 0xd18 special W25Q,
+0xd23 0xFD2C bit 0, 0xd28 boot-code switch, 0xd36 flash lookup, 0xd52 bad .bin size, 0xd5c all-FF
+bank, 0xda/0xdac/0xdad key length.
+
 ## Ledger
 
 | # | claim | kind | evidence |
@@ -303,17 +369,27 @@ kept distinct on purpose: no INI at all gives zeros, a present section gives the
 | 22 | Address width from `REG_HW_CONFIG` bit 3; trigger `0xA0/0xA1` vs `0xB8/0xB9` | observed | `FUN_1001db90` |
 | 23 | The .bin's first 40 bytes are identical across the two builds; the payload starts at 40 | observed | `od`, first diff at 0x28 |
 | 24 | The .bin has no per-image header fields; version and CHK come from the filename | observed | +8 = 0x6b28 and +12 = 0xb84e610f in **both** images |
+| 25 | The ISP "CRC" is the **bitwise OR** of the range, not a polynomial | observed (raw disasm) | `FUN_1001c910` 0x1001c967..0x1001cae8, eight bit-planes |
+| 26 | The .bin is read one 0x10000 bank at a time, file offset = bank<<16, no transformation | observed | `FUN_10007b80` seekg/read loop |
+| 27 | Key at `lastBank+0xFFEC` (BE u32 len, max 0x4C4); signature record `'ZSTR'`, keyLen +0x0C, sigLen +0x10, key +0x14 | observed | `FUN_10022150`, `FUN_10020110` |
+| 28 | INI: 186 read sites, 19 sections, base-0 ints, defaults are the pushed literals | observed | `FUN_1002f230` via `objdump`, `.rdata` literals |
+| 29 | Comm vtable slot ↔ export name is **proven** (thunk → `this+F` → `GetProcAddress`) | observed | vftable `0x1020d6d4`, `FUN_100057c0` (155 sites) |
+| 30 | Scaler type = `ReadRegEx(0x00)` + `(0x0F)` through a table; MCM/external = one bit | observed | `FUN_10016b00`, `FUN_10016c20`, `FUN_1001aa50` |
+| 31 | 4-byte mode = bit 5 of MCU `0x77` (scaler window `0x85a`); the flash ID is 8 bytes | observed | `FUN_100203d0`, `FUN_1001d560` logs `"0x%x,"`×8 |
+| 32 | Boot flag = 1232-byte record, signature `0xaa55`, bank-0 `{2,0x7000}`, XROM `{2,0x17000}`, compared at `bank+0x7000` | observed | `FUN_1001eaf0` |
 
 ### Open questions carried into the next pass
 
 1. The 40-byte .bin prologue's field meanings (three decompiler reads proposed version@4,
    CHK u16@8, payload_len u32@12; the bytes at those offsets are identical in both images, so
    they cannot be the per-image values — the values themselves are not in dispute).
-2. `FUN_1001c910`'s CRC function — the SSE body did not survive decompilation, so the tool's
-   `--verify` uses CRC-8 and is opt-in until confirmed on hardware.
-3. The poll register per call site: the plugin passes mask and timeout, the register index rides
+2. The poll register per call site: the plugin passes mask and timeout, the register index rides
    in a context Ghidra did not materialise. `REG_TRANSFER = 0x76` is **inferred**.
-4. `part_class` (1..4) and `v48` semantics; `mode == 2` appears in every shipped row.
-5. The comm-mode selector behind `DAT_1021ae1c` (1 = AUX, 2, 3) — which INI/CLI setting picks it.
-6. Live behaviour on a real panel: every protocol constant here is decompiled, not yet clocked.
+3. `part_class` (1..4) and `v48` semantics; `mode == 2` appears in every shipped row.
+4. The comm-mode selector behind `DAT_1021ae1c` (1 = AUX, 2, 3) — which INI/CLI setting picks it.
+5. `FUN_1001f0e0` decodes a **bank count** from file offset `0x7004` as `(b0>>6) + dword*4`; both
+   samples say 399, which is neither image's bank count (30 / 28). Which file class is that?
+6. The 16-bit filename sum: no code in the plugin, `Comm.dll` or the exe computes it. It is a
+   packaging convention — measured exact on both images, checked by the CLI, unexplained by code.
+7. Live behaviour on a real panel: every protocol constant here is decompiled, not yet clocked.
 
