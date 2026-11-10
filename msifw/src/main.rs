@@ -73,6 +73,10 @@ enum Cmd {
         /// Bank to read. On an MCM panel the flash is addressed (bank, offset), not flat.
         #[arg(short, long, value_parser = parse_u16)]
         bank: Option<u16>,
+        /// Read through the MCM window (scaler registers 0x841..0x84c, FIFO 0xf4/0xf5) instead of
+        /// the generic one (0x60/0x61/0x64-0x66, FIFO 0x70).
+        #[arg(long)]
+        mcm: bool,
         /// Bytes to read; defaults to the card's `ulDumpFlashLen`. Base 0.
         #[arg(long, value_parser = parse_u32)]
         len: Option<u32>,
@@ -358,11 +362,15 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                     len,
                     addr,
                     bank,
+                    mcm: mcm_flag,
                 } => {
                     isp.handshake()?;
                     isp.detect_slave()?;
                     isp.select_part(&table)?;
-                    let mcm = isp.check_flash_mode()?;
+                    // The generic window is the one proven on the panel: it reads FW.009 back
+                    // byte-for-byte. The MCM verdict from `check_flash_mode` comes from a scaler
+                    // register whose reads echo the index, so it is a hint, not a decision.
+                    let mcm = *mcm_flag;
                     let addr = addr.unwrap_or(settings.dump_flash_addr);
                     let len = len.unwrap_or(settings.dump_flash_len);
                     let mut image = vec![0xFFu8; len as usize];

@@ -485,11 +485,22 @@ impl App {
     }
 }
 
-/// The images the tool can write: `*.bin` in the current directory and in `vendor/`, newest first
-/// is not attempted — the vendor's own names sort by version.
-fn discover_images() -> Vec<PathBuf> {
+/// The images the tool can write: `MSI_*.bin` beside the tool, in `vendor/`, and in the vendor
+/// directory of the repo this was built from. Sorted, because the vendor's own file names carry
+/// the version and so sort by version.
+pub fn discover_images() -> Vec<PathBuf> {
     let mut out = Vec::new();
-    for dir in [PathBuf::from("."), PathBuf::from("vendor")] {
+    let mut dirs = vec![
+        PathBuf::from("."),
+        PathBuf::from("vendor"),
+        PathBuf::from("../vendor"),
+    ];
+    dirs.push(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../vendor")
+            .normalize(),
+    );
+    for dir in dirs {
         if let Ok(rd) = std::fs::read_dir(dir) {
             for e in rd.flatten() {
                 let p = e.path();
@@ -503,8 +514,30 @@ fn discover_images() -> Vec<PathBuf> {
             }
         }
     }
+    // The same file can be reachable by two paths; the name is the identity the user reads.
     out.sort();
+    out.dedup_by(|a, b| a.file_name() == b.file_name());
     out
+}
+
+/// `a/b/../c` -> `a/c`, without touching the filesystem.
+trait Normalize {
+    fn normalize(self) -> PathBuf;
+}
+impl Normalize for PathBuf {
+    fn normalize(self) -> PathBuf {
+        let mut parts: Vec<std::ffi::OsString> = Vec::new();
+        for c in self.components() {
+            match c {
+                std::path::Component::CurDir => {}
+                std::path::Component::ParentDir => {
+                    parts.pop();
+                }
+                other => parts.push(other.as_os_str().to_os_string()),
+            }
+        }
+        parts.iter().collect()
+    }
 }
 
 pub fn draw(f: &mut Frame, app: &App) {

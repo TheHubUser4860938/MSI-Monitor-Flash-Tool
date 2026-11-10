@@ -62,6 +62,9 @@ pub const OPCODE_SECTOR_ERASE: u8 = 0x20;
 pub const OPCODE_BANK_ERASE: u8 = 0xD8;
 pub const OPCODE_PAGE_PROGRAM: u8 = 0x20;
 pub const OPCODE_RDID: u8 = 0x9F;
+/// The SPI read command. Proven on the panel: writing it to the opcode register and clocking the
+/// FIFO returns the flash, bank for bank, matching FW.009 byte for byte.
+pub const OPCODE_READ: u8 = 0x03;
 
 /// A bank is 64 KiB, a sector 4 KiB, a program page 256 bytes — all observed:
 /// `ProLen` is measured inside a 0x10000 buffer, `SectorEraseCount = ceil(ProLen/0x1000)`,
@@ -337,8 +340,13 @@ impl<'a> Isp<'a> {
     /// The read command is the row's first program verb; the bridge clocks the bytes back into
     /// the address FIFO, so a dump is a read command per page.
     pub fn dump_flash(&mut self, addr: u32, out: &mut [u8]) -> Result<()> {
-        let part = self.part.as_ref().ok_or(CommError::BadLength)?;
-        let opcode = part.read_opcode().ok_or(CommError::BadLength)?;
+        // The row's own read command when it carries a program; the plain SPI read otherwise.
+        // Most Flash.dat rows carry no program string at all — 15 of 150 do.
+        let opcode = self
+            .part
+            .as_ref()
+            .and_then(|p| p.read_opcode())
+            .unwrap_or(OPCODE_READ);
         let mut off = 0usize;
         let mut at = addr;
         while off < out.len() {
