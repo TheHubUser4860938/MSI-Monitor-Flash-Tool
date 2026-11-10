@@ -99,6 +99,8 @@ enum Cmd {
     },
     /// Reset the MCU (`ResetMCUExport`).
     Reset,
+    /// Release the scaler so the panel's video and DisplayPort link come back (`FUN_10001d40`).
+    Wake,
     /// Erase one bank, write a known pattern, read it back — the first real write.
     Test {
         /// Bank to exercise. The top banks are unused by the shipped images.
@@ -256,6 +258,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
         | Cmd::Dump { .. }
         | Cmd::Erase { .. }
         | Cmd::Flash { .. }
+        | Cmd::Wake
         | Cmd::Test { .. }
         | Cmd::Reset => {
             let settings = Settings::load(&cli.setting)?;
@@ -492,6 +495,10 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                     } else {
                         println!("read back {good}/{n} bytes — MISMATCH");
                     }
+                }
+                Cmd::Wake => {
+                    isp.scaler_reset()?;
+                    println!("scaler released — the panel should show video again");
                 }
                 Cmd::Reset => {
                     isp.handshake()?;

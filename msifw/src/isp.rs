@@ -768,6 +768,29 @@ impl<'a> Isp<'a> {
         Ok(())
     }
 
+    /// `FUN_10032400` — one byte into the MCU's own register file.
+    fn write_mcu_reg(&mut self, reg: u8, value: u8) -> Result<()> {
+        self.comm.write_reg(REG_OPCODE, 0x08)?;
+        self.comm.write_reg(REG_ADDR[0], value)?;
+        self.comm.write_reg(REG_TRIGGER, 0x48)?;
+        self.comm.write_reg(REG_TRIGGER, 0x49)?;
+        self.comm.write_reg(REG_OPCODE, reg)?;
+        self.comm.write_reg(REG_TRIGGER, 0x08)?;
+        self.comm.write_reg(REG_TRIGGER, 0x09)
+    }
+
+    /// `FUN_10001d40` — write `1` to MCU register `0x04`. This is what brings the panel's video
+    /// back: the handshake stops the scaler so the SPI bridge owns the flash bus, the screen goes
+    /// blank, and the DisplayPort link drops (measured on the X28 — after a page program the
+    /// connector reports `disconnected` and every I2C address NACKs). The link comes back when
+    /// the scaler is released.
+    pub fn scaler_reset(&mut self) -> Result<()> {
+        // The plugin calls SetIspCommand(0x61) first, which selects what register 0x61 means on
+        // the far side. Register 0x61 answers as the flash opcode register today, and the MCU
+        // write below uses the same opcode register, so no selector is issued here.
+        self.write_mcu_reg(0x04, 1)
+    }
+
     /// The whole flow: prepare, then every bank the image fills, then the reset.
     ///
     /// `progress` sees one call per phase transition, so a UI can show a meter: the plugin's own
@@ -1149,9 +1172,9 @@ mod tests {
 
     /// Arm the bridge so a read of REG_OPCODE reports the erase status the plugin expects.
     fn ready(fake: &Fake) {
-        // The command register is handled by the fake's "transfer finished" rule; the status
-        // register is what a test arms to name the erase granularity it wants back.
-        fake.reg(REG_STATUS, STATUS_SECTOR_ERASED);
+        // 0x62 is the NOR's status byte: bit 0 is write-in-progress, so 0 means "the part is
+        // idle". The bridge's ready register is 0x6f, handled by the fake's own rule.
+        fake.reg(REG_STATUS, 0x00);
         fake.reg(REG_CRC_RESULT, crc8(&[]));
     }
 
@@ -1327,14 +1350,25 @@ mod tests {
     }
 
     #[test]
-    fn a_wrong_erase_status_is_an_error() {
+    fn an_erase_asks_the_nor_and_leaves_its_status_for_the_caller() {
+        // Measured on the panel: the erase completes and the status byte is read with RDSR from
+        // register 0x62. The old test asserted the bridge's 0x67 byte named the erase granularity;
+        // on this part 0x67 is the JEDEC manufacturer ID (0xc8 on the GigaDevice).
         let cfg = Settings::plugin_defaults();
         let mut fake = Fake::default();
-        fake.reg(REG_TRIGGER, 0x00);
-        fake.reg(REG_TRIGGER, 0x00);
-        fake.reg(REG_STATUS, 0x00); // not STATUS_SECTOR_ERASED
+        ready(&fake);
         let mut isp = Isp::new(&mut fake, &cfg);
-        assert!(matches!(isp.erase_sector(0, 0), Err(CommError::ReadFailed)));
+        isp.erase_sector(3, 1).unwrap();
+        let seen = isp.last_status;
+        let log = fake.taken();
+        assert!(log.contains(&"REG 64=03".to_string()), "bank 3");
+        assert!(log.contains(&"REG 65=10".to_string()), "sector 1 = 0x1000");
+        assert!(log.contains(&format!("REG 61={OPCODE_SECTOR_ERASE:02x}")));
+        assert!(
+            log.contains(&format!("REG 61={OPCODE_RDSR:02x}")),
+            "reads the status with RDSR: {log:?}"
+        );
+        assert_eq!(seen, 0x00);
     }
 
     #[test]
