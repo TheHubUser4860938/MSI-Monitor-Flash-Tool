@@ -95,6 +95,11 @@ enum Cmd {
     },
     /// Reset the MCU (`ResetMCUExport`).
     Reset,
+    /// The text UI: panel, image, compatibility, progress meter.
+    Gui {
+        /// The `.bin` to offer, ahead of the ones found in `./` and `vendor/`.
+        bin: Option<PathBuf>,
+    },
 }
 
 /// The card's own number grammar (`_wcstoi64(buf, 0, 0)`): `0x…` is hex, a bare run is decimal.
@@ -172,6 +177,10 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
             for (n, c, ok) in bus::present_buses() {
                 println!("i2c-{n:<3} {c:12} {}", if ok { "connected" } else { "-" });
             }
+            Ok(())
+        }
+        Cmd::Gui { bin } => {
+            msifw::tui::run(cli.bus, bin.clone())?;
             Ok(())
         }
         Cmd::Inspect { bin } => {
@@ -493,14 +502,8 @@ fn flash_dat_path(cli: &Cli) -> Result<PathBuf, Box<dyn std::error::Error>> {
     if let Some(p) = &cli.flash_dat {
         return Ok(p.clone());
     }
-    for cand in [
-        PathBuf::from("PlugIn/Flash.dat"),
-        PathBuf::from("vendor/PlugIn/Flash.dat"),
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../vendor/PlugIn/Flash.dat"),
-    ] {
-        if cand.exists() {
-            return Ok(cand);
-        }
+    if let Some(cand) = FlashDat::locate() {
+        return Ok(cand);
     }
     Err("Flash.dat not found; pass --flash-dat".into())
 }

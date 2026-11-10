@@ -148,6 +148,19 @@ impl FlashPart {
     }
 }
 
+impl FlashDat {
+    /// Find the shipped table: beside the tool, in `vendor/`, or in the repo this was built from.
+    pub fn locate() -> Option<std::path::PathBuf> {
+        [
+            std::path::PathBuf::from("PlugIn/Flash.dat"),
+            std::path::PathBuf::from("vendor/PlugIn/Flash.dat"),
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../vendor/PlugIn/Flash.dat"),
+        ]
+        .into_iter()
+        .find(|cand| cand.exists())
+    }
+}
+
 /// Parse the comma-separated hex program into bytes. Trailing commas are tolerated: every
 /// shipped list ends with one.
 pub fn parse_opcodes(s: &str) -> Option<Vec<u8>> {

@@ -53,6 +53,7 @@ pub fn chk(bytes: &[u8]) -> u16 {
 }
 
 /// A firmware image as the tool sees it.
+#[derive(Clone)]
 pub struct Image {
     pub path: PathBuf,
     pub bytes: Vec<u8>,
@@ -96,6 +97,11 @@ impl Image {
 
     pub fn size(&self) -> usize {
         self.bytes.len()
+    }
+
+    /// The identity block MSI baked into the image, if it is there.
+    pub fn tags(&self) -> Tags {
+        Tags::scan(&self.bytes)
     }
 
     /// Banks in the file: the size rounded up to the bank stride.
@@ -176,6 +182,71 @@ impl<'a> Signature<'a> {
         let n = self.key_len() as usize;
         &self.rec[0x14..0x14 + n.min(SIG_RECORD - 0x14)]
     }
+}
+
+/// The identity block MSI writes into the user-data bank of the image.
+///
+/// Measured in both shipped images (re2/JOURNAL.md step 14): the model line
+/// (`MAG 341CQ X28   RTD2711`), the panel line (`Panel : TPO340QH1-CH01 D01`) and the build stamp
+/// (`FW.009 20260323`) sit together in one bank — bank 0x13 in FW.009, 0x11 in FW.012 — so the
+/// image names the monitor it was built for. That is what the compatibility gate reads.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Tags {
+    /// e.g. `MAG 341CQ X28   RTD2711` — the model and scaler.
+    pub model: Option<String>,
+    /// e.g. `TPO340QH1-CH01 D01`, from the `Panel : ` line.
+    pub panel: Option<String>,
+    /// e.g. `FW.012 20260612` — the version and the build date.
+    pub build: Option<String>,
+}
+
+impl Tags {
+    /// Scan the payload for the identity block. Cheap: it stops at the first of each.
+    pub fn scan(payload: &[u8]) -> Tags {
+        let mut t = Tags::default();
+        if let Some(i) = find(payload, b"Panel : ") {
+            t.panel = Some(ascii_run(payload, i + 8));
+        }
+        if let Some(i) = find(payload, b"FW.") {
+            // `FW.<digits> <8-digit date>`; a bare `FW.` is not a build stamp.
+            let rest = &payload[i..];
+            let digits = rest[3..].iter().take_while(|c| c.is_ascii_digit()).count();
+            if digits > 0 && rest.get(3 + digits) == Some(&b' ') {
+                t.build = Some(ascii_run(payload, i));
+            }
+        }
+        // The model line is the printable run that starts the block: the identity record opens
+        // with it, and the panel and build lines follow within the same 128-byte window.
+        if let Some(i) = t
+            .panel
+            .as_ref()
+            .and_then(|_| find(payload, b"Panel : ").map(|p| p.saturating_sub(64)))
+        {
+            for start in i..i + 64 {
+                let run = ascii_run(payload, start);
+                if run.len() >= 8 && !run.contains(':') && run.contains(char::is_whitespace) {
+                    t.model = Some(run);
+                    break;
+                }
+            }
+        }
+        t
+    }
+}
+
+fn find(hay: &[u8], needle: &[u8]) -> Option<usize> {
+    hay.windows(needle.len()).position(|w| w == needle)
+}
+
+/// The printable run starting at `i`, trimmed of trailing padding. Empty if `i` is not printable.
+fn ascii_run(b: &[u8], i: usize) -> String {
+    let end = b[i..]
+        .iter()
+        .take_while(|&&c| c.is_ascii_graphic() || c == b' ')
+        .count();
+    String::from_utf8_lossy(&b[i..i + end])
+        .trim_end()
+        .to_string()
 }
 
 impl fmt::Display for Image {
@@ -362,5 +433,53 @@ mod tests {
         assert_eq!(payload_end(&[]), 0);
         assert_eq!(chk(&[0xFF, 0x01]), 0x0100);
         assert_eq!(chk(&[0xFF; 0x10000]), 0x0000);
+    }
+}
+
+#[cfg(test)]
+mod tag_tests {
+    use super::*;
+
+    #[test]
+    fn both_images_name_the_monitor_they_were_built_for() {
+        for name in [
+            "MSI_MAG_341CQP_QD-OLED_X28_FW.009_DC2F.bin",
+            "MSI_MAG_341CQP_QD-OLED_X28_FW.012_4023.bin",
+        ] {
+            let t = Image::open(
+                Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("../vendor")
+                    .join(name),
+            )
+            .unwrap()
+            .tags();
+            assert_eq!(
+                t.model.as_deref(),
+                Some("MAG 341CQ X28   RTD2711"),
+                "{name}"
+            );
+            assert_eq!(t.panel.as_deref(), Some("TPO340QH1-CH01 D01"), "{name}");
+            assert!(
+                t.build.as_deref().unwrap_or_default().starts_with("FW."),
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_build_stamp_carries_the_version_and_date() {
+        let t = Image::open(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../vendor/MSI_MAG_341CQP_QD-OLED_X28_FW.012_4023.bin"),
+        )
+        .unwrap()
+        .tags();
+        assert_eq!(t.build.as_deref(), Some("FW.012 20260612"));
+    }
+
+    #[test]
+    fn an_image_without_the_block_reports_nothing_rather_than_guessing() {
+        let t = Tags::scan(&[0u8; 512]);
+        assert_eq!(t, Tags::default());
     }
 }

@@ -2,6 +2,8 @@ pub mod binfile;
 pub mod bus;
 pub mod comm;
 pub mod ddcci;
+pub mod edid;
 pub mod flashdat;
 pub mod isp;
 pub mod model;
+pub mod tui;

@@ -180,11 +180,31 @@ pub fn present_buses() -> Vec<(u32, String, bool)> {
             continue;
         }
         let label = adapter_name(n).unwrap_or_else(|| connector_of(n));
-        let connected = label == "?" || status_of(&label) || status_of(&format!("DP-{n}"));
+        // The test that matters is the one the kernel cannot answer for us: on this box the DRM
+        // connector directories carry no i2c child, so the link is identified by asking for the
+        // EDID. The adapter whose 0x50 answers is the one with a display on it.
+        let connected = has_display(n);
         out.push((n, label, connected));
     }
     out.sort_by_key(|(n, _, _)| *n);
     out
+}
+
+/// True when the adapter answers the EDID slave — the display link.
+///
+/// The test is the ACK, not the magic bytes: the first two EDID bytes read `00 ff` on a awake
+/// panel and `01 01` on this one a minute later, so the content moves with the panel's power
+/// state while the address keeps answering. Retried, because an AUX adapter can NACK the first
+/// read after the pointer moves.
+pub fn has_display(number: u32) -> bool {
+    let Ok(bus) = Bus::open(number) else {
+        return false;
+    };
+    (0..3).any(|_| {
+        let mut b = [0u8; 2];
+        bus.write_read(crate::edid::EDID_SLAVE, &[0], &mut b)
+            .is_ok()
+    })
 }
 
 /// The adapter's own name from sysfs, e.g. `NVIDIA i2c adapter 6 at 1:00.0`.
@@ -195,7 +215,8 @@ fn adapter_name(number: u32) -> Option<String> {
     fs::read_to_string(p).ok().map(|s| s.trim().to_string())
 }
 
-fn status_of(label: &str) -> bool {
+/// True when DRM reports the connector named `label` as connected.
+pub fn status_of(label: &str) -> bool {
     for card in fs::read_dir("/sys/class/drm")
         .into_iter()
         .flatten()

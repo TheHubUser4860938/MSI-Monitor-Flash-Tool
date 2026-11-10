@@ -245,6 +245,11 @@ impl Settings {
     /// The card is not one flat namespace: the keys live in 19 sections (`ISP_Basic` alone
     /// carries 30 of them), so a read names its section. Values are base-0 — `0x…` is hex,
     /// a bare number is decimal (`_wcstoi64(buf, 0, 0)`).
+    /// The card MSI's own GUI writes, then the vendor directory beside the shipped tool.
+    pub fn default_card() -> &'static str {
+        "IspSetting.ini"
+    }
+
     pub fn from_ini(ini: &Ini) -> Settings {
         let i = |sec: &str, k: &str, d: u32| ini.int(sec, k, d);
         let n = |sec: &str, k: &str, d: u32| ini.int(sec, k, d);

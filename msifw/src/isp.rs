@@ -588,7 +588,17 @@ impl<'a> Isp<'a> {
     }
 
     /// The whole flow: prepare, then every bank the image fills, then the reset.
-    pub fn flash_image(&mut self, table: &FlashDat, image: &[u8], verify: bool) -> Result<()> {
+    ///
+    /// `progress` sees one call per phase transition, so a UI can show a meter: the plugin's own
+    /// progress path (`FUN_1002d7c0`) reports a percentage clamped to 99 while work is running and
+    /// 100 only at the end, and this follows it.
+    pub fn flash_image(
+        &mut self,
+        table: &FlashDat,
+        image: &[u8],
+        verify: bool,
+        progress: &mut dyn FnMut(Progress),
+    ) -> Result<()> {
         self.handshake()?;
         self.detect_slave()?;
         self.set_speed()?;
@@ -599,16 +609,103 @@ impl<'a> Isp<'a> {
         self.scaler_stop()?;
         let start_bank = self.program_start_bank()? as u16;
         let banks = image.len().div_ceil(BANK_SIZE as usize);
+        progress(Progress {
+            phase: Phase::Preparing,
+            bank: 0,
+            banks,
+            start_bank,
+            part: self.part.as_ref().map(|p| p.name.clone()),
+            pro_len: 0,
+        });
         for b in 0..banks as u16 {
             let plan = Isp::bank_plan(start_bank + b, image);
+            progress(Progress {
+                phase: Phase::Erasing,
+                bank: b,
+                banks,
+                start_bank,
+                part: self.part.as_ref().map(|p| p.name.clone()),
+                pro_len: plan.pro_len,
+            });
             self.erase_bank_plan(&plan)?;
+            progress(Progress {
+                phase: Phase::Programming,
+                bank: b,
+                banks,
+                start_bank,
+                part: self.part.as_ref().map(|p| p.name.clone()),
+                pro_len: plan.pro_len,
+            });
             self.program_bank(&plan, image, verify)?;
         }
+        progress(Progress {
+            phase: Phase::Resetting,
+            bank: banks as u16,
+            banks,
+            start_bank,
+            part: self.part.as_ref().map(|p| p.name.clone()),
+            pro_len: 0,
+        });
         if self.cfg.reset_mcu {
             self.comm.reset_firmware()?;
             self.comm.scaler_run()?;
         }
         Ok(())
+    }
+}
+
+/// Where the flash loop is, for a progress meter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Phase {
+    Preparing,
+    Erasing,
+    Programming,
+    Verifying,
+    Resetting,
+    Done,
+}
+
+impl Phase {
+    pub fn label(self) -> &'static str {
+        match self {
+            Phase::Preparing => "prepare",
+            Phase::Erasing => "erase",
+            Phase::Programming => "program",
+            Phase::Verifying => "verify",
+            Phase::Resetting => "reset",
+            Phase::Done => "done",
+        }
+    }
+
+    /// The plugin's own percent: the running share of banks, clamped to 99 until the end.
+    pub fn percent(self, bank: u16, banks: usize) -> u8 {
+        if banks == 0 {
+            return 100;
+        }
+        if self == Phase::Done || self == Phase::Resetting {
+            return 100;
+        }
+        (((bank as usize) * 100) / banks).min(99) as u8
+    }
+}
+
+/// One progress tick.
+pub struct Progress {
+    pub phase: Phase,
+    /// Zero-based index into the image's banks.
+    pub bank: u16,
+    pub banks: usize,
+    /// The bank the panel said programming starts at.
+    pub start_bank: u16,
+    /// The Flash.dat row in force, once selected.
+    pub part: Option<String>,
+    /// Bytes the current bank will program.
+    pub pro_len: u32,
+}
+
+impl Progress {
+    pub fn percent(&self) -> u8 {
+        self.phase.percent(self.bank, self.banks)
     }
 }
 
@@ -1133,7 +1230,7 @@ mod tests {
         fake.reg(REG_ID[2], 0x01);
         let image = vec![0x5au8; (BANK_SIZE * 2) as usize];
         let mut isp = Isp::new(&mut fake, &cfg);
-        isp.flash_image(&t, &image, false).unwrap();
+        isp.flash_image(&t, &image, false, &mut |_| {}).unwrap();
         let log = fake.taken();
         assert_eq!(
             &log[..6],
