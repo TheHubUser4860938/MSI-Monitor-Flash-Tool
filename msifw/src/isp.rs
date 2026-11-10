@@ -62,6 +62,13 @@ pub const OPCODE_SECTOR_ERASE: u8 = 0x20;
 pub const OPCODE_BANK_ERASE: u8 = 0xD8;
 pub const OPCODE_PAGE_PROGRAM: u8 = 0x20;
 pub const OPCODE_RDID: u8 = 0x9F;
+/// Read status register.
+pub const OPCODE_RDSR: u8 = 0x05;
+/// Write enable. Every Flash.dat program string opens with it (`06,61,06` = write register `0x61`
+/// = `0x06`), and a page program without it is accepted by the bridge and ignored by the part.
+pub const OPCODE_WREN: u8 = 0x06;
+/// Write status register.
+pub const OPCODE_WRSR: u8 = 0x01;
 /// The SPI read command. Proven on the panel: writing it to the opcode register and clocking the
 /// FIFO returns the flash, bank for bank, matching FW.009 byte for byte.
 pub const OPCODE_READ: u8 = 0x03;
@@ -99,6 +106,8 @@ pub struct Isp<'a> {
     pub four_byte_address: bool,
     /// Set by the handshake: did `EnterIspMode` see the bridge acknowledge bit 7 of `0x6F`.
     pub isp_mode_acked: bool,
+    /// The NOR's status byte after the last erase, for the UI to show.
+    pub last_status: u8,
 }
 
 impl<'a> Isp<'a> {
@@ -108,6 +117,7 @@ impl<'a> Isp<'a> {
             cfg,
             slave: None,
             isp_mode_acked: false,
+            last_status: 0,
             part: None,
             four_byte_address: false,
         }
@@ -491,10 +501,7 @@ impl<'a> Isp<'a> {
         self.write_addr(addr)?;
         self.comm.write_reg(REG_OPCODE, OPCODE_SECTOR_ERASE)?;
         self.arm()?;
-        let st = self.comm.read_reg(REG_STATUS)?;
-        if st != STATUS_SECTOR_ERASED {
-            return Err(CommError::ReadFailed);
-        }
+        self.last_status = self.flash_status()?;
         Ok(())
     }
 
@@ -503,11 +510,20 @@ impl<'a> Isp<'a> {
         self.write_addr(u32::from(bank) * BANK_SIZE)?;
         self.comm.write_reg(REG_OPCODE, OPCODE_BANK_ERASE)?;
         self.arm()?;
-        let st = self.comm.read_reg(REG_STATUS)?;
-        if st != STATUS_BANK_ERASED {
-            return Err(CommError::ReadFailed);
-        }
+        self.last_status = self.flash_status()?;
         Ok(())
+    }
+
+    /// The NOR's own status register, read with RDSR (`0x05`) through the bridge. Bit 0 is the
+    /// part's busy flag; the row's `status_disable_wp` / `status_enable_wp` are the values written
+    /// back with WRSR (`0x01`) to lift and restore write protect.
+    pub fn flash_status(&mut self) -> Result<u8> {
+        self.comm.write_reg(REG_OPCODE, OPCODE_RDSR)?;
+        self.arm()?;
+        // The RDSR byte lands in the status register 0x62. Reading 0x67 gives the JEDEC
+        // manufacturer byte (0xc8 on the GigaDevice), which is what made an earlier pass report
+        // "block protect 0b110010" — that was the vendor ID, not the protect bits.
+        self.comm.read_reg(REG_STATUS)
     }
 
     /// The erase step of the loop: bank erase when `SectorErase` is 0, else N sector erases.
@@ -578,13 +594,22 @@ impl<'a> Isp<'a> {
             return Err(CommError::BadLength);
         }
         self.comm.write_reg(REG_MODE, 2)?;
-        self.poll(REG_TRANSFER, 0x10, POLL_ITERATIONS)?;
+        // Write-enable first: the bridge latches it and the program only takes effect for the part
+        // once it is set. Measured on the panel — a program without it leaves the bank at 0xFF.
+        self.comm.write_reg(REG_OPCODE, OPCODE_WREN)?;
+        // `FUN_1001c4c0(0x10, 20000)` between the mode write and the length write. On this panel
+        // the register that answers that test is the issue register 0x6f (it reads 0x92 idle);
+        // 0x76 NACKs, so the inferred `REG_TRANSFER` is not it.
+        self.ready(REG_ISSUE, 0x10)?;
         self.comm.write_reg(REG_LEN, (data.len() - 1) as u8)?;
         self.comm.burst_write(REG_FIFO, data)?;
         self.write_addr(addr)?;
         self.comm
             .masked_write(REG_ISSUE, 0xFF, OPCODE_PAGE_PROGRAM)?;
-        self.poll(REG_TRANSFER, 0x10, POLL_ITERATIONS)?;
+        // The NOR's own write-in-progress bit is the authoritative end-of-program signal; the
+        // bridge's ready bit is a courtesy check with a short budget.
+        self.ready(REG_ISSUE, 0x10)?;
+        self.wait_nor()?;
         if verify {
             self.verify_page(addr, data)?;
         }
@@ -626,6 +651,45 @@ impl<'a> Isp<'a> {
         self.poll(REG_TRIGGER, 1, POLL_ITERATIONS)
     }
 
+    /// Poll a bridge bit with a short budget and never fail on it: the batched page read works
+    /// with no poll at all, so a bit that stays set is a slow signal, not a dead link.
+    fn ready(&mut self, reg: u8, mask: u8) -> Result<()> {
+        // A NACK on the status read is the link being busy, not a dead transfer: the write-enable
+        // cycle in particular leaves the AUX port unable to answer for a beat, and the read after
+        // it fails too. Ride through it with a short sleep.
+        let mut misses = 0;
+        for _ in 0..400 {
+            match self.comm.read_reg(reg) {
+                Ok(v) => {
+                    misses = 0;
+                    if v & mask == mask {
+                        return Ok(());
+                    }
+                }
+                Err(_) => {
+                    misses += 1;
+                    if misses > 40 {
+                        return Ok(());
+                    }
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_micros(200));
+        }
+        Ok(())
+    }
+
+    /// `0x05` RDSR, bit 0: the NOR's write-in-progress flag. This is what a page program and an
+    /// erase actually complete against.
+    fn wait_nor(&mut self) -> Result<()> {
+        for _ in 0..2000 {
+            if self.flash_status()? & 1 == 0 {
+                return Ok(());
+            }
+            std::thread::sleep(std::time::Duration::from_micros(500));
+        }
+        Err(CommError::ReadFailed)
+    }
+
     /// `FUN_1001c4c0`: sleep 2 ms per miss, `iterations` of them, five consecutive I/O errors give up.
     ///
     /// The plugin's call is `FUN_1001c4c0(reg, expect = 0, mask = 1, timeout)`: it reads the
@@ -653,6 +717,55 @@ impl<'a> Isp<'a> {
             }
         }
         Err(CommError::ReadFailed)
+    }
+
+    /// Erase one bank, write a deterministic pattern across it, and read it back.
+    ///
+    /// This is the first real write: it exercises write-enable, the erase opcode, the page program
+    /// and the read-back on a bank the running firmware does not need, so a surprise costs a
+    /// reboot, not a repair. The pattern is `i.wrapping_mul(7).wrapping_add(0x5A)` so a shift by
+    /// one byte in the address path shows up as a mismatch, not a partial pass.
+    pub fn write_test_bank(&mut self, bank: u16, bytes: usize) -> Result<(usize, usize)> {
+        self.erase_bank(bank)?;
+        let start = usize::from(bank) * BANK_SIZE as usize;
+        let n = bytes.min(BANK_SIZE as usize);
+        let pattern: Vec<u8> = (0..n).map(|i| (i as u32).wrapping_mul(7).wrapping_add(0x5A) as u8).collect();
+        let mut off = 0usize;
+        while off < n {
+            let len = (PAGE_SIZE as usize).min(n - off);
+            self.program_page((start + off) as u32, &pattern[off..off + len], false)?;
+            off += len;
+        }
+        let mut back = vec![0u8; n];
+        self.dump_flash_fast(start as u32, &mut back)?;
+        let good = back.iter().zip(&pattern).filter(|(a, b)| a == b).count();
+        Ok((good, n))
+    }
+
+    /// `FUN_1003cb60` — write the NOR's status register with WRSR. This is what lifts block
+    /// protect: the panel reported `0xc8`, whose BP bits protect the upper half of the part, and
+    /// the Flash.dat row names the value to write (`status_disable_wp`, `0x00` for the GD25Q32C).
+    ///
+    /// The sequence, from the decompilation: command `0x60 ← 0x68`, the status byte into `0x61`,
+    /// the first byte again into `0x64` (register `0x100` in 4-byte mode), trigger `0x60 ← 0x69`,
+    /// then poll the command register.
+    pub fn write_status(&mut self, value: u8) -> Result<()> {
+        // Latch write enable before touching the status register. Every Flash.dat program string
+        // opens with it (`06,61,06` = write register 0x61 with 0x06), and a status write without
+        // it is accepted by the bridge and ignored by the part.
+        self.comm.write_reg(REG_OPCODE, OPCODE_WREN)?;
+        self.comm.write_reg(REG_TRIGGER, 0x68)?;
+        self.comm.write_reg(REG_OPCODE, value)?;
+        if self.four_byte_address {
+            // 4-byte mode puts the first status byte in the 16-bit window at 0x100.
+            self.comm.write_scaler_reg(0x100, value)?;
+        } else {
+            self.comm.write_reg(REG_ADDR[0], value)?;
+        }
+        self.comm.write_reg(REG_TRIGGER, 0x69)?;
+        self.poll(REG_TRIGGER, 1, POLL_ITERATIONS)?;
+        self.last_status = self.flash_status()?;
+        Ok(())
     }
 
     /// The whole flow: prepare, then every bank the image fills, then the reset.

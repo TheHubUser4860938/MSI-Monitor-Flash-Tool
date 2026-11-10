@@ -160,15 +160,26 @@ impl Bus {
         };
         let trace = std::env::var_os("MSIFW_TRACE").is_some();
         if trace {
-            eprintln!(
-                "i2c-{} {addr7:#04x} W[{}] R[{}]",
-                self.number,
-                out.len(),
-                inp.len()
-            );
+            let idx = if out.len() == 1 {
+                format!("reg {:#04x}", out[0])
+            } else {
+                format!("{}b", out.len())
+            };
+            eprintln!("i2c-{} {addr7:#04x} {idx} R[{}]", self.number, inp.len());
         }
-        let rc =
-            unsafe { libc::ioctl(self.file.as_raw_fd(), I2C_RDWR, &mut data as *mut RdwrData) };
+        // A DP-AUX link NACKs the first attempt at a register often enough that one retry is
+        // worth it — measured on this panel, where a read of 0x76 took the next transfer with it.
+        let mut attempt = 0;
+        let rc = loop {
+            attempt += 1;
+            let rc =
+                unsafe { libc::ioctl(self.file.as_raw_fd(), I2C_RDWR, &mut data as *mut RdwrData) };
+            if rc >= 0 || attempt >= 6 {
+                break rc;
+            }
+            // AUX NACKs come in short runs; back off a little each time rather than hammering.
+            std::thread::sleep(std::time::Duration::from_micros(200 * attempt as u64));
+        };
         if rc < 0 {
             let e = io::Error::last_os_error();
             if trace {

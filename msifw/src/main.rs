@@ -99,6 +99,15 @@ enum Cmd {
     },
     /// Reset the MCU (`ResetMCUExport`).
     Reset,
+    /// Erase one bank, write a known pattern, read it back — the first real write.
+    Test {
+        /// Bank to exercise. The top banks are unused by the shipped images.
+        #[arg(short, long, default_value = "63", value_parser = parse_u16)]
+        bank: u16,
+        /// Bytes to write and compare.
+        #[arg(long, default_value = "4096", value_parser = parse_u32)]
+        len: u32,
+    },
     /// The text UI: panel, image, compatibility, progress meter.
     Gui {
         /// The `.bin` to offer, ahead of the ones found in `./` and `vendor/`.
@@ -247,6 +256,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
         | Cmd::Dump { .. }
         | Cmd::Erase { .. }
         | Cmd::Flash { .. }
+        | Cmd::Test { .. }
         | Cmd::Reset => {
             let settings = Settings::load(&cli.setting)?;
             let table = FlashDat::load(flash_dat_path(cli)?)?;
@@ -460,6 +470,27 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                         isp.comm.reset_firmware()?;
                         isp.comm.scaler_run()?;
                         println!("mcu reset");
+                    }
+                }
+                Cmd::Test { bank, len } => {
+                    isp.handshake()?;
+                    isp.detect_slave()?;
+                    isp.select_part(&table)?;
+                    isp.read_address_mode()?;
+                    isp.read_address_mode()?;
+                    let st = isp.flash_status()?;
+                    println!("status    {st:#04x} (BP bits {:#05b} = block protect)", (st >> 2) & 0x3f);
+                    if let Some(disable) = isp.part.as_ref().map(|p| p.status_disable_wp as u8) {
+                        isp.write_status(disable)?;
+                        println!("wrsr      {disable:#04x} -> now {:#04x}", isp.last_status);
+                    }
+                    println!("bank      {bank} (bank erase, then {len} bytes, then read back)");
+                    let (good, n) = isp.write_test_bank(*bank, *len as usize)?;
+                    println!("status    {:#04x} after erase", isp.last_status);
+                    if good == n {
+                        println!("read back {good}/{n} bytes — the write path works");
+                    } else {
+                        println!("read back {good}/{n} bytes — MISMATCH");
                     }
                 }
                 Cmd::Reset => {
