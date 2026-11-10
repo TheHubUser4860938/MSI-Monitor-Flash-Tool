@@ -1,0 +1,169 @@
+// rea decompile_all
+// name: Iput
+// address: 0x567206
+// body: available
+// range: 0x567206-0x5674cc inclusive
+// non_contiguous: false
+// provider: Ghidra 12.1.2 (ghidra)
+// analysis_profile: ac6d50be2cdf54f7005df47d1ed7e7ef55dee595681eb1b7c2e0b00d70cd697d
+// limitations: The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.; The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.; Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again.; Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.; The Ghidra Program references PDB ISPToolForMsi.pdb (GUID b8f2ac8f-1d6f-438d-800f-ed4a14426ac6, age (hex) 1, signature unknown, version RSDS); Ghidra reports load state unknown. Original names and types may be missing; an empty name search does not prove a procedure is absent. Use list_procedures and address-based analysis to inspect recovered functions. REA does not admit a caller-selected PDB companion.; This session uses Ghidra 12.1.2. The bridge is verified against 12.1.4; other 12.1.x builds are accepted and the observed version is reported.; Pseudocode is Ghidra decompiler output, not original source and not text-equivalent to Hopper output.; External functions and functions without an analyzable body return null; other decompiler failures remain explicit.
+// pseudocode: provider-specific; not original source
+
+
+/* WARNING: Function: __EH_prolog3_GS replaced with injection: EH_prolog3 */
+/* Library Function - Multiple Matches With Same Base Name
+    private: class std::ostreambuf_iterator<unsigned short,struct std::char_traits<unsigned short> >
+   __cdecl std::num_put<unsigned short,class std::ostreambuf_iterator<unsigned short,struct
+   std::char_traits<unsigned short> > >::_Iput(class std::ostreambuf_iterator<unsigned short,struct
+   std::char_traits<unsigned short> >,class std::ios_base &,unsigned short,char *,unsigned int)const
+   
+    private: class std::ostreambuf_iterator<wchar_t,struct std::char_traits<wchar_t> > __cdecl
+   std::num_put<wchar_t,class std::ostreambuf_iterator<wchar_t,struct std::char_traits<wchar_t> >
+   >::_Iput(class std::ostreambuf_iterator<wchar_t,struct std::char_traits<wchar_t> >,class
+   std::ios_base &,wchar_t,char *,unsigned int)const 
+   
+   Library: Visual Studio 2015 Release */
+
+void Iput(undefined4 param_1,undefined4 param_2,undefined4 param_3,undefined4 param_4,int param_5,
+         undefined4 param_6,char *param_7,uint param_8)
+
+{
+  char cVar1;
+  code *pcVar2;
+  undefined4 uVar3;
+  undefined4 uVar4;
+  undefined4 *puVar5;
+  int *piVar6;
+  uint uVar7;
+  undefined4 *puVar8;
+  undefined4 *puVar9;
+  char ****ppppcVar10;
+  int iVar11;
+  uint uVar12;
+  undefined1 local_5c [8];
+  undefined1 local_54 [4];
+  int *local_50;
+  undefined4 *local_4c;
+  char ***local_48;
+  char ***local_44 [5];
+  uint local_30;
+  undefined4 local_2c;
+  uint local_1c;
+  uint local_18;
+  undefined4 local_8;
+  undefined4 uStack_4;
+  
+  uStack_4 = 0x50;
+  local_8 = 0x567212;
+  local_4c = (undefined4 *)param_5;
+  if ((param_8 == 0) || ((*param_7 != '+' && (*param_7 != '-')))) {
+    uVar12 = 0;
+  }
+  else {
+    uVar12 = 1;
+  }
+  if (((((*(uint *)(param_5 + 0x14) & 0xe00) == 0x800) && (uVar12 + 2 <= param_8)) &&
+      (param_7[uVar12] == '0')) && ((param_7[uVar12 + 1] == 'x' || (param_7[uVar12 + 1] == 'X')))) {
+    uVar12 = uVar12 + 2;
+  }
+  uVar4 = FUN_00402ad0(local_54);
+  local_8 = 0;
+  local_48 = (char ***)FUN_0040dcb0(uVar4);
+  local_8 = 0xffffffff;
+  FUN_00402240();
+  local_1c = 0;
+  local_18 = 7;
+  local_2c = (undefined4 *)((uint)local_2c._2_2_ << 0x10);
+  FUN_00403ed0(param_8,0);
+  local_8 = 1;
+  puVar5 = local_2c;
+  if (local_18 < 8) {
+    puVar5 = &local_2c;
+  }
+  pcVar2 = *(code **)((int)*local_48 + 0x2c);
+  guard_check_icall(param_7,param_7 + param_8,puVar5);
+  (*pcVar2)();
+  uVar4 = FUN_00402ad0(local_5c);
+  local_8._0_1_ = 2;
+  piVar6 = (int *)use_facet<>(uVar4);
+  local_8._0_1_ = 1;
+  local_50 = piVar6;
+  FUN_00402240();
+  grouping(local_44);
+  local_8 = CONCAT31(local_8._1_3_,3);
+  if (local_30 < 0x10) {
+    local_44[0] = (char ***)local_44;
+  }
+  local_48 = local_44[0];
+  if ((*(char *)local_44[0] != '\x7f') && ('\0' < *(char *)local_44[0])) {
+    pcVar2 = *(code **)(*piVar6 + 0x10);
+    guard_check_icall();
+    uVar7 = (*pcVar2)();
+    local_50 = (int *)(uVar7 & 0xffff);
+    ppppcVar10 = (char ****)local_48;
+    while (((cVar1 = *(char *)ppppcVar10, cVar1 != '\x7f' && ('\0' < cVar1)) &&
+           ((uint)(int)cVar1 < param_8 - uVar12))) {
+      param_8 = param_8 - (int)cVar1;
+      FUN_0056d72b(param_8,1,local_50);
+      if ('\0' < *(char *)((int)ppppcVar10 + 1)) {
+        ppppcVar10 = (char ****)((int)ppppcVar10 + 1);
+      }
+    }
+  }
+  puVar5 = local_4c;
+  local_50 = (int *)local_1c;
+  if (((*(int *)((int)local_4c + 0x24) < 0) ||
+      ((*(int *)((int)local_4c + 0x24) < 1 && (*(int *)((int)local_4c + 0x20) == 0)))) ||
+     (*(uint *)((int)local_4c + 0x20) <= local_1c)) {
+    iVar11 = 0;
+  }
+  else {
+    iVar11 = *(uint *)((int)local_4c + 0x20) - local_1c;
+  }
+  uVar7 = *(uint *)((int)local_4c + 0x14) & 0x1c0;
+  if (uVar7 == 0x40) {
+    puVar9 = local_2c;
+    if (local_18 < 8) {
+      puVar9 = &local_2c;
+    }
+  }
+  else {
+    if (uVar7 == 0x100) {
+      puVar9 = local_2c;
+      if (local_18 < 8) {
+        puVar9 = &local_2c;
+      }
+      puVar9 = (undefined4 *)Put(param_1,local_5c,param_3,param_4,puVar9,uVar12);
+      puVar9 = (undefined4 *)Rep(param_1,local_5c,*puVar9,puVar9[1],param_6,iVar11);
+      iVar11 = 0;
+      goto LAB_00567451;
+    }
+    puVar8 = (undefined4 *)Rep(param_1,local_5c,param_3,param_4,param_6,iVar11);
+    iVar11 = 0;
+    puVar9 = local_2c;
+    if (local_18 < 8) {
+      puVar9 = &local_2c;
+    }
+    param_4 = puVar8[1];
+    param_3 = *puVar8;
+  }
+  puVar9 = (undefined4 *)Put(param_1,local_5c,param_3,param_4,puVar9,uVar12);
+LAB_00567451:
+  local_4c = local_2c;
+  if (local_18 < 8) {
+    local_4c = &local_2c;
+  }
+  puVar9 = (undefined4 *)
+           Put(param_1,local_5c,*puVar9,puVar9[1],(int)local_4c + uVar12 * 2,(int)local_50 - uVar12)
+  ;
+  uVar4 = *puVar9;
+  uVar3 = puVar9[1];
+  *(undefined4 *)((int)puVar5 + 0x20) = 0;
+  *(undefined4 *)((int)puVar5 + 0x24) = 0;
+  Rep(param_1,param_2,uVar4,uVar3,param_6,iVar11);
+  FUN_00404250(1,0);
+  FUN_00403e60(1,0);
+  FUN_0055bae6();
+  return;
+}
+

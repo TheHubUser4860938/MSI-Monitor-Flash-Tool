@@ -1,0 +1,130 @@
+// rea decompile_all
+// name: FUN_10143d43
+// address: 0x10143d43
+// body: available
+// range: 0x10143d43-0x10144002 inclusive
+// non_contiguous: false
+// provider: Ghidra 12.1.2 (ghidra)
+// analysis_profile: b075844f08879296d957518397cd0ddda73db81dce53d00d3f0e702766fc2af6
+// limitations: The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.; The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.; Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again.; Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.; The Ghidra Program references PDB Comm.pdb (GUID c3062acb-498d-45fa-a233-c8b7e401bb13, age (hex) 1, signature unknown, version RSDS); Ghidra reports load state unknown. Original names and types may be missing; an empty name search does not prove a procedure is absent. Use list_procedures and address-based analysis to inspect recovered functions. REA does not admit a caller-selected PDB companion.; This session uses Ghidra 12.1.2. The bridge is verified against 12.1.4; other 12.1.x builds are accepted and the observed version is reported.; Pseudocode is Ghidra decompiler output, not original source and not text-equivalent to Hopper output.; External functions and functions without an analyzable body return null; other decompiler failures remain explicit.
+// pseudocode: provider-specific; not original source
+
+
+/* WARNING: Globals starting with '_' overlap smaller symbols at the same address */
+
+void FUN_10143d43(uint param_1)
+
+{
+  code *pcVar1;
+  POINT pt;
+  POINT pt_00;
+  BOOL BVar2;
+  clock_t cVar3;
+  int iVar4;
+  int iVar5;
+  CMFCTasksPane *in_ECX;
+  int iVar6;
+  tagPOINT local_2c;
+  float local_24;
+  float local_20;
+  float local_1c;
+  RECT local_18;
+  uint local_8;
+  
+  local_8 = DAT_101d3fec ^ (uint)&stack0xfffffffc;
+  if (param_1 != 0xec0b) {
+    if (param_1 == 0xec0c) {
+      local_2c.x = 0;
+      local_2c.y = 0;
+      GetCursorPos(&local_2c);
+      ScreenToClient(*(HWND *)(in_ECX + 0x20),&local_2c);
+      pt.y = local_2c.y;
+      pt.x = local_2c.x;
+      BVar2 = PtInRect((RECT *)(in_ECX + 0x424),pt);
+      if ((BVar2 == 0) || (-1 < *(int *)(in_ECX + 0x390))) {
+        pt_00.y = local_2c.y;
+        pt_00.x = local_2c.x;
+        BVar2 = PtInRect((RECT *)(in_ECX + 0x434),pt_00);
+        if ((BVar2 == 0) || (*(int *)(in_ECX + 0x390) < 1)) {
+          KillTimer(*(HWND *)(in_ECX + 0x20),0xec0c);
+          *(undefined4 *)(in_ECX + 0x390) = 0;
+          InvalidateRect(*(HWND *)(in_ECX + 0x20),(RECT *)(in_ECX + 0x434),1);
+          InvalidateRect(*(HWND *)(in_ECX + 0x20),(RECT *)(in_ECX + 0x424),1);
+          UpdateWindow(*(HWND *)(in_ECX + 0x20));
+          goto LAB_10143fe6;
+        }
+        *(int *)(in_ECX + 0x398) = *(int *)(in_ECX + 0x398) + 1;
+      }
+      else {
+        *(int *)(in_ECX + 0x398) = *(int *)(in_ECX + 0x398) + -1;
+      }
+      CMFCTasksPane::AdjustScroll(in_ECX);
+      pcVar1 = *(code **)(*(int *)in_ECX + 0x3e0);
+      guard_check_icall(0);
+      (*pcVar1)();
+      RedrawWindow(*(HWND *)(in_ECX + 0x20),(RECT *)0x0,(HRGN)0x0,5);
+    }
+    goto LAB_10143fe6;
+  }
+  if ((*(int *)(in_ECX + 0x544) == 0) || (*(int *)(in_ECX + 0x3a4) == 0)) {
+    KillTimer(*(HWND *)(in_ECX + 0x20),0xec0b);
+    *(undefined4 *)(in_ECX + 0x544) = 0;
+    goto LAB_10143fe6;
+  }
+  cVar3 = _clock();
+  local_1c = (float)(cVar3 - _DAT_101ddc38);
+  iVar4 = FUN_10149490();
+  iVar6 = *(int *)(in_ECX + 0x3a4);
+  local_1c = *(float *)(in_ECX + 0x410);
+  local_24 = (float)(*(int *)(in_ECX + 0x3a8) + (int)local_1c);
+  local_20 = (float)iVar6;
+  iVar5 = FUN_10149490();
+  if (9 < iVar5) {
+    iVar4 = (iVar5 * iVar4) / 9 + 1;
+  }
+  iVar6 = iVar6 * iVar4;
+  if (*(int *)(*(int *)(in_ECX + 0x544) + 0x30) == 0) {
+    *(int *)(in_ECX + 0x410) = iVar6 + (int)local_1c;
+  }
+  else {
+    *(int *)(in_ECX + 0x410) = (int)local_1c - iVar6;
+  }
+  local_18.left = *(LONG *)(in_ECX + 0x444);
+  local_18.right = *(LONG *)(in_ECX + 0x44c);
+  local_18.bottom = *(LONG *)(in_ECX + 0x450);
+  local_20 = (float)(*(int *)(*(int *)(in_ECX + 0x544) + 0x38) + -1);
+  local_18.top = (LONG)local_20;
+  InvalidateRect(*(HWND *)(in_ECX + 0x20),&local_18,1);
+  RedrawWindow(*(HWND *)(in_ECX + 0x20),(RECT *)0x0,(HRGN)0x0,0x184);
+  pcVar1 = *(code **)(*(int *)in_ECX + 0x3e0);
+  guard_check_icall(0);
+  (*pcVar1)();
+  local_18.left = *(LONG *)(in_ECX + 0x444);
+  local_18.right = *(LONG *)(in_ECX + 0x44c);
+  local_18.bottom = *(LONG *)(in_ECX + 0x450);
+  local_18.top = *(int *)(*(int *)(in_ECX + 0x544) + 0x38) + -1;
+  if ((int)local_20 <= local_18.top) {
+    local_18.top = (LONG)local_20;
+  }
+  InvalidateRect(*(HWND *)(in_ECX + 0x20),&local_18,1);
+  RedrawWindow(*(HWND *)(in_ECX + 0x20),(RECT *)0x0,(HRGN)0x0,4);
+  iVar6 = *(int *)(in_ECX + 0x544);
+  _DAT_101ddc38 = cVar3;
+  if (*(int *)(iVar6 + 0x30) == 0) {
+LAB_10143fac:
+    if (*(int *)(in_ECX + 0x410) <= *(int *)(iVar6 + 0x50) - *(int *)(iVar6 + 0x48))
+    goto LAB_10143fe6;
+  }
+  else if (-1 < *(int *)(in_ECX + 0x410)) {
+    if (*(int *)(iVar6 + 0x30) != 0) goto LAB_10143fe6;
+    goto LAB_10143fac;
+  }
+  *(undefined4 *)(in_ECX + 0x544) = 0;
+  *(undefined4 *)(in_ECX + 0x40c) = 0;
+  *(undefined4 *)(in_ECX + 0x410) = 0;
+LAB_10143fe6:
+  CDockablePane::OnTimer((CDockablePane *)in_ECX,param_1);
+  __security_check_cookie(local_8 ^ (uint)&stack0xfffffffc);
+  return;
+}
+

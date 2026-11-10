@@ -1,0 +1,78 @@
+// rea decompile_all
+// name: FUN_00588a97
+// address: 0x588a97
+// body: available
+// range: 0x588a97-0x588b90 inclusive
+// non_contiguous: false
+// provider: Ghidra 12.1.2 (ghidra)
+// analysis_profile: ac6d50be2cdf54f7005df47d1ed7e7ef55dee595681eb1b7c2e0b00d70cd697d
+// limitations: The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.; The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.; Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again.; Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.; Ghidra Listing reports a terminal call at 0x588b90 with no resolved callee; its no-return basis is unknown.; The Ghidra Program references PDB ISPToolForMsi.pdb (GUID b8f2ac8f-1d6f-438d-800f-ed4a14426ac6, age (hex) 1, signature unknown, version RSDS); Ghidra reports load state unknown. Original names and types may be missing; an empty name search does not prove a procedure is absent. Use list_procedures and address-based analysis to inspect recovered functions. REA does not admit a caller-selected PDB companion.; This session uses Ghidra 12.1.2. The bridge is verified against 12.1.4; other 12.1.x builds are accepted and the observed version is reported.; Pseudocode is Ghidra decompiler output, not original source and not text-equivalent to Hopper output.; External functions and functions without an analyzable body return null; other decompiler failures remain explicit.
+// pseudocode: provider-specific; not original source
+
+
+undefined4 * FUN_00588a97(wchar_t *param_1)
+
+{
+  rsize_t _SizeInWords;
+  wchar_t wVar1;
+  code *pcVar2;
+  undefined4 *puVar3;
+  wchar_t *pwVar4;
+  errno_t eVar5;
+  wchar_t *pwVar6;
+  int iVar7;
+  undefined4 *local_8;
+  
+  iVar7 = 0;
+  wVar1 = *param_1;
+  pwVar4 = param_1;
+  while (wVar1 != L'\0') {
+    if (wVar1 != L'=') {
+      iVar7 = iVar7 + 1;
+    }
+    pwVar6 = pwVar4;
+    do {
+      wVar1 = *pwVar6;
+      pwVar6 = pwVar6 + 1;
+    } while (wVar1 != L'\0');
+    pwVar4 = pwVar4 + ((int)pwVar6 - (int)(pwVar4 + 1) >> 1) + 1;
+    wVar1 = *pwVar4;
+  }
+  puVar3 = (undefined4 *)__calloc_base(iVar7 + 1,4);
+  local_8 = puVar3;
+  if (puVar3 == (undefined4 *)0x0) {
+LAB_00588b72:
+    puVar3 = (undefined4 *)0x0;
+  }
+  else {
+    for (; *param_1 != L'\0'; param_1 = param_1 + _SizeInWords) {
+      pwVar4 = param_1;
+      do {
+        wVar1 = *pwVar4;
+        pwVar4 = pwVar4 + 1;
+      } while (wVar1 != L'\0');
+      _SizeInWords = ((int)pwVar4 - (int)(param_1 + 1) >> 1) + 1;
+      if (*param_1 != L'=') {
+        pwVar4 = (wchar_t *)__calloc_base(_SizeInWords,2);
+        if (pwVar4 == (wchar_t *)0x0) {
+          free_environment<>(puVar3);
+          FID_conflict__free((void *)0x0);
+          goto LAB_00588b72;
+        }
+        eVar5 = _wcscpy_s(pwVar4,_SizeInWords,param_1);
+        if (eVar5 != 0) {
+          __invoke_watson((wchar_t *)0x0,(wchar_t *)0x0,(wchar_t *)0x0,0,0);
+          pcVar2 = (code *)swi(3);
+          puVar3 = (undefined4 *)(*pcVar2)();
+          return puVar3;
+        }
+        *local_8 = pwVar4;
+        local_8 = local_8 + 1;
+        FID_conflict__free((void *)0x0);
+      }
+    }
+  }
+  FID_conflict__free((void *)0x0);
+  return puVar3;
+}
+

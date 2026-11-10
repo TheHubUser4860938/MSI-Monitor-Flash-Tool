@@ -1,0 +1,75 @@
+// rea decompile_all
+// name: FUN_004659f1
+// address: 0x4659f1
+// body: available
+// range: 0x4659f1-0x465b6c inclusive
+// non_contiguous: false
+// provider: Ghidra 12.1.2 (ghidra)
+// analysis_profile: ac6d50be2cdf54f7005df47d1ed7e7ef55dee595681eb1b7c2e0b00d70cd697d
+// limitations: The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.; The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.; Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again.; Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.; The Ghidra Program references PDB ISPToolForMsi.pdb (GUID b8f2ac8f-1d6f-438d-800f-ed4a14426ac6, age (hex) 1, signature unknown, version RSDS); Ghidra reports load state unknown. Original names and types may be missing; an empty name search does not prove a procedure is absent. Use list_procedures and address-based analysis to inspect recovered functions. REA does not admit a caller-selected PDB companion.; This session uses Ghidra 12.1.2. The bridge is verified against 12.1.4; other 12.1.x builds are accepted and the observed version is reported.; Pseudocode is Ghidra decompiler output, not original source and not text-equivalent to Hopper output.; External functions and functions without an analyzable body return null; other decompiler failures remain explicit.
+// pseudocode: provider-specific; not original source
+
+
+void FUN_004659f1(uint param_1,double *param_2,double *param_3,double *param_4)
+
+{
+  double dVar1;
+  double dVar2;
+  double dVar3;
+  double dVar4;
+  double dVar5;
+  double dVar6;
+  
+  dVar1 = (double)(param_1 & 0xff) / 255.0;
+  dVar6 = (double)(param_1 >> 8 & 0xff) / 255.0;
+  dVar5 = (double)(param_1 >> 0x10 & 0xff) / 255.0;
+  dVar3 = dVar5;
+  if (dVar5 < dVar6) {
+    dVar3 = dVar6;
+  }
+  dVar4 = dVar1;
+  if ((dVar1 <= dVar3) && (dVar4 = dVar5, dVar5 < dVar6)) {
+    dVar4 = dVar6;
+  }
+  dVar3 = dVar5;
+  if (dVar6 < dVar5) {
+    dVar3 = dVar6;
+  }
+  dVar2 = dVar1;
+  if ((dVar3 <= dVar1) && (dVar2 = dVar5, dVar6 < dVar5)) {
+    dVar2 = dVar6;
+  }
+  dVar3 = (dVar2 + dVar4) * 0.5;
+  *param_4 = dVar3;
+  if (dVar4 == dVar2) {
+    *param_3 = 0.0;
+    *param_2 = 0.0;
+  }
+  else {
+    if (0.5 <= dVar3) {
+      dVar3 = (dVar4 - dVar2) / ((2.0 - dVar4) - dVar2);
+    }
+    else {
+      dVar3 = (dVar4 - dVar2) / (dVar2 + dVar4);
+    }
+    dVar2 = dVar4 - dVar2;
+    *param_3 = dVar3;
+    if (dVar1 == dVar4) {
+      dVar2 = (dVar6 - dVar5) / dVar2;
+    }
+    else if (dVar4 == dVar6) {
+      dVar2 = (dVar5 - dVar1) / dVar2 + 2.0;
+    }
+    else {
+      dVar2 = (dVar1 - dVar6) / dVar2 + 4.0;
+    }
+    *param_2 = dVar2;
+    dVar1 = *param_2 / 6.0;
+    *param_2 = dVar1;
+    if (dVar1 < 0.0) {
+      *param_2 = dVar1 + 1.0;
+    }
+  }
+  return;
+}
+

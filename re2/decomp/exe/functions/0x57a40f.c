@@ -1,0 +1,70 @@
+// rea decompile_all
+// name: _fgetc
+// address: 0x57a40f
+// body: available
+// range: 0x57a40f-0x57a503 inclusive
+// non_contiguous: false
+// provider: Ghidra 12.1.2 (ghidra)
+// analysis_profile: ac6d50be2cdf54f7005df47d1ed7e7ef55dee595681eb1b7c2e0b00d70cd697d
+// limitations: The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.; The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.; Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again.; Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.; The Ghidra Program references PDB ISPToolForMsi.pdb (GUID b8f2ac8f-1d6f-438d-800f-ed4a14426ac6, age (hex) 1, signature unknown, version RSDS); Ghidra reports load state unknown. Original names and types may be missing; an empty name search does not prove a procedure is absent. Use list_procedures and address-based analysis to inspect recovered functions. REA does not admit a caller-selected PDB companion.; This session uses Ghidra 12.1.2. The bridge is verified against 12.1.4; other 12.1.x builds are accepted and the observed version is reported.; Pseudocode is Ghidra decompiler output, not original source and not text-equivalent to Hopper output.; External functions and functions without an analyzable body return null; other decompiler failures remain explicit.
+// pseudocode: provider-specific; not original source
+
+
+/* WARNING: Function: __SEH_prolog4 replaced with injection: SEH_prolog4 */
+/* WARNING: Function: __SEH_epilog4 replaced with injection: EH_epilog3 */
+/* Library Function - Single Match
+    _fgetc
+   
+   Library: Visual Studio 2015 Release */
+
+int __cdecl _fgetc(FILE *_File)
+
+{
+  int *piVar1;
+  uint uVar2;
+  undefined *puVar3;
+  int iVar4;
+  undefined *puVar5;
+  undefined1 local_14 [8];
+  undefined4 uStack_c;
+  undefined *local_8;
+  
+  local_8 = &DAT_00607b20;
+  uStack_c = 0x57a41b;
+  if (_File == (FILE *)0x0) {
+    piVar1 = __errno();
+    *piVar1 = 0x16;
+    FUN_0057662d();
+  }
+  else {
+    __lock_file(_File);
+    local_8 = (undefined *)0x0;
+    if (((uint)_File->_flag >> 0xc & 1) != 0) {
+LAB_0057a4e4:
+      iVar4 = __fgetc_nolock(_File);
+      local_8 = (undefined *)0xfffffffe;
+      FUN_0057a507();
+      return iVar4;
+    }
+    uVar2 = __fileno(_File);
+    if ((uVar2 == 0xffffffff) || (uVar2 == 0xfffffffe)) {
+      puVar3 = &DAT_0060d298;
+    }
+    else {
+      puVar3 = (undefined *)((uVar2 & 0x3f) * 0x30 + (&DAT_006190a0)[(int)uVar2 >> 6]);
+    }
+    puVar5 = &DAT_0060d298;
+    if (puVar3[0x29] == '\0') {
+      if ((uVar2 != 0xffffffff) && (uVar2 != 0xfffffffe)) {
+        puVar5 = (undefined *)((uVar2 & 0x3f) * 0x30 + (&DAT_006190a0)[(int)uVar2 >> 6]);
+      }
+      if ((puVar5[0x2d] & 1) == 0) goto LAB_0057a4e4;
+    }
+    piVar1 = __errno();
+    *piVar1 = 0x16;
+    FUN_0057662d();
+    __local_unwind4(&DAT_0060cff4,local_14,0xfffffffe);
+  }
+  return -1;
+}
+

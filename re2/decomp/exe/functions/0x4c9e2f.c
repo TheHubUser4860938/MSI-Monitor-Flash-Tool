@@ -1,0 +1,52 @@
+// rea decompile_all
+// name: CMFCPopupMenu::CloseMenu
+// address: 0x4c9e2f
+// body: available
+// range: 0x4c9e2f-0x4c9ed9 inclusive
+// non_contiguous: false
+// provider: Ghidra 12.1.2 (ghidra)
+// analysis_profile: ac6d50be2cdf54f7005df47d1ed7e7ef55dee595681eb1b7c2e0b00d70cd697d
+// limitations: The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.; The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.; Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again.; Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.; The Ghidra Program references PDB ISPToolForMsi.pdb (GUID b8f2ac8f-1d6f-438d-800f-ed4a14426ac6, age (hex) 1, signature unknown, version RSDS); Ghidra reports load state unknown. Original names and types may be missing; an empty name search does not prove a procedure is absent. Use list_procedures and address-based analysis to inspect recovered functions. REA does not admit a caller-selected PDB companion.; This session uses Ghidra 12.1.2. The bridge is verified against 12.1.4; other 12.1.x builds are accepted and the observed version is reported.; Pseudocode is Ghidra decompiler output, not original source and not text-equivalent to Hopper output.; External functions and functions without an analyzable body return null; other decompiler failures remain explicit.
+// pseudocode: provider-specific; not original source
+
+
+/* Library Function - Single Match
+    public: void __thiscall CMFCPopupMenu::CloseMenu(int)
+   
+   Library: Visual Studio 2015 Release */
+
+void __thiscall CMFCPopupMenu::CloseMenu(CMFCPopupMenu *this,int param_1)
+
+{
+  code *pcVar1;
+  CMFCPopupMenu *pCVar2;
+  CMFCToolBar *this_00;
+  CFrameWnd *pCVar3;
+  
+  if ((this != (CMFCPopupMenu *)0x0) && (*(int *)(this + 0x20) != 0)) {
+    *(undefined4 *)(this + 0xf4c) = 1;
+    pcVar1 = *(code **)(*(int *)this + 0x1e0);
+    guard_check_icall();
+    (*pcVar1)();
+    pCVar2 = GetParentPopupMenu(this);
+    this_00 = GetParentToolBar(this);
+    pCVar3 = DAT_0061620c;
+    if (DAT_0061620c == (CFrameWnd *)0x0) {
+      pCVar3 = CWnd::GetTopLevelFrame((CWnd *)this);
+    }
+    if (pCVar2 == (CMFCPopupMenu *)0x0) {
+      ActivatePopupMenu(pCVar3,(CMFCPopupMenu *)0x0);
+      NotifyParentDlg(this,0);
+      if ((this_00 != (CMFCToolBar *)0x0) && (param_1 != 0)) {
+        CWnd::SetFocus((CWnd *)this_00);
+      }
+    }
+    else {
+      *(undefined4 *)(this + 0x130) = 0;
+      ActivatePopupMenu(pCVar3,pCVar2);
+    }
+    SendMessageW(*(HWND *)(this + 0x20),0x10,0,0);
+  }
+  return;
+}
+

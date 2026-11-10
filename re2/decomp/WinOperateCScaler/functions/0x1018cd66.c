@@ -1,0 +1,72 @@
+// rea decompile_all
+// name: FUN_1018cd66
+// address: 0x1018cd66
+// body: available
+// range: 0x1018cd66-0x1018ce16 inclusive
+// non_contiguous: false
+// provider: Ghidra 12.1.2 (ghidra)
+// analysis_profile: b075844f08879296d957518397cd0ddda73db81dce53d00d3f0e702766fc2af6
+// limitations: The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.; The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.; Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again.; Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.; Ghidra Listing reports a terminal call at 0x1018ce05 to 0x1018108f _abort (external=false, thunk=false, hasNoReturn=true); fallthrough is excluded by Ghidra's flow model. This records Ghidra's FunctionManager flag, not an independent verification that the callee cannot return.; Ghidra Listing reports a terminal call at 0x1018ce16 with no resolved callee; its no-return basis is unknown.; The Ghidra Program references PDB WinOperateCScaler.pdb (GUID a6737962-efea-4805-8ae6-1fc1ef126554, age (hex) 1, signature unknown, version RSDS); Ghidra reports load state unknown. Original names and types may be missing; an empty name search does not prove a procedure is absent. Use list_procedures and address-based analysis to inspect recovered functions. REA does not admit a caller-selected PDB companion.; This session uses Ghidra 12.1.2. The bridge is verified against 12.1.4; other 12.1.x builds are accepted and the observed version is reported.; Pseudocode is Ghidra decompiler output, not original source and not text-equivalent to Hopper output.; External functions and functions without an analyzable body return null; other decompiler failures remain explicit.
+// pseudocode: provider-specific; not original source
+
+
+int FUN_1018cd66(int *param_1)
+
+{
+  char *pcVar1;
+  char cVar2;
+  code *pcVar3;
+  int *piVar4;
+  int iVar5;
+  undefined4 uVar6;
+  errno_t eVar7;
+  int iVar8;
+  char *pcVar9;
+  
+  if (param_1 == (int *)0x0) {
+    iVar5 = 0;
+  }
+  else {
+    iVar8 = 0;
+    iVar5 = *param_1;
+    piVar4 = param_1;
+    while (iVar5 != 0) {
+      piVar4 = piVar4 + 1;
+      iVar8 = iVar8 + 1;
+      iVar5 = *piVar4;
+    }
+    iVar5 = __calloc_base(iVar8 + 1,4);
+    if (iVar5 == 0) {
+LAB_1018ce05:
+                    /* WARNING: Subroutine does not return */
+      _abort();
+    }
+    if (*param_1 != 0) {
+      iVar8 = iVar5 - (int)param_1;
+      do {
+        pcVar9 = (char *)*param_1;
+        pcVar1 = pcVar9 + 1;
+        do {
+          cVar2 = *pcVar9;
+          pcVar9 = pcVar9 + 1;
+        } while (cVar2 != '\0');
+        uVar6 = __calloc_base(pcVar9 + (1 - (int)pcVar1),1);
+        *(undefined4 *)(iVar8 + (int)param_1) = uVar6;
+        FID_conflict__free((void *)0x0);
+        if (*(int *)(iVar8 + (int)param_1) == 0) goto LAB_1018ce05;
+        eVar7 = _strcpy_s(*(char **)(iVar8 + (int)param_1),(rsize_t)(pcVar9 + (1 - (int)pcVar1)),
+                          (char *)*param_1);
+        if (eVar7 != 0) {
+          __invoke_watson((wchar_t *)0x0,(wchar_t *)0x0,(wchar_t *)0x0,0,0);
+          pcVar3 = (code *)swi(3);
+          iVar5 = (*pcVar3)();
+          return iVar5;
+        }
+        param_1 = param_1 + 1;
+      } while (*param_1 != 0);
+    }
+    FID_conflict__free((void *)0x0);
+  }
+  return iVar5;
+}
+

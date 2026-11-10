@@ -1,0 +1,58 @@
+// rea decompile_all
+// name: CMFCMaskedEdit::CheckChar
+// address: 0x5347e8
+// body: available
+// range: 0x5347e8-0x53488e inclusive
+// non_contiguous: false
+// provider: Ghidra 12.1.2 (ghidra)
+// analysis_profile: ac6d50be2cdf54f7005df47d1ed7e7ef55dee595681eb1b7c2e0b00d70cd697d
+// limitations: The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.; The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.; Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again.; Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.; The Ghidra Program references PDB ISPToolForMsi.pdb (GUID b8f2ac8f-1d6f-438d-800f-ed4a14426ac6, age (hex) 1, signature unknown, version RSDS); Ghidra reports load state unknown. Original names and types may be missing; an empty name search does not prove a procedure is absent. Use list_procedures and address-based analysis to inspect recovered functions. REA does not admit a caller-selected PDB companion.; This session uses Ghidra 12.1.2. The bridge is verified against 12.1.4; other 12.1.x builds are accepted and the observed version is reported.; Pseudocode is Ghidra decompiler output, not original source and not text-equivalent to Hopper output.; External functions and functions without an analyzable body return null; other decompiler failures remain explicit.
+// pseudocode: provider-specific; not original source
+
+
+/* Library Function - Single Match
+    private: int __thiscall CMFCMaskedEdit::CheckChar(wchar_t,int)
+   
+   Library: Visual Studio 2015 Release */
+
+int __thiscall CMFCMaskedEdit::CheckChar(CMFCMaskedEdit *this,wchar_t param_1,int param_2)
+
+{
+  code *pcVar1;
+  short sVar2;
+  undefined2 uVar3;
+  int iVar4;
+  uint uVar5;
+  uint uVar6;
+  undefined2 in_stack_00000006;
+  
+  if (*(int *)(*(int *)(this + 0x84) + -0xc) == 0) {
+    if (*(int *)(*(int *)(this + 0x90) + -0xc) == 0) {
+      uVar6 = 1;
+    }
+    else {
+      iVar4 = FUN_004148c0(_param_1,0);
+      uVar6 = (uint)(iVar4 != -1);
+    }
+  }
+  else {
+    sVar2 = FUN_00414b20(param_2);
+    if (sVar2 == 0x5f) {
+      iVar4 = *(int *)this;
+      uVar3 = FUN_00414b20(param_2);
+      pcVar1 = *(code **)(iVar4 + 0x164);
+      guard_check_icall(_param_1,uVar3);
+      uVar5 = (*pcVar1)();
+      uVar6 = uVar5;
+      if (((*(int *)(*(int *)(this + 0x90) + -0xc) != 0) && (uVar6 = 0, uVar5 != 0)) &&
+         (iVar4 = FUN_004148c0(_param_1,0), iVar4 != -1)) {
+        uVar6 = 1;
+      }
+    }
+    else {
+      uVar6 = 0;
+    }
+  }
+  return uVar6;
+}
+

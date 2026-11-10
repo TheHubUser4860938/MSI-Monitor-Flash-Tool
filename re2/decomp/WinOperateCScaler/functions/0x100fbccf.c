@@ -1,0 +1,60 @@
+// rea decompile_all
+// name: FUN_100fbccf
+// address: 0x100fbccf
+// body: available
+// range: 0x100fbccf-0x100fbda7 inclusive
+// non_contiguous: false
+// provider: Ghidra 12.1.2 (ghidra)
+// analysis_profile: b075844f08879296d957518397cd0ddda73db81dce53d00d3f0e702766fc2af6
+// limitations: The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.; The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.; Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again.; Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.; The Ghidra Program references PDB WinOperateCScaler.pdb (GUID a6737962-efea-4805-8ae6-1fc1ef126554, age (hex) 1, signature unknown, version RSDS); Ghidra reports load state unknown. Original names and types may be missing; an empty name search does not prove a procedure is absent. Use list_procedures and address-based analysis to inspect recovered functions. REA does not admit a caller-selected PDB companion.; This session uses Ghidra 12.1.2. The bridge is verified against 12.1.4; other 12.1.x builds are accepted and the observed version is reported.; Pseudocode is Ghidra decompiler output, not original source and not text-equivalent to Hopper output.; External functions and functions without an analyzable body return null; other decompiler failures remain explicit.
+// pseudocode: provider-specific; not original source
+
+
+void FUN_100fbccf(int *param_1,CSize *param_2,int param_3)
+
+{
+  double dVar1;
+  undefined4 uVar2;
+  int iVar3;
+  int iVar4;
+  AFX_GLOBAL_DATA *pAVar5;
+  CMFCDropDownToolbarButton *in_ECX;
+  tagSIZE tVar6;
+  CDC local_c [4];
+  int local_8;
+  
+  if (((*(int *)(in_ECX + 0x20) == 0) && (*(int *)(in_ECX + 0x70) != 0)) &&
+     (iVar4 = FUN_1006a5a5(0), iVar4 != 0)) {
+    CMFCDropDownToolbarButton::SetDefaultCommand(in_ECX,*(uint *)(iVar4 + 0x20));
+  }
+  uVar2 = *(undefined4 *)(in_ECX + 0xc);
+  *(undefined4 *)(in_ECX + 0x34) = *(undefined4 *)(in_ECX + 0x80);
+  *(undefined4 *)(in_ECX + 0xc) = 1;
+  tVar6 = CMFCToolBarButton::OnCalculateSize((CMFCToolBarButton *)in_ECX,local_c,param_2,param_3);
+  iVar3 = *(int *)tVar6.cx;
+  local_8 = ((int *)tVar6.cx)[1];
+  *(undefined4 *)(in_ECX + 0x34) = 0xffffffff;
+  *(undefined4 *)(in_ECX + 0xc) = uVar2;
+  iVar4 = 7;
+  pAVar5 = GetGlobalData();
+  if (*(int *)(pAVar5 + 0x1e8) == 0) {
+    dVar1 = 1.0;
+  }
+  else {
+    dVar1 = *(double *)(pAVar5 + 0x1e0);
+  }
+  if (dVar1 != 1.0) {
+    GetGlobalData();
+    iVar4 = FUN_101548f0();
+  }
+  if (DAT_10209cf8 == 0) {
+    iVar4 = iVar4 / 2 + 1;
+  }
+  else {
+    iVar4 = iVar4 + 2;
+  }
+  *param_1 = iVar3 + iVar4;
+  param_1[1] = local_8;
+  return;
+}
+

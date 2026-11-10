@@ -1,0 +1,111 @@
+// rea decompile_all
+// name: CMFCShellListCtrl::OnGetItemText
+// address: 0x522b0c
+// body: available
+// range: 0x522b0c-0x522ca1 inclusive
+// non_contiguous: false
+// provider: Ghidra 12.1.2 (ghidra)
+// analysis_profile: ac6d50be2cdf54f7005df47d1ed7e7ef55dee595681eb1b7c2e0b00d70cd697d
+// limitations: The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.; The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.; Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again.; Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.; Ghidra Listing reports a terminal call at 0x522b2f to 0x429127 FUN_00429127 (external=false, thunk=false, hasNoReturn=true); fallthrough is excluded by Ghidra's flow model. This records Ghidra's FunctionManager flag, not an independent verification that the callee cannot return.; The Ghidra Program references PDB ISPToolForMsi.pdb (GUID b8f2ac8f-1d6f-438d-800f-ed4a14426ac6, age (hex) 1, signature unknown, version RSDS); Ghidra reports load state unknown. Original names and types may be missing; an empty name search does not prove a procedure is absent. Use list_procedures and address-based analysis to inspect recovered functions. REA does not admit a caller-selected PDB companion.; This session uses Ghidra 12.1.2. The bridge is verified against 12.1.4; other 12.1.x builds are accepted and the observed version is reported.; Pseudocode is Ghidra decompiler output, not original source and not text-equivalent to Hopper output.; External functions and functions without an analyzable body return null; other decompiler failures remain explicit.
+// pseudocode: provider-specific; not original source
+
+
+/* WARNING: Function: __EH_prolog3_GS replaced with injection: EH_prolog3 */
+/* Library Function - Single Match
+    public: virtual class ATL::CStringT<wchar_t,class StrTraitMFC<wchar_t,class
+   ATL::ChTraitsCRT<wchar_t> > > __thiscall CMFCShellListCtrl::OnGetItemText(int,int,struct
+   _AFX_SHELLITEMINFO *)
+   
+   Library: Visual Studio 2015 Release */
+
+void __thiscall
+CMFCShellListCtrl::OnGetItemText
+          (CMFCShellListCtrl *this,int param_1,int param_2,_AFX_SHELLITEMINFO *param_3)
+
+{
+  code *pcVar1;
+  DWORD_PTR DVar2;
+  BOOL BVar3;
+  int iVar4;
+  undefined4 uVar5;
+  int in_stack_00000010;
+  undefined **ppuVar6;
+  int local_704;
+  SHFILEINFOW local_700;
+  undefined4 local_44c;
+  undefined4 local_448;
+  undefined4 local_444;
+  undefined4 local_440;
+  undefined4 local_43c;
+  undefined4 local_438;
+  undefined4 local_434;
+  undefined4 local_430;
+  byte local_42c;
+  WCHAR local_21c [266];
+  undefined4 local_8;
+  undefined4 uStack_4;
+  
+  uStack_4 = 0x6f8;
+  local_8 = 0x522b1b;
+  if (in_stack_00000010 == 0) {
+                    /* WARNING: Subroutine does not return */
+    FUN_00429127();
+  }
+  if (param_3 == (_AFX_SHELLITEMINFO *)0x0) {
+    DVar2 = SHGetFileInfoW(*(LPCWSTR *)(in_stack_00000010 + 4),0,&local_700,0x2b4,0x208);
+    if (DVar2 == 0) goto LAB_00522b4e;
+    ppuVar6 = (undefined **)local_700.szDisplayName;
+  }
+  else {
+    if (param_3 == (_AFX_SHELLITEMINFO *)0x1) {
+LAB_00522b8c:
+      BVar3 = SHGetPathFromIDListW(*(LPCITEMIDLIST *)(in_stack_00000010 + 4),local_21c);
+      if (BVar3 != 0) {
+        local_44c = 0;
+        local_448 = 0;
+        local_444 = 0;
+        local_440 = 0;
+        local_43c = 0;
+        local_438 = 0;
+        iVar4 = CFile::GetStatus(local_21c,(CFileStatus *)&local_44c,(CAtlTransactionManager *)0x0);
+        if (iVar4 != 0) {
+          uVar5 = FUN_004295fe();
+          FUN_0040eb30(uVar5);
+          local_8 = 0;
+          if (param_3 == (_AFX_SHELLITEMINFO *)0x1) {
+            if ((local_42c & 0x18) == 0) {
+              pcVar1 = *(code **)(*(int *)this + 0x1a0);
+              guard_check_icall(local_434,local_430,&local_704);
+              (*pcVar1)();
+            }
+          }
+          else {
+            pcVar1 = *(code **)(*(int *)this + 0x1a4);
+            guard_check_icall(&local_444,&local_704);
+            (*pcVar1)();
+          }
+          iVar4 = FUN_00415ee0(local_704 + -0x10);
+          *(int *)param_1 = iVar4 + 0x10;
+          FUN_0040efa0();
+          goto LAB_00522b5a;
+        }
+      }
+    }
+    else if (param_3 == (_AFX_SHELLITEMINFO *)0x2) {
+      DVar2 = SHGetFileInfoW(*(LPCWSTR *)(in_stack_00000010 + 4),0,&local_700,0x2b4,0x408);
+      if (DVar2 != 0) {
+        ppuVar6 = (undefined **)local_700.szTypeName;
+        goto LAB_00522b53;
+      }
+    }
+    else if (param_3 == (_AFX_SHELLITEMINFO *)0x3) goto LAB_00522b8c;
+LAB_00522b4e:
+    ppuVar6 = &PTR_005e8934;
+  }
+LAB_00522b53:
+  FUN_00415a10(ppuVar6);
+LAB_00522b5a:
+  FUN_0055bae6();
+  return;
+}
+

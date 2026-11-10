@@ -1,0 +1,49 @@
+// rea decompile_all
+// name: CMFCToolBarsMenuPropertyPage::SelectMenu
+// address: 0x51dd30
+// body: available
+// range: 0x51dd30-0x51ddcb inclusive
+// non_contiguous: false
+// provider: Ghidra 12.1.2 (ghidra)
+// analysis_profile: ac6d50be2cdf54f7005df47d1ed7e7ef55dee595681eb1b7c2e0b00d70cd697d
+// limitations: The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.; The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.; Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again.; Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.; The Ghidra Program references PDB ISPToolForMsi.pdb (GUID b8f2ac8f-1d6f-438d-800f-ed4a14426ac6, age (hex) 1, signature unknown, version RSDS); Ghidra reports load state unknown. Original names and types may be missing; an empty name search does not prove a procedure is absent. Use list_procedures and address-based analysis to inspect recovered functions. REA does not admit a caller-selected PDB companion.; This session uses Ghidra 12.1.2. The bridge is verified against 12.1.4; other 12.1.x builds are accepted and the observed version is reported.; Pseudocode is Ghidra decompiler output, not original source and not text-equivalent to Hopper output.; External functions and functions without an analyzable body return null; other decompiler failures remain explicit.
+// pseudocode: provider-specific; not original source
+
+
+/* Library Function - Single Match
+    public: int __thiscall CMFCToolBarsMenuPropertyPage::SelectMenu(class CDocTemplate *,int)
+   
+   Library: Visual Studio 2015 Release */
+
+int __thiscall
+CMFCToolBarsMenuPropertyPage::SelectMenu
+          (CMFCToolBarsMenuPropertyPage *this,CDocTemplate *param_1,int param_2)
+
+{
+  LRESULT LVar1;
+  CDocTemplate *pCVar2;
+  WPARAM wParam;
+  
+  wParam = 0;
+  LVar1 = SendMessageW(*(HWND *)(this + 0x560),0x146,0,0);
+  if (0 < LVar1) {
+    do {
+      pCVar2 = (CDocTemplate *)SendMessageW(*(HWND *)(this + 0x560),0x150,wParam,0);
+      if (pCVar2 == param_1) {
+        if (param_2 == 0) {
+          *(undefined4 *)(this + 0x5e4) = 0;
+        }
+        if (*(int *)(this + 0x5d4) != 0) {
+          *(undefined4 *)(this + 0x5e0) = *(undefined4 *)(*(int *)(this + 0x5d4) + 0xd4c);
+        }
+        SendMessageW(*(HWND *)(this + 0x560),0x14e,wParam,0);
+        FUN_0051daf2();
+        return 1;
+      }
+      wParam = wParam + 1;
+      LVar1 = SendMessageW(*(HWND *)(this + 0x560),0x146,0,0);
+    } while ((int)wParam < LVar1);
+  }
+  return 0;
+}
+

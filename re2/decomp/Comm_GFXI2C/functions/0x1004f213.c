@@ -1,0 +1,55 @@
+// rea decompile_all
+// name: ___removelocaleref
+// address: 0x1004f213
+// body: available
+// range: 0x1004f213-0x1004f2ab inclusive
+// non_contiguous: false
+// provider: Ghidra 12.1.2 (ghidra)
+// analysis_profile: b075844f08879296d957518397cd0ddda73db81dce53d00d3f0e702766fc2af6
+// limitations: The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.; The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.; Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again.; Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.; The Ghidra Program references PDB Comm_GFXI2C.pdb (GUID d304cc6d-b3ee-4851-b468-0ab5e385ca92, age (hex) 1, signature unknown, version RSDS); Ghidra reports load state unknown. Original names and types may be missing; an empty name search does not prove a procedure is absent. Use list_procedures and address-based analysis to inspect recovered functions. REA does not admit a caller-selected PDB companion.; This session uses Ghidra 12.1.2. The bridge is verified against 12.1.4; other 12.1.x builds are accepted and the observed version is reported.; Pseudocode is Ghidra decompiler output, not original source and not text-equivalent to Hopper output.; External functions and functions without an analyzable body return null; other decompiler failures remain explicit.
+// pseudocode: provider-specific; not original source
+
+
+/* Library Function - Single Match
+    ___removelocaleref
+   
+   Library: Visual Studio 2008 Release */
+
+LONG * __cdecl ___removelocaleref(LONG *param_1)
+
+{
+  LONG *pLVar1;
+  LONG *pLVar2;
+  
+  pLVar1 = param_1;
+  if (param_1 != (LONG *)0x0) {
+    InterlockedDecrement(param_1);
+    if ((LONG *)param_1[0x2c] != (LONG *)0x0) {
+      InterlockedDecrement((LONG *)param_1[0x2c]);
+    }
+    if ((LONG *)param_1[0x2e] != (LONG *)0x0) {
+      InterlockedDecrement((LONG *)param_1[0x2e]);
+    }
+    if ((LONG *)param_1[0x2d] != (LONG *)0x0) {
+      InterlockedDecrement((LONG *)param_1[0x2d]);
+    }
+    if ((LONG *)param_1[0x30] != (LONG *)0x0) {
+      InterlockedDecrement((LONG *)param_1[0x30]);
+    }
+    pLVar2 = param_1 + 0x14;
+    param_1 = (LONG *)0x6;
+    do {
+      if (((undefined *)pLVar2[-2] != &DAT_10064a08) && ((LONG *)*pLVar2 != (LONG *)0x0)) {
+        InterlockedDecrement((LONG *)*pLVar2);
+      }
+      if ((pLVar2[-1] != 0) && ((LONG *)pLVar2[1] != (LONG *)0x0)) {
+        InterlockedDecrement((LONG *)pLVar2[1]);
+      }
+      pLVar2 = pLVar2 + 4;
+      param_1 = (LONG *)((int)param_1 + -1);
+    } while (param_1 != (LONG *)0x0);
+    InterlockedDecrement((LONG *)(pLVar1[0x35] + 0xb4));
+  }
+  return pLVar1;
+}
+

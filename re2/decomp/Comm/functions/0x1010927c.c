@@ -1,0 +1,74 @@
+// rea decompile_all
+// name: CMFCColorMenuButton::CreatePopupMenu
+// address: 0x1010927c
+// body: available
+// range: 0x1010927c-0x1010936f inclusive
+// non_contiguous: false
+// provider: Ghidra 12.1.2 (ghidra)
+// analysis_profile: b075844f08879296d957518397cd0ddda73db81dce53d00d3f0e702766fc2af6
+// limitations: The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.; The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.; Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again.; Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.; The Ghidra Program references PDB Comm.pdb (GUID c3062acb-498d-45fa-a233-c8b7e401bb13, age (hex) 1, signature unknown, version RSDS); Ghidra reports load state unknown. Original names and types may be missing; an empty name search does not prove a procedure is absent. Use list_procedures and address-based analysis to inspect recovered functions. REA does not admit a caller-selected PDB companion.; This session uses Ghidra 12.1.2. The bridge is verified against 12.1.4; other 12.1.x builds are accepted and the observed version is reported.; Pseudocode is Ghidra decompiler output, not original source and not text-equivalent to Hopper output.; External functions and functions without an analyzable body return null; other decompiler failures remain explicit.
+// pseudocode: provider-specific; not original source
+
+
+/* WARNING: Function: __EH_prolog3 replaced with injection: EH_prolog3 */
+/* WARNING: Function: __EH_epilog3 replaced with injection: EH_epilog3 */
+/* Library Function - Single Match
+    protected: virtual class CMFCPopupMenu * __thiscall CMFCColorMenuButton::CreatePopupMenu(void)
+   
+   Library: Visual Studio 2015 Release */
+
+CMFCPopupMenu * __thiscall CMFCColorMenuButton::CreatePopupMenu(CMFCColorMenuButton *this)
+
+{
+  CFrameWnd *pCVar1;
+  undefined4 uVar2;
+  undefined4 uVar3;
+  CMFCPopupMenu *pCVar4;
+  undefined **local_30 [7];
+  int local_14;
+  undefined4 local_8;
+  undefined4 uStack_4;
+  
+  uStack_4 = 0x20;
+  local_8 = 0x10109288;
+  CList<unsigned_long,unsigned_long>::CList<unsigned_long,unsigned_long>
+            ((CList<unsigned_long,unsigned_long> *)local_30,10);
+  pCVar4 = (CMFCPopupMenu *)0x0;
+  local_8 = 0;
+  if ((*(int *)(this + 0x120) != 0) && (*(CWnd **)(this + 0x6c) != (CWnd *)0x0)) {
+    pCVar1 = DAT_101dc4c4;
+    if (DAT_101dc4c4 == (CFrameWnd *)0x0) {
+      pCVar1 = CWnd::GetTopLevelFrame(*(CWnd **)(this + 0x6c));
+    }
+    SendMessageW(*(HWND *)(pCVar1 + 0x20),DAT_101dd3c8,*(WPARAM *)(this + 0x20),(LPARAM)local_30);
+  }
+  local_14 = FUN_10011f7d(0x1fe8);
+  local_8 = CONCAT31(local_8._1_3_,1);
+  if (local_14 != 0) {
+    if (*(int *)(this + 0x120) == 0) {
+      uVar2 = 0;
+    }
+    else {
+      uVar2 = *(undefined4 *)(this + 300);
+    }
+    if (*(int *)(this + 0x11c) == 0) {
+      uVar3 = 0;
+    }
+    else {
+      uVar3 = *(undefined4 *)(this + 0x128);
+    }
+    if (*(int *)(this + 0x118) != 0) {
+      pCVar4 = *(CMFCPopupMenu **)(this + 0x124);
+    }
+    pCVar4 = (CMFCPopupMenu *)
+             CMFCColorPopupMenu(this + 0xf0,*(undefined4 *)(this + 0xe8),pCVar4,uVar3,uVar2,local_30
+                                ,*(undefined4 *)(this + 0x10c),*(undefined4 *)(this + 0x114),
+                                *(undefined4 *)(this + 0x110),*(undefined4 *)(this + 0xec),
+                                *(undefined4 *)(this + 0x20),*(undefined4 *)(this + 0x130));
+  }
+  local_8 = 2;
+  local_30[0] = CList<unsigned_long,unsigned_long>::vftable;
+  CList<tagPOINT,tagPOINT>::RemoveAll((CList<tagPOINT,tagPOINT> *)local_30);
+  return pCVar4;
+}
+

@@ -1,0 +1,60 @@
+// rea decompile_all
+// name: <lambda_b721fa326cdb32351d23dfa67958c160>::operator()
+// address: 0x1019b287
+// body: available
+// range: 0x1019b287-0x1019b320 inclusive
+// non_contiguous: false
+// provider: Ghidra 12.1.2 (ghidra)
+// analysis_profile: b075844f08879296d957518397cd0ddda73db81dce53d00d3f0e702766fc2af6
+// limitations: The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.; The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.; Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again.; Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.; The Ghidra Program references PDB WinIspPlugIn.pdb (GUID d9f398c7-6c98-49a8-af25-a0659d5ad2f3, age (hex) 1, signature unknown, version RSDS); Ghidra reports load state unknown. Original names and types may be missing; an empty name search does not prove a procedure is absent. Use list_procedures and address-based analysis to inspect recovered functions. REA does not admit a caller-selected PDB companion.; This session uses Ghidra 12.1.2. The bridge is verified against 12.1.4; other 12.1.x builds are accepted and the observed version is reported.; Pseudocode is Ghidra decompiler output, not original source and not text-equivalent to Hopper output.; External functions and functions without an analyzable body return null; other decompiler failures remain explicit.
+// pseudocode: provider-specific; not original source
+
+
+/* WARNING: Globals starting with '_' overlap smaller symbols at the same address */
+/* Library Function - Single Match
+    public: int __thiscall <lambda_b721fa326cdb32351d23dfa67958c160>::operator()(void)const 
+   
+   Library: Visual Studio 2015 Release */
+
+int __thiscall
+<lambda_b721fa326cdb32351d23dfa67958c160>::operator()
+          (<lambda_b721fa326cdb32351d23dfa67958c160> *this)
+
+{
+  int iVar1;
+  uint uVar2;
+  int iVar3;
+  undefined4 uVar4;
+  
+  uVar2 = **(uint **)this & 0xfffffffe;
+  ___acrt_stdio_flush_nolock(**(undefined4 **)(this + 4));
+  ___acrt_stdio_free_buffer_nolock(**(undefined4 **)(this + 4));
+  LOCK();
+  *(uint *)(**(int **)(this + 4) + 0xc) = *(uint *)(**(int **)(this + 4) + 0xc) & 0xfffff81f;
+  UNLOCK();
+  if ((**(byte **)(this + 8) & 4) == 0) {
+    iVar1 = **(int **)(this + 0xc);
+    if (iVar1 == 0) {
+      iVar1 = __malloc_base(uVar2);
+      FID_conflict__free((void *)0x0);
+      if (iVar1 == 0) {
+        _DAT_10249610 = _DAT_10249610 + 1;
+        return -1;
+      }
+      uVar4 = 0x140;
+    }
+    else {
+      uVar4 = 0x180;
+    }
+    iVar3 = **(int **)(this + 4);
+  }
+  else {
+    uVar4 = 0x400;
+    uVar2 = 2;
+    iVar1 = **(int **)(this + 4) + 0x14;
+    iVar3 = **(int **)(this + 4);
+  }
+  iVar1 = set_buffer(iVar3,iVar1,uVar2,uVar4);
+  return iVar1;
+}
+

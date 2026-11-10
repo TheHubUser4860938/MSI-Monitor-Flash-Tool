@@ -1,0 +1,43 @@
+// rea decompile_all
+// name: CDockBar::OnSizeParent
+// address: 0x10106bec
+// body: available
+// range: 0x10106bec-0x10106c54 inclusive
+// non_contiguous: false
+// provider: Ghidra 12.1.2 (ghidra)
+// analysis_profile: b075844f08879296d957518397cd0ddda73db81dce53d00d3f0e702766fc2af6
+// limitations: The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.; The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.; Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again.; Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.; The Ghidra Program references PDB Comm.pdb (GUID c3062acb-498d-45fa-a233-c8b7e401bb13, age (hex) 1, signature unknown, version RSDS); Ghidra reports load state unknown. Original names and types may be missing; an empty name search does not prove a procedure is absent. Use list_procedures and address-based analysis to inspect recovered functions. REA does not admit a caller-selected PDB companion.; This session uses Ghidra 12.1.2. The bridge is verified against 12.1.4; other 12.1.x builds are accepted and the observed version is reported.; Pseudocode is Ghidra decompiler output, not original source and not text-equivalent to Hopper output.; External functions and functions without an analyzable body return null; other decompiler failures remain explicit.
+// pseudocode: provider-specific; not original source
+
+
+/* Library Function - Single Match
+    protected: long __thiscall CDockBar::OnSizeParent(unsigned int,long)
+   
+   Library: Visual Studio 2015 Release */
+
+long __thiscall CDockBar::OnSizeParent(CDockBar *this,uint param_1,long param_2)
+
+{
+  LONG LVar1;
+  undefined4 uVar2;
+  undefined4 uVar3;
+  undefined4 uVar4;
+  undefined4 uVar5;
+  long lVar6;
+  
+  uVar5 = *(undefined4 *)(this + 0xe0);
+  LVar1 = ((LPRECT)(this + 0xe4))->left;
+  uVar2 = *(undefined4 *)(this + 0xe8);
+  uVar3 = *(undefined4 *)(this + 0xec);
+  uVar4 = *(undefined4 *)(this + 0xf0);
+  *(uint *)(this + 0xe0) = (uint)(*(int *)param_2 == 0);
+  CopyRect((LPRECT)(this + 0xe4),(RECT *)(param_2 + 4));
+  lVar6 = CControlBar::OnSizeParent((CControlBar *)this,param_1,param_2);
+  *(undefined4 *)(this + 0xe0) = uVar5;
+  *(LONG *)(this + 0xe4) = LVar1;
+  *(undefined4 *)(this + 0xe8) = uVar2;
+  *(undefined4 *)(this + 0xec) = uVar3;
+  *(undefined4 *)(this + 0xf0) = uVar4;
+  return lVar6;
+}
+

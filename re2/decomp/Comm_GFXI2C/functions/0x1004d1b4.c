@@ -1,0 +1,50 @@
+// rea decompile_all
+// name: __decode_pointer
+// address: 0x1004d1b4
+// body: available
+// range: 0x1004d1b4-0x1004d225 inclusive
+// non_contiguous: false
+// provider: Ghidra 12.1.2 (ghidra)
+// analysis_profile: b075844f08879296d957518397cd0ddda73db81dce53d00d3f0e702766fc2af6
+// limitations: The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.; The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.; Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again.; Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.; The Ghidra Program references PDB Comm_GFXI2C.pdb (GUID d304cc6d-b3ee-4851-b468-0ab5e385ca92, age (hex) 1, signature unknown, version RSDS); Ghidra reports load state unknown. Original names and types may be missing; an empty name search does not prove a procedure is absent. Use list_procedures and address-based analysis to inspect recovered functions. REA does not admit a caller-selected PDB companion.; This session uses Ghidra 12.1.2. The bridge is verified against 12.1.4; other 12.1.x builds are accepted and the observed version is reported.; Pseudocode is Ghidra decompiler output, not original source and not text-equivalent to Hopper output.; External functions and functions without an analyzable body return null; other decompiler failures remain explicit.
+// pseudocode: provider-specific; not original source
+
+
+/* Library Function - Single Match
+    __decode_pointer
+   
+   Library: Visual Studio 2008 Release */
+
+int __cdecl __decode_pointer(int param_1)
+
+{
+  LPVOID pvVar1;
+  code *pcVar2;
+  int iVar3;
+  HMODULE hModule;
+  FARPROC pFVar4;
+  
+  pvVar1 = TlsGetValue(DAT_100642f4);
+  if ((pvVar1 != (LPVOID)0x0) && (DAT_100642f0 != -1)) {
+    iVar3 = DAT_100642f0;
+    pcVar2 = TlsGetValue(DAT_100642f4);
+    iVar3 = (*pcVar2)(iVar3);
+    if (iVar3 != 0) {
+      pFVar4 = *(FARPROC *)(iVar3 + 0x1fc);
+      goto LAB_1004d214;
+    }
+  }
+  hModule = GetModuleHandleW(L"KERNEL32.DLL");
+  if ((hModule == (HMODULE)0x0) &&
+     (hModule = (HMODULE)__crt_waiting_on_module_handle(L"KERNEL32.DLL"), hModule == (HMODULE)0x0))
+  {
+    return param_1;
+  }
+  pFVar4 = GetProcAddress(hModule,"DecodePointer");
+LAB_1004d214:
+  if (pFVar4 != (FARPROC)0x0) {
+    param_1 = (*pFVar4)(param_1);
+  }
+  return param_1;
+}
+

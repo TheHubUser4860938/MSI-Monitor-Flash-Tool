@@ -1,0 +1,2093 @@
+    
+      (                          
+(*.*)
+*?<>|
+----------------------------------------------------
+????
+%02d
+%02d.
+_%02x
+080404b0
+%08lX%04X%04x%02X%02X%02X%02X%02X%02X%02X%02X
+%08lX-%04X-%04x-%02X%02X-%02X%02X%02X%02X%02X%02X
+0x%02x
+0x%02x,
+0x%02X ,
+0x%02X, 
+0x6A NACK, Error Code:0x%x, Read Count:%d
+0x%x
+0x%x 
+0x%x,
+0x%x, 
+0x%x02X ,
+0x%x NACK, Error Code:0x%x, Read Count:%d
+ %1 
+: %1
+1.0.9.0
+1&0 %Ts
+%1: %2
+1.2.3.4
+1.Chang To Background Fw Update Mode
+1stRomSpeed
+ %2 
+ 255 
+%2\CLSID
+%2\DocObject
+%2\Insertable
+2ndRomSpeed
+%2\protocol\StdFileEditing\server
+%2\protocol\StdFileEditing\verb\0
+2.Send Backgroudn FW Update Start Command
+#32768
+%3,%7
+3.Send Backgroudn FW Update Write Data Command
+4. Send Backgroudn FW Update Finish Command
+5. Send Backgroudn FW Update Exit Command
+7IDX_OFFICE2007_STYLE
+%9, %8
+accChild
+accChildCount
+accDefaultAction
+accDescription
+accDoDefaultAction
+accFocus
+accHelp
+accHelpTopic
+accHitTest
+accKeyboardShortcut
+accLocation
+accName
+accNavigate
+accParent
+accRole
+accSelect
+accSelection
+accState
+accValue
+Active
+ActiveCaption
+ActiveFinish
+ActiveStart
+ActiveText
+ActiveTitleText
+advapi32
+Advapi32.dll
+Aero
+AfxClosePending
+Afx:ControlBar
+AfxControlBar140su
+AFX_DIALOG_LAYOUT
+Afx:DockPane
+AfxFrameOrView140su
+AfxMDIFrame140su
+Afx:MiniFrame
+AfxOldWndProc423
+AfxOleControl140su
+Afx:PropList
+Afx:%p:%x
+Afx:%p:%x:%p:%p:%p
+AFX_RIBBON
+Afx:Slider
+AFX_SUPERBAR_TAB
+Afx:TabWnd
+Afx:TrackingWnd
+AFX_WM_AFTER_TASKBAR_ACTIVATE
+AFX_WM_CHANGE_CURRENT_FOLDER
+AFX_WM_CHANGEVISUALMANAGER
+AFX_WM_DRAW2D
+AFX_WM_GETDRAGBOUNDS
+AFX_WM_ON_BEFORE_SHOW_RIBBON_ITEM_MENU
+AFX_WM_ON_CANCELTABMOVE
+AFX_WM_ONCHANGE_ACTIVE_TAB
+AFX_WM_ON_CHANGE_RIBBON_CATEGORY
+AFX_WM_ON_CHANGING_ACTIVE_TAB
+AFX_WM_ON_DRAGCOMPLETE
+AFX_WM_ON_GET_TAB_TOOLTIP
+AFX_WM_ON_HIGHLIGHT_RIBBON_LIST_ITEM
+AFX_WM_ON_HSCROLL
+AFX_WM_ON_MOVE_TAB
+AFX_WM_ON_MOVETABCOMPLETE
+AFX_WM_ON_MOVETOTABGROUP
+AFX_WM_ON_PRESS_CLOSE_BUTTON
+AFX_WM_ON_RENAME_TAB
+AFX_WM_ON_RIBBON_CUSTOMIZE
+AFX_WM_ON_TABGROUPMOUSEMOVE
+AFX_WM_POSTRECALCLAYOUT
+AFX_WM_POSTSETPREVIEWFRAME
+AFX_WM_PROPERTYCHANGED
+AFX_WM_RECREATED2DRESOURCES
+AFX_WM_UPDATETOOLTIPS
+AfxWnd140su
+af-za
+af-ZA
+All slave address 0x%x/0x6A/0x7C NACK! Read Count:%d
+All slave address 0x%x/0x6A NACK! Read Count:%d
+ALMOST_LARGE_TEXT
+Alt, 
+ALWAYS_DESCRIPTION
+ALWAYS_LARGE
+:AM:am:PM:pm
+america
+american
+american english
+american-english
+am/pm
+ANTIALIASED
+Apartment
+api-ms-win-appmodel-runtime-l1-1-1
+api-ms-win-core-datetime-l1-1-1
+api-ms-win-core-fibers-l1-1-1
+api-ms-win-core-file-l2-1-1
+api-ms-win-core-localization-l1-2-1
+api-ms-win-core-localization-obsolete-l1-2-0
+api-ms-win-core-processthreads-l1-1-2
+api-ms-win-core-string-l1-1-0
+api-ms-win-core-synch-l1-2-0
+api-ms-win-core-sysinfo-l1-2-1
+api-ms-win-core-winrt-l1-1-0
+api-ms-win-core-xstate-l2-1-0
+api-ms-win-rtcore-ntuser-window-l1-1-0
+api-ms-win-security-systemfunctions-l1-1-0
+April
+AQUA_
+ar-ae
+ar-AE
+ar-bh
+ar-BH
+ar-dz
+ar-DZ
+AREA
+ar-eg
+ar-EG
+Arial
+ar-iq
+ar-IQ
+ar-jo
+ar-JO
+ar-kw
+ar-KW
+ar-lb
+ar-LB
+ar-ly
+ar-LY
+ar-ma
+ar-MA
+ar-om
+ar-OM
+ar-qa
+ar-QA
+ar-sa
+ar-SA
+ar-sy
+ar-SY
+ar-tn
+ar-TN
+ar-ye
+ar-YE
+Ask for current address: ulFlagStartAddr 0x%X
+Ask for Current Key address enumError:0x%X data: 0x%02X
+Ask for Current Key Address: Fail !!!
+Ask for Current Key Address: ulKeyAddr 0x%X
+Ask for Start bank  enumError:0x%X data: 0x%02X, 0x%02X,0x%02x, Fw code size: 0x%02X
+Ask for ulKeyAddr address: ulFlagStartAddr 0x%X
+Ask for ulSigAddr address: ulSigAddr 0x%X
+Ask for User Flag address , enumError:0x%X data: 0x%02X
+Ask for User Flag address: ulFlagAddr 0x%X
+August
+australian
+Automatic
+AUTOMATIC_BTN
+Auto Switch Code:%d, isp finish
+Auto Swtich Code:%d 
+az-az-cyrl
+az-AZ-Cyrl
+az-az-latn
+az-AZ-Latn
+Back
+BACK
+BACK_EXT
+Background_ISP_Settging
+BALLON
+Bank: 0x%x, ProLen: 0x%x, SectorErase: 0x%x, SectorEraseCount: 0x%x
+ Bank %d Bank Erase Fail!, ErrorCode: 0x%x
+Bank %d Erase Success
+ Bank %d Get Final Code Fail!, ErrorCode: 0x%x
+Bank %d ISP Success
+Bank%d_%s
+ Bank %d Write Data To Flash Fail!, ErrorCode: 0x%x
+ Bank Erase %d,  Fail!, Error Code:0x%x
+ Bank Erase %d,  Success!, Error Code:0x%x
+BankErase Start!
+BankErase Success!
+BarDkShadow
+BarFace
+BarLight
+BarName
+BARS
+BarShadow
+BarText
+BasePanes
+bAuto
+bAutoDetectFlash
+bAutoDetectSlave
+bAutoExit
+bAutoHideMainWindow
+bAutoISP
+bAutoReISPAfterReplugCable
+bAutoSearchFW
+bCheckBinFileAndIC
+bCheckCHK
+bCheckReturnValue
+bCheckToolAndBinFile
+bCheckToolAndIC
+bClearXROMFlagEx
+bDDCCIReadNotReturn0x6E
+be-by
+be-BY
+Begin ISP Fw, please wait for a moment
+Begin to Ask for User Start Bank!
+belgian
+bEnableBBBackgroundUpdate
+bEnableBBISPCrcCheck
+bEnableCheckFlashMode
+bEnableForceTypeCVBusOff
+bEnableISPChannel
+bEnableSetBackgroundFlashWriteTime
+bEnableTypeCUSBEnterISPMode
+bFindFwIgnoreCapabilityInfo
+bFindFwIgnoreModelName
+bFindFwIgnorePanelName
+bFindFwIgnoreSIName
+bFindFwIgnoreVersionName
+bg-bg
+bg-BG
+bGetCapabilityInfo
+bGetFPSettingFromIC
+bGetKeyFromFlashProgSwitch
+bGetModelName
+bGetModelNameCheckCHK
+bGetPanelName
+bGetPanelNameCheckCHK
+bGetSIName
+bGetSINameCheckCHK
+bGetVersion
+bGetVersionCheckCHK
+bHWISPSpeedUp
+.bin
+Bin file count in cur dir:%d
+Bin file length:0x%x invalid!
+Bin file open fail!
+bISPBBCheckReservedSetting
+bIspBeforeAcOn
+bISPCheckTypecUsb
+bIspFinishBeforeReset
+bISPRL6420MCMFlashMode
+bISPRL6703CheckFlashAndBin
+bIspSCPUFlash
+bIspTTSFlash
+Bkgnd
+Black
+BLACK
+BLACK_
+Black2
+BLUE_
+bMCMFlashMode
+bn-in
+bn-IN
+bNotSetSlave
+BOLD
+BOLD_LABEL
+ Boot
+Boot I ask signature result fail!
+Border
+BORDER
+BorderDisabled
+BorderHighlighted
+BorderInnerActive
+BorderInnerNormal
+BORDER_MDICHILD
+BorderNormal
+BorderOuterActive
+BorderOuterNormal
+BorderPressed
+BORDERS
+BorderSize
+Both
+BOTTOM
+BottomLineColor
+bProjectIDCheck
+bQisdaFactory
+bReleaseDeviceAfterReset
+bResetAfterRecordVer
+bResetMcu
+bRetryISP
+bRetrySectorISP
+britain
+bSave
+bSaveDebugLog
+bSaveProgress
+bSaveResult
+bs-ba-latn
+bs-BA-Latn
+bSendDDCCICmd
+bSetPacketLen
+bShowDualBankFW
+bShowDumpFlash
+bShowEnterIspMode
+bShowEraseUI
+bShowFWInfoUI
+bShowFWVersion
+bShowInfoOnConsole
+bShowMergeFW
+bShowResetMCU
+bSmbusBlockReadWrite
+bSoftwareSignVerifyCheckKey
+bSwitchFLag
+BtnBorderDisabled
+BtnBorderHighlighted
+BtnBorderNormal
+BtnBorderPressed
+BTN_DEFAULT
+Buff[0]:0x%x, Buff[1]:0x%x, Buff[2]:0x%x, Buff[3]:0x%x
+Buffer from bin: 
+Buffer from flash: 
+Button
+BUTTON
+ButtonBorder
+Button_Check
+BUTTON_CHECK
+Button_Color
+BUTTON_DEFAULT
+BUTTON_DEFAULT_ICON
+BUTTON_DEFAULT_IMAGE
+BUTTON_DEFAULT_QAT
+BUTTON_DEFAULT_QAT_ICON
+Button_Gallery
+BUTTON_GROUP_F
+BUTTON_GROUP_L
+BUTTON_GROUP_M
+BUTTON_GROUPMENU_F_C
+BUTTON_GROUPMENU_F_M
+BUTTON_GROUPMENU_L_C
+BUTTON_GROUPMENU_L_M
+BUTTON_GROUPMENU_M_C
+BUTTON_GROUPMENU_M_M
+BUTTON_GROUP_S
+Button_Launch
+BUTTON_LAUNCH
+Button_LinkCtrl
+Button_Main
+BUTTON_MAIN
+Button_Main_Panel
+BUTTON_MENU_H_C
+BUTTON_MENU_H_M
+BUTTON_MENU_V_C
+BUTTON_MENU_V_M
+BUTTON_MODE
+BUTTON_NORMAL_B
+BUTTON_NORMAL_S
+BUTTON_PAGE_L
+BUTTON_PAGE_R
+BUTTON_PNL_B
+BUTTON_PNL_M
+BUTTON_PNL_T
+Buttons
+BUTTONS
+Button_Undo
+bWaitCopyBank
+bWriteProtectUseSetting
+ca-es
+ca-ES
+canadian
+Cannot get right capability info use default: %ls
+Can't create context menu!
+CapabilityInfo
+Capability info in function: %ls
+Capability info:%ls
+Capability temp info: %ls
+CAPTION
+Caption Bar
+CAPTIONBAR
+CaptionText
+CATEGORIES
+Category
+CATEGORY
+CATEGORY_BACK
+CATEGORY_CAPTION
+Category_Main
+CATEGORY_MAIN
+CATEGORY_TAB
+CENTER_COLUMN_VERT
+CHAR_SET
+CHARSET
+Check 0xFD2C[0] = 1 Fail!
+Check CRC Fail, StartAddr: 0x%x ProLen: 0x%x
+Check DDCCI mode success after sign/copy.
+Check DDCCI mode time out after sign/copy.
+Check Enable SmbusBlockReadWriteEnableCommand ErrorCode:0x%X, Data0:0x%X, Data 1:0x%X
+Check Enable SmbusBlockReadWriteEnableCommand ErrorCOde:0x%X, Data2:0x%X, Data 3:0x%X
+Check Enable SmbusBlockReadWriteEnableCommand Success
+Check I2C master status fail!
+Check RL6703 BillBoard
+Check RL6703 billboard fail! error code:0x%X.
+Checksum: 0x%x
+CheckSum calculate from read buffer: 0x%x
+Checksum compare fail!
+CheckSum compare fail!
+Checksum compare success!
+CheckSum compare success!
+Checksum Vaule After ISP: 0x%x
+Check Tool and FW File Project ID Fail.
+china
+chinese
+chinese-hongkong
+chinese-simplified
+chinese-singapore
+chinese-traditional
+ ChipErase Fail!, Error Code:0x%x
+ChipErase Start!
+ChipErase Success!
+Chip erasing...
+.CHM
+ClearFlagBaseOnEraseType Fail%d, ErrorCode: 0x%x
+ClearFlagBaseOnEraseType Success
+ Clear Flag Fail!, ErrorCode: 0x%x
+CLEARTYPE
+CLEARTYPE_NATURAL
+Close
+CLSID\%1
+CLSID\%1\AuxUserType\2
+CLSID\%1\AuxUserType\3
+CLSID\%1\DefaultExtension
+CLSID\%1\DefaultIcon
+CLSID\%1\DocObject
+CLSID\%1\InprocHandler32
+CLSID\%1\InProcServer32
+CLSID\%1\Insertable
+CLSID\%1\LocalServer32
+CLSID\%1\MiscStatus
+CLSID\%1\Printable
+CLSID\%1\ProgID
+CLSID\%1\Verb\0
+CLSID\%1\Verb\1
+CMFCToolBarMenuButton
+COLOR
+COLOR_BORDER
+COLOR_FILL
+COLOR_FILLGRADIENT
+COLORS
+COLOR_TEXT
+COMBO
+combobox
+ComboBox
+COMBOBOX
+ComboBoxEx32
+ComboBox_Font
+comctl32.dll
+Comctl32.dll
+Comdlg32.dll
+commctrl_DragListMsg
+commdlg_ColorOK
+commdlg_FileNameOK
+commdlg_FindReplace
+commdlg_help
+commdlg_LBSelChangedNotify
+commdlg_SetRGBColor
+commdlg_ShareViolation
+Comm.dll
+Communication
+CompanyName
+Compare with target buffer fail!
+Compare with target buffer ok!
+CONOUT$
+ConstSize
+Context
+CONTEXT
+CONTEXTS
+ControlPane
+Control Panel\Desktop
+Copy Bank(1 Bank Boot + User1 + User2)
+Copy Result
+ Copy Result Fail:%d 
+CORNERS
+__crt_strtox::floating_point_value::as_double
+__crt_strtox::floating_point_value::as_float
+cs-cz
+cs-CZ
+CurrentBank
+Current is External Flash Mode!
+Current is MCM Flash Mode!
+CustomizeButtonGradientDark
+CustomizeButtonGradientLight
+cy-gb
+cy-GB
+czech
+%d%%
+%d.%02d
+D2D1.dll
+da-dk
+da-DK
+DAEWOO
+DarkHighlighted
+DarkNormal
+Data invalid!, Retry
+%d.%d
+DDCCI cmd read data: 
+DDCCI Mode To Debug Mode One Bank Mode, error code:0x%x
+DDCCI read after update info fail, DDCCI cmd read data: 
+DDCCI read cmd fail, error code:0x%x, , release dev
+DDCCI read cmd fail, index: 0x%x, error code:0x%x
+Ddcci read data:
+Ddcci read fail, Ddcci read data:
+DDCCI read fail, error code:0x%x
+DDCCI read fail, index: 0x%x, error code:0x%x
+DDCCI read fail, read index %d: DDCCI cmd read data: 
+DDCCI write cmd 1 after update fail, error code:0x%x
+DDCCI write cmd 1 fail, error code:0x%x
+DDCCI write cmd 1 fail, index: 0x%x, error code:0x%x
+DDCCI write cmd 2 fail, error code:0x%x
+DDCCI write cmd 2 fail, index: 0x%x, error code:0x%x
+DDCCI write error code 0x%x
+DDCCI write fail, error code:0x%x
+DDCCI write first cmd 1 fail, error code:0x%x
+DDCCI write first cmd 2 fail, error code:0x%x
+DDCCI write second cmd 1 fail, error code:0x%x
+DDCCI write second cmd 2 fail, error code:0x%x
+DDCCI write third cmd 1 fail, error code:0x%x
+DDCCI write third cmd 2 fail, error code:0x%x
+dddd, MMMM dd, yyyy
+---Deal with Specail Flash Begin---
+de-at
+de-AT
+Debug Mode To DDCCI Mode One Bank Mode
+December
+de-ch
+de-CH
+de-de
+de-DE
+Default
+DEFAULT
+DEFAULT_COMMAND
+DelayTime
+delay time between send cmd %d
+de-li
+de-LI
+de-lu
+de-LU
+DEMIBOLD
+DESCRIPTION
+DetectAckBySlave ucCurSlave:0x%X
+ Detect And Config Flash Address Mode Fail!, ErrorCode: 0x%x
+Diff Bank(1 Bank Boot + User1 + User2)
+Disabled
+ Disable Software WP Fail!, ErrorCode: 0x%x
+ Disable WP Fail! 
+ Disable WP Fail!, ErrorCode: 0x%x
+Disable WP RunSafeGuardCmd Fail, Error code: 0x%X
+div-mv
+div-MV
+DkGray
+ DLL 
+......Do Bank Erase Begin......
+......Do Chip Erase Begin......
+DockingManagers
+DockingPaneAndPaneDividers
+......Do ISP Begin......
+......Do ISP End......
+ DoIsp enumError :0x%X 
+DONTCARE
+DoubleClick
+DRAFT
+DragDelay
+DragMinDist
+DragScrollDelay
+DragScrollInset
+DragScrollInterval
+DRAW_DESCRIPTION
+DRAW_ICON
+DRAW_SEPARATOR
+DROPDOWN_LIST
+DROPDOWN_LIST_RESIZE
+&%d %Ts
+DualBank
+DualBankInfo
+DualBankSupport
+DualBankType
+DUMMY
+dumpflash.bin
+=== Dump Flash Data End ===
+=== Dump Flash Data Start ===
+dutch-belgian
+dwmapi.dll
+DWrite.dll
+Eccs
+EDIDFileName
+&Edit
+Edit
+EDIT
+&Edit,0,2
+EDIT_BOX
+EEpromProgramCount
+ELEMENT
+ELEMENT_NAME
+ELEMENTS
+ELEMENTS_EXTENDED
+el-gr
+el-GR
+Embedded Object
+Embed Source
+ENABLE
+ENABLE_DRAWUSINGFONT
+Enable Force TypeC Vbus Off Check fail! Error code:0x%X.
+Enable Isp Channel Fail! 
+Enable Isp Channel Success! 
+EnableIspProgramChannelOneBankMode enumError:0x%X data: 0x%02X, 0x%02X
+ENABLE_KEYS
+ENABLE_PRINTPREVIEW
+ EnableSoftWareWP Fail!, Error Code:0x%x
+ENABLE_TOOLTIPS
+ENABLE_TOOLTIPS_DESCRIPTION
+Enable WP RunSafeGuardCmd Fail, Error code: 0x%X
+en-au
+en-AU
+en-bz
+en-BZ
+en-ca
+en-CA
+en-cb
+en-CB
+End Address 0x%x exceed current sector!
+en-gb
+en-GB
+england
+english-american
+english-aus
+english-belize
+english-can
+english-caribbean
+english-ire
+english-jamaica
+english-nz
+english-south africa
+english-trinidad y tobago
+english-uk
+english-us
+english-usa
+en-ie
+en-IE
+en-jm
+en-JM
+en-nz
+en-NZ
+en-ph
+en-PH
+Enter Function Get HP Fw Name Info
+Enter Function GetHPHwCidInfo
+Enter Function GetHPModelName
+Enter Function GetHPScalerType
+Enter Function GetOneBankBootUserDefinedVersion
+Enter function isp HP friends package version
+Enter function read HP 4 bytes version
+Enter function read HP friends package version
+Enter function read HP hw revision
+Enter function ReadUserDefinedVersionOfHPAricaVersion
+Enter ISP mode fail! Error code:0x%X.
+Enter ISP mode Success!
+en-tt
+en-TT
+enumActionType
+ enumActionType : %d, enumSignType:%d, enumIspMode:%d, enumOneBankMode:%d 
+enumBootCodeType
+enumCommID
+enumDDCCICmdGetSINameMode
+enumDigitalSignatureType
+enumEraseType
+enumFindBinUseVerMode
+enumFlashMismatch
+enumIspMode
+ enumIspMode:%d, enumOneBankMode:%d 
+enumMergeFWGeneration
+enumMergeFWInfoMode
+enumMergeFWInfoType
+enumModelNameRecordMode
+enumPanelNameRecordMode
+enumProjectIDSel
+enumRecordVerMode
+enumSignStatus :0x%x
+enumSINameRecordMode
+enumSWDigitalSignatureMode
+enumVersionLocationType
+enumVersionRecordMode
+enumWPOptionIndex
+en-us
+en-US
+en-za
+en-ZA
+en-zw
+en-ZW
+EraseFlagType: 0x%x
+EraseSectorCount: 0x%x, Bank Can't Erase Flag!
+EraseSectorCount: 0x%x, FlagEndAddrInBank: 0x%x, Conflict!
+Error Code 0x%X
+ERROR : Unable to initialize critical section in CAtlBaseModule
+es-ar
+es-AR
+es-bo
+es-BO
+es-cl
+es-CL
+es-co
+es-CO
+es-cr
+es-CR
+es-do
+es-DO
+es-ec
+es-EC
+es-es
+es-ES
+es-gt
+es-GT
+es-hn
+es-HN
+es-mx
+es-MX
+es-ni
+es-NI
+es-pa
+es-PA
+es-pe
+es-PE
+es-pr
+es-PR
+es-py
+es-PY
+es-sv
+es-SV
+es-uy
+es-UY
+es-ve
+es-VE
+et-ee
+et-EE
+eu-es
+eu-ES
+Exception thrown in destructor
+Execute
+EXPLORERBAR
+ext-ms-win-kernel32-package-current-l1-1-0
+ext-ms-win-ntuser-dialogbox-l1-1-0
+ext-ms-win-ntuser-windowstation-l1-1-0
+EXTRABOLD
+EXTRALIGHT
+FACENAME
+fa-ir
+fa-IR
+False
+FALSE
+f:\dd\vctools\vc7libs\ship\atlmfc\include\afxwin1.inl
+f:\dd\vctools\vc7libs\ship\atlmfc\include\afxwin2.inl
+f:\dd\vctools\vc7libs\ship\atlmfc\src\mfc\appcore.cpp
+f:\dd\vctools\vc7libs\ship\atlmfc\src\mfc\array_s.cpp
+f:\dd\vctools\vc7libs\ship\atlmfc\src\mfc\auxdata.cpp
+f:\dd\vctools\vc7libs\ship\atlmfc\src\mfc\filecore.cpp
+f:\dd\vctools\vc7libs\ship\atlmfc\src\mfc\oledrop2.cpp
+f:\dd\vctools\vc7libs\ship\atlmfc\src\mfc\oleipfrm.cpp
+f:\dd\vctools\vc7libs\ship\atlmfc\src\mfc\olestrm.cpp
+f:\dd\vctools\vc7libs\ship\atlmfc\src\mfc\viewcore.cpp
+f:\dd\vctools\vc7libs\ship\atlmfc\src\mfc\winctrl2.cpp
+f:\dd\vctools\vc7libs\ship\atlmfc\src\mfc\winfrm.cpp
+February
+fi-fi
+fi-FI
+FileBank
+FileDescription
+FileName
+FileNameW
+FileVersion
+FindBinUseVerMode
+First cmd read buffer:
+First Page Check CRC Fail, StartAddr: 0x%x ProLen: 0x%x
+First Page Check CRC Fail,ucClacCRC:0x%x, ucReadCRC:0x%x StartAddr: 0x%x ProLen: 0x%x
+(Flag:%d) Debug Mode To DDCCI Mode Fail  !
+(Flag:%d) Debug Mode To DDCCI Mode Success  !
+Flag Length is 0, Not Need To Clear Flag
+Flag Length is 0, Not Need To Write Flag
+Flash bank count: 0x%x, Erase Start bank:%d, bank Cnt:%d 
+flash bank count more than 256, config 4 bytes mode
+Flash bank not enough!, ErrorCode: 0x%x
+Flash Data Map Empty!
+Flash IDCode: 
+Flash MisMatch Use Default Value
+Flash mode is External, UI Setting is MCM!
+Flash mode is MCM, UI Setting is External!
+Flash Name: %ls
+Flash Partition(1 Bank Boot + User)
+Flash Partition(Boot + User)
+FLAT
+FloatToolBarBorder
+FLOATY
+fo-fo
+fo-FO
+FONT
+FONT_TYPE
+Forward
+FOXCONN
+fr-be
+fr-BE
+fr-ca
+fr-CA
+fr-ch
+fr-CH
+Free
+french-belgian
+french-canadian
+french-luxembourg
+french-swiss
+fr-fr
+fr-FR
+Friday
+fr-lu
+fr-LU
+fr-mc
+fr-MC
+fwFileCount
+FWFileName
+ FWInfo.txt
+Fw not has bank 0!
+FW size check Error : FW:%d Actual:%d
+FWSubVersion
+ Fw update fw of background enumError :0x%X 
+ Fw update fw of foreground enumError :0x%X 
+FWVersion
+Fw version after ISP: 0x%x
+Fw version before ISP: 0x%x
+german-austrian
+german-lichtenstein
+german-luxembourg
+german-swiss
+GET active fw info, Slave Address:0x%X Error Code: 0x%X, read data: %s
+GetBinFileProjectID Fail Error:0x%d
+GetBootEraseFlagType Fail!, ErrorCode: 0x%x
+Get Capability Info DDCCI Cmd:
+Get capability info read buffer: 
+Get capability info read count: %d
+Get Count:%d, GetCurrentFwVersionInDDCCIMode Read data Error:0x%X, data2:0x%X
+Get Count:%d, GetCurrentFwVersionInDDCCIMode Read fw version fail!
+Get Count:%d, GetCurrentFwVersionInDDCCIMode Read fw version success!
+Get Count:%d, GetCurrentFwVersionInDDCCIMode Send Command Error:0x%X
+Get Count:%d, GetCurrentFwVersionInDebugMode Read data Error:0x%X, data2:0x%X
+Get Count:%d, GetCurrentFwVersionInDebugMode Read fw version fail!
+Get Count:%d, GetCurrentFwVersionInDebugMode Read fw version success!
+Get Count:%d, GetCurrentFwVersionInDebugMode Send Command Error:0x%X
+Get Count:%d, GetFwInfoInDDCCIMode get fw info fail!
+Get Count:%d, GetFwInfoInDDCCIMode Read data Error:0x%X
+Get Count:%d, GetFwInfoInDDCCIMode Send Command Error:0x%X
+Get Count:%d, GetFwInfoInDebugMode get fw info fail!
+Get Count:%d, GetFwInfoInDebugMode get fw info success!
+Get Count:%d, GetFwInfoInDebugMode Read data Error:0x%X, data0:0x%X
+Get Count:%d, GetFwInfoInDebugMode Send Command Error:0x%X
+Get Count:%d, ReadMergeFwGen1Info Read data Error:0x%X
+Get Count:%d, ReadMergeFwGen1Info Send Command Error:0x%X
+Get Count:%d, ReadMergeFwInDebugMode Read data Error:0x%X, data0:0x%X
+Get Count:%d, ReadMergeFwInDebugMode Read merge fw info fail!
+Get Count:%d, ReadMergeFwInDebugMode Read merge fw success!
+Get Count:%d, ReadMergeFwInDebugMode Send Command Error:0x%X
+Get Count:%d, Read merge fw info gen1 fail!
+GetCurrentFwVersionInDDCCIMode Read data Error:0x%X, data2:0x%X
+GetCurrentFwVersionInDDCCIMode Send Command Error:0x%X
+GetCurrentFwVersionInDebugMode Read data Error:0x%X, data0:0x%X
+GetCurrentFwVersionInDebugMode Send Command Error:0x%X
+Get Current Key address enumError:0x%X ulKeyLen: %d
+Get Done Flag EraseFlagType Fail!, ErrorCode: 0x%x
+---Get Edp Fw Version Begin---
+---Get Edp Fw Version End---
+GetEraseFlagType Fail!, ErrorCode: 0x%x
+Get Flag Map Fail!, ErrorCode: 0x%x
+ Get Flash Mode Fail!, ErrorCode: 0x%x
+ Get Flash Type Fail!, ErrorCode: 0x%x
+GetFwInfoInDebugMode Read data Error:0x%X, data0:0x%X
+GetFwVerAddressByCmd Error:0x%X, ulAddress:0x%X, ucCount:%d
+Get Fw version fail!
+Get Fw Version Fail! ErrorCode: 0x%x
+Get FW Version Fail, Error Code: 0x%x
+Get FW Version From Flash Setting Fail, Error Code: 0x%x
+Get Fw Version Success! Fw Version: 0x%x
+Get HP 4bytes version
+Get HP 4bytes version retry count:%d
+Get HP Arica version retry count:%d
+Get HP friends package version retry count:%d
+Get HP fw name info first cmd retry count:%d
+Get HP fw name info second cmd retry count:%d
+Get HP fw name info third cmd retry count:%d
+Get HP Hw Cid Name End:
+Get HP Hw Cid retry count:%d
+Get HP hw old revision
+Get HP hw revision retry count:%d
+Get HP Model Name End:
+Get HP model name retry count:%d
+GetHPScalerType End:
+Get hp scaler type retry count:%d
+Get info cmd:
+GetKeyAndSignatureInfoOneBankMode end
+GetKeyAndSignatureInfoOneBankMode Fail: ulMagic 0x%X
+GetKeyAndSignatureInfoOneBankMode start
+Get KeyData EraseFlagType Fail!, ErrorCode: 0x%x
+=== Get Key From Flash End ===
+=== Get Key From Flash Start ===
+GetKeyStart: Flag :%d
+Get model name command error, error code: 0x%x
+Get Model Name DDCCI Cmd:
+Get Model Name Read Buffer: 
+Get panel name command error, error code: 0x%x
+Get Panel Name DDCCI Cmd:
+Get Panel Name Read Buffer: 
+Get Program Start Bank:%d! 
+Get Project ID Addr
+Get Project ID Addr Fail.Data Error  0x%X
+GetQCDisplaySetting fail, error code:0x%x
+GetSignatueOrCopyResultOneBootMode 0x%02X, 0x%02X!
+ GetSignatueOrCopyResultOneBootMode Fail!, ErrorCode: 0x%x
+GetSignatueOrCopyResultOneBootMode time Out!
+GetSignatureDataEraseFlagType Fail!, ErrorCode: 0x%x
+Get si name command error, error code: 0x%x
+Get SI Name DDCCI Cmd:
+Get SI Name Read Buffer: 
+Get si name SL byte value: 0x%x
+GetStartEraseFlagType Fail!, ErrorCode: 0x%x
+Get Version Name DDCCI Cmd:
+Get Version Name Read Buffer: 
+Get XRom Flag Setting Fail!, ErrorCode: 0x%x
+gl-es
+gl-ES
+GLOBALS
+GRADIENT_ANGLE
+GradientDark
+GradientFillDark
+GradientFillLight
+GradientFinishDisabled
+GradientFinishHighlighted
+GradientFinishNormal
+GradientFinishPressed
+GradientLight
+GradientStartDisabled
+GradientStartHighlighted
+GradientStartNormal
+GradientStartPressed
+GradientVertDark
+GradientVertLight
+Gray
+great britain
+GRIPPER
+group
+GROUP
+GroupBackground
+GROUPS
+GroupText
+gSettings
+ GUID
+gu-in
+gu-IN
+         (((((                  H
+(&H)
+HandShakeBeforeEnterIspModeByBootType fail, error code:0x%x
+Handshake DDCCI Communication Fail! 
+Handshake DDCCI Communication Success! 
+HandshakeInitalBeforeISPGetAckSlave FAIL
+HandshakeInitalBeforeISPGetAckSlave Get 0x6A
+HandshakeInitalBeforeISPGetAckSlave Get 0x6E
+HandshakeInitalBeforeISPGetAckSlave Try 0x6A
+HandshakeInitalBeforeISPGetAckSlave Try 0x6E
+HEADER
+HEAVY
+HEIGHT
+he-il
+he-IL
+Hex={%02X,%02X,%02X}
+hhctrl.ocx
+HH:mm:ss
+Highlight
+HighlightCheckedGradientDark
+HighlightCheckedGradientLight
+HighlightDnGradientDark
+HighlightDnGradientLight
+Highlighted
+HighlightedBorder
+HighlightedDisabled
+HighlightedFinish
+HighlightedStart
+HighlightGradientDark
+HighlightGradientLight
+HighlightText
+hi-in
+hi-IN
+.HLP
+holland
+homestead
+hong-kong
+HORIZ
+HP 4 bytes version buff size: 0x%x
+HP 4 bytes version end:
+HP arica cmd read buff: 
+HPFwNameInfo
+HP HP Hw Cid Name Buff Size: 0x%x
+HPHwCid
+HPHwRevision
+HP hw revision  buff size: 0x%x
+HP hw revision end:
+HPModelName
+HP Model Name Buff Size: 0x%x
+HPScalerType
+HP Scaler Type Buff Size: 0x%x
+hr-ba
+hr-BA
+hr-hr
+hr-HR
+hu-hu
+hu-HU
+HUNTKEY
+hw config 3 bytes mode
+hy-am
+hy-AM
+HYPERLINK
+I2C read error code 0x%x
+I2c write cmd fail, error code:0x%x, release dev
+ICON_HV
+ICON_HVT
+ICONS_IN_ROW
+IconSize
+ICON_V
+ICVersion
+IDB_OFFICE2007_COMBOBOX_BTN
+IDB_OFFICE2007_GRIPPER
+IDB_OFFICE2007_MAINBORDER
+IDB_OFFICE2007_MAINBORDER_CAPTION
+IDB_OFFICE2007_MDICHILDBORDER
+IDB_OFFICE2007_MENUBAR_BTN
+IDB_OFFICE2007_MENU_BTN
+IDB_OFFICE2007_MENU_BTN_DISABLED
+IDB_OFFICE2007_MENU_BTN_SCROLL_B
+IDB_OFFICE2007_MENU_BTN_SCROLL_T
+IDB_OFFICE2007_MENU_BTN_VERT_SEPARATOR
+IDB_OFFICE2007_MENU_ITEM_BACK
+IDB_OFFICE2007_MENU_ITEM_MARKER_C
+IDB_OFFICE2007_MENU_ITEM_MARKER_R
+IDB_OFFICE2007_MENU_ITEM_SHOWALL
+IDB_OFFICE2007_OUTLOOK_BAR_BACK
+IDB_OFFICE2007_OUTLOOK_BTN_PAGE
+IDB_OFFICE2007_POPUPMENU_BORDER
+IDB_OFFICE2007_POPUPMENU_RESIZEBAR
+IDB_OFFICE2007_POPUPMENU_RESIZEBAR_ICON_HV
+IDB_OFFICE2007_POPUPMENU_RESIZEBAR_ICON_HVT
+IDB_OFFICE2007_POPUPMENU_RESIZEBAR_ICON_V
+IDB_OFFICE2007_RIBBON_BORDER_FLOATY
+IDB_OFFICE2007_RIBBON_BORDER_QAT
+IDB_OFFICE2007_RIBBON_BTN_CHECK
+IDB_OFFICE2007_RIBBON_BTN_DEFAULT
+IDB_OFFICE2007_RIBBON_BTN_DEFAULT_ICON
+IDB_OFFICE2007_RIBBON_BTN_DEFAULT_IMAGE
+IDB_OFFICE2007_RIBBON_BTN_DEFAULT_QAT
+IDB_OFFICE2007_RIBBON_BTN_DEFAULT_QAT_ICON
+IDB_OFFICE2007_RIBBON_BTN_GROUP_F
+IDB_OFFICE2007_RIBBON_BTN_GROUP_L
+IDB_OFFICE2007_RIBBON_BTN_GROUP_M
+IDB_OFFICE2007_RIBBON_BTN_GROUPMENU_F_C
+IDB_OFFICE2007_RIBBON_BTN_GROUPMENU_F_M
+IDB_OFFICE2007_RIBBON_BTN_GROUPMENU_L_C
+IDB_OFFICE2007_RIBBON_BTN_GROUPMENU_L_M
+IDB_OFFICE2007_RIBBON_BTN_GROUPMENU_M_C
+IDB_OFFICE2007_RIBBON_BTN_GROUPMENU_M_M
+IDB_OFFICE2007_RIBBON_BTN_GROUP_S
+IDB_OFFICE2007_RIBBON_BTN_LAUNCH
+IDB_OFFICE2007_RIBBON_BTN_LAUNCH_ICON
+IDB_OFFICE2007_RIBBON_BTN_MAIN
+IDB_OFFICE2007_RIBBON_BTN_MENU_H_C
+IDB_OFFICE2007_RIBBON_BTN_MENU_H_M
+IDB_OFFICE2007_RIBBON_BTN_MENU_V_C
+IDB_OFFICE2007_RIBBON_BTN_MENU_V_M
+IDB_OFFICE2007_RIBBON_BTN_NORMAL_B
+IDB_OFFICE2007_RIBBON_BTN_NORMAL_S
+IDB_OFFICE2007_RIBBON_BTN_PAGE_L
+IDB_OFFICE2007_RIBBON_BTN_PAGE_R
+IDB_OFFICE2007_RIBBON_BTN_PALETTE_B
+IDB_OFFICE2007_RIBBON_BTN_PALETTE_M
+IDB_OFFICE2007_RIBBON_BTN_PALETTE_T
+IDB_OFFICE2007_RIBBON_BTN_PANEL_MAIN
+IDB_OFFICE2007_RIBBON_BTN_STATUS_PANE
+IDB_OFFICE2007_RIBBON_CAPTION_QA
+IDB_OFFICE2007_RIBBON_CAPTION_QA_GLASS
+IDB_OFFICE2007_RIBBON_CATEGORY_BACK
+IDB_OFFICE2007_RIBBON_CATEGORY_TAB
+IDB_OFFICE2007_RIBBON_CATEGORY_TAB_SEP
+IDB_OFFICE2007_RIBBON_CONTEXT_B_
+IDB_OFFICE2007_RIBBON_CONTEXT_G_
+IDB_OFFICE2007_RIBBON_CONTEXT_I_
+IDB_OFFICE2007_RIBBON_CONTEXT_O_
+IDB_OFFICE2007_RIBBON_CONTEXT_PANEL_BACK_B
+IDB_OFFICE2007_RIBBON_CONTEXT_PANEL_BACK_T
+IDB_OFFICE2007_RIBBON_CONTEXT_R_
+IDB_OFFICE2007_RIBBON_CONTEXT_SEPARATOR
+IDB_OFFICE2007_RIBBON_CONTEXT_V_
+IDB_OFFICE2007_RIBBON_CONTEXT_Y_
+IDB_OFFICE2007_RIBBON_KEYTIP_BACK
+IDB_OFFICE2007_RIBBON_PANEL_BACK_B
+IDB_OFFICE2007_RIBBON_PANEL_BACK_T
+IDB_OFFICE2007_RIBBON_PANEL_MAIN
+IDB_OFFICE2007_RIBBON_PANEL_MAIN_BORDER
+IDB_OFFICE2007_RIBBON_PANEL_QAT
+IDB_OFFICE2007_RIBBON_PANEL_SEPARATOR
+IDB_OFFICE2007_RIBBON_PROGRESS_BACK
+IDB_OFFICE2007_RIBBON_PROGRESS_INFINITY
+IDB_OFFICE2007_RIBBON_PROGRESS_NORMAL
+IDB_OFFICE2007_RIBBON_PROGRESS_NORMAL_EXT
+IDB_OFFICE2007_RIBBON_SLIDER_BTN_MINUS
+IDB_OFFICE2007_RIBBON_SLIDER_BTN_PLUS
+IDB_OFFICE2007_RIBBON_SLIDER_THUMB
+IDB_OFFICE2007_STATUSBAR_BACK
+IDB_OFFICE2007_STATUSBAR_BACK_EXT
+IDB_OFFICE2007_STATUSBAR_PANEBORDER
+IDB_OFFICE2007_STATUSBAR_SIZEBOX
+IDB_OFFICE2007_SYS_BTN_BACK
+IDB_OFFICE2007_SYS_BTN_CLOSE
+IDB_OFFICE2007_SYS_BTN_MAXIMIZE
+IDB_OFFICE2007_SYS_BTN_MINIMIZE
+IDB_OFFICE2007_SYS_BTN_RESTORE
+IDB_OFFICE2007_TAB_3D
+IDB_OFFICE2007_TAB_FLAT
+IDB_OFFICE2007_TASKPANE_SCROLL_BTN
+IDB_OFFICE2007_TEAR
+IDB_OFFICE2007_TOOLBAR_BORDER
+IDB_OFFICE2007_TOOLBAR_BTN
+ID_HDPI
+id-id
+id-ID
+ID_PREFIX
+IgnoreCapabilityInfo
+IgnoreModelName
+IgnorePanelName
+IgnoreSIName
+IgnoreVersionName
+IMAGE
+IMAGE_LARGE
+ImagesColor
+IMAGE_SMALL
+Inactive
+InactiveCaption
+InactiveCaptionText
+InactiveFinish
+InactiveStart
+InactiveText
+InactiveTitleText
+INDEX
+INDEX_LARGE
+INDEX_SMALL
+IND)ind)
+INFINITE
+INFINITY
+.ini
+ INI 
+.INI
+INI 
+InitCommunication Fail, Error Code: 0x%x
+inity
+INITY
+INTERIOR
+InternalName
+Invalid DateTime
+ I/O 
+irish-english
+!_is_double
+_is_double
+IsFloating
+is-is
+is-IS
+ISP_Action
+ISP_Basic
+ISP_BootFlag
+ISP_CHECK_SETTING
+ISP_Customized
+ISP_DualBank
+ISP EDID only, EDID file: 
+---ISP eeprom begin---
+ISP_Eeprom_Data
+---ISP eeprom end---
+ISP_Erase
+ISP Fail.
+ISP Fail, Recovery Fail.
+ISP Fail, Recovery OK.
+ ISP Fail (Signature Fail), Recovery Fail.
+ISP Fail (Signature Fail), Recovery OK.
+IspFinishBeforeResetFlag:%d, exit ISP
+ISP first eeprom fail!
+ISP_Flash
+ISP_Fw
+ISP Fw, Fw file: 
+/IspLog.txt
+isp merge fw info:%ls
+ISPMultiPanelEdidOnly
+ISP Pass.
+ISP Pass, Copy Fail.
+ISP Pass, Copy Pass.
+ISP_Prog
+ISP Progress: %d %%
+ Isp Progress Set Range Fail! 
+IspProg.txt
+ISP_Reserved
+IspResult:0x%x
+IspResult.txt
+IspSetting.ini
+Isp time : %d ms
+ISP_User_Defined
+IspUserDefined.txt
+ISPVersion.txt
+IsVisible
+italian-swiss
+it-ch
+it-CH
+Item
+ITEM
+ItemBack
+ItemBorder
+ItemCheck
+ItemRadio
+ITEMS
+ItemShowAll
+it-it
+it-IT
+ja-jp
+ja-JP
+:Jan:January:Feb:February:Mar:March:Apr:April:May:May:Jun:June:Jul:July:Aug:August:Sep:September:Oct:October:Nov:November:Dec:December
+January
+jjjj
+jjjjj
+ JudgeSMBUSType Fail!, Error Code:0x%x
+ JudgeSMBUSType Fail!, ErrorCode: 0x%x
+July
+June
+JUSTIFY_COLUMNS
+ka-ge
+ka-GE
+kernel32
+kernel32.dll
+Kernel32.dll
+Key length from bin:0x%x
+Key length from bin Buff[0]:0x%x, Buff[1]:0x%x, Buff[2]:0x%x, Buff[3]:0x%x
+Key length in bin invalid!
+Key length in flash:0x%x invalid, need write key in bin to flash
+Key length in flash after isp key not equal to key length in bin!
+KEYS
+KEYS_MENU
+Key start addr in bin: 0x%x
+KEYTIP
+kk-kz
+kk-KZ
+kn-in
+kn-IN
+kok-in
+kok-IN
+ko-kr
+ko-KR
+ky-kg
+ky-KG
+Label
+LABEL
+LargeIcons
+LAUNCH_BTN
+LAUNCH_ICON
+LC_ALL
+LC_COLLATE
+LC_CTYPE
+LC_MONETARY
+LC_NUMERIC
+LC_TIME
+LEFT
+LEFTBOTTOM
+LEFTTOP
+LegalCopyright
+lGroup
+Light
+LIGHT
+LightHighlighted
+LightNormal
+LINK
+Link Source
+Link Source Descriptor
+LINXEE
+LISTBOX
+LNV Background Send BB Cmd UD Mode: %d
+LNV Background Send BB Cmd UD Mode Fail: 0x%X
+LNV Background Send DDCCI Cmd UD Mode:%d
+Load Comm Dll Fail!
+Load Flash dat from setting path:%ls
+%ls %d.%02d
+%ls%d_%ls
+LtGray
+lt-lt
+lt-LT
+Luna
+lv-lv
+lv-LV
+MAIN
+MAIN_BUTTON
+MainClientArea
+MAINWND
+March
+Marlett
+MAX_DESC_WIDTH
+mdiclient
+MDIClientArea
+MDITabsState
+MEDIUM
+MENU
+MenuBar
+MENUBAR
+MenuPopup
+MENU_RESIZE
+MENU_RESIZE_VERTICAL
+MenuShadowColor
+MenuShowDelay
+MergeFwGen1:%ls
+MergeFwGen2:%ls
+MergeFwInfo
+MergeFWInfo.txt
+metallic
+MFCButton
+MFCButton_Autosize
+MFCButton_CursorType
+MFCButton_FullTextTool
+MFCButton_ImageID
+MFCButton_ImageOnRight
+MFCButton_ImageOnTop
+MFCButton_ImageType
+MFCButton_Style
+MFCButton_Tooltip
+MFCColorButton
+MFCColorButton_ColumnsCount
+MFCColorButton_EnableAutomaticButton
+MFCColorButton_EnableOtherButton
+MFCComboBox_DrawUsingFont
+MFCComboBox_ShowDeviceTypeFonts
+MFCComboBox_ShowRasterTypeFonts
+MFCComboBox_ShowTrueTypeFonts
+MFCEditBrowse
+MFCEditBrowse_Mode
+MFCFontComboBox
+MFCLink
+MFCLink_FullTextTooltip
+MFCLink_Tooltip
+MFCLink_Url
+MFCLink_UrlPrefix
+MFCMaskedEdit
+MFCMaskedEdit_DefaultChar
+MFCMaskedEdit_InputTemplate
+MFCMaskedEdit_Mask
+MFCMaskedEdit_SelectByGroup
+MFCMaskedEdit_ValidChars
+MFCMenuButton
+MFCMenuButton_Autosize
+MFCMenuButton_DefaultClick
+MFCMenuButton_OSMenu
+MFCMenuButton_RightArrow
+MFCMenuButton_StayPressed
+MFCOutlookBars
+MFCOutlookCustomPages
+MFCPropertyGrid
+MFCPropertyGrid_AlphabeticMode
+MFCPropertyGrid_DescriptionArea
+MFCPropertyGrid_DescriptionRows
+MFCPropertyGrid_HeaderCtrl
+MFCPropertyGrid_ModifiedProperties
+MFCPropertyGrid_VSDotNetLook
+MFCShellList
+MFCShellListCtrl_EnableShellContextMenu
+MFCShellTree
+MFCShellTreeCtrl_EnableShellContextMenu
+MFCTasksPanes
+MFCToolBars
+MFCVSListBox
+MFCVSListbox_BrowseButton
+MFCVSListbox_DownButton
+MFCVSListbox_NewButton
+MFCVSListbox_RemoveButton
+MFCVSListbox_UpButton
+minkernel\crts\ucrt\inc\corecrt_internal_strtox.h
+MINUS
+mi-nz
+mi-NZ
+mk-mk
+mk-MK
+ml-in
+ml-IN
+MM/dd/yy
+mn-mn
+mn-MN
+ModelName
+Monday
+mr-in
+mr-IN
+MRUWidth
+ms-bn
+ms-BN
+mscoree.dll
+msctls_updown32
+MSFTEDIT.DLL
+MSG_CHECKEMPTYMINIFRAME
+ms-my
+ms-MY
+MS Sans Serif
+	MS Shell Dlg
+MS UI Gothic
+mt-mt
+mt-MT
+(&N) 
+Name
+NAME
+Native
+nb-no
+nb-NO
+New key buffer fail!
+new-zealand
+nl-be
+nl-BE
+nl-nl
+nl-NL
+nMenuCommand
+nn-no
+nn-NO
+No available communication type!
+NoBackButton
+NoClose
+NoDrives
+NoEntireNetwork
+NoFileMru
+NONANTIALIASED
+NoNetConnectDisconnect
+NoPlacesBar
+NoRecentDocsHistory
+Normal
+NORMAL
+NormalBorder
+normalcolor
+NORMAL_EXT
+NormalFinish
+NormalStart
+NoRun
+norwegian
+norwegian-bokmal
+norwegian-nynorsk
+Not check chk
+Not check typeusb from setting!
+Not need isp flag!
+November
+ns-za
+ns-ZA
+(null)
+NUMBER
+Object Descriptor
+ObjectLink
+October
+OFFSET
+ole32.dll
+One Bank Boot User Defined Version
+Open
+&Open,0,2
+OriginalFilename
+OriginalItems
+OrigResetItems
+Other
+OTHER_BTN
+Other Tasks Pane
+OUTLOOK
+OwnerLink
+Package verison want to update: %d.%d.%d.%d
+PAGEBUTTON
+pa-in
+pa-IN
+PALETTE_TOP
+PANEBORDER
+PANE_BUTTON
+Panel
+PANEL
+PanelName
+PANELS
+Panes
+Path
+Pause
+PinState
+PITCH_AND_FAMILY
+Plling Status : Error Code 0x%X,  count:%d: Read Code 0x%X ucCmdReceived:%d
+Plling Status : Error Code 0x%X,  count:%d: Read Code 0x%X ucCmdReceived:%d fail!
+Plling Status : Error Code 0x%X,  count:%d: Read Code 0x%X ucCmdReceived:%d success!
+Plling Status : time %d
+pl-pl
+pl-PL
+PlugIn/Flash.dat
+PLUS
+POINT
+Polling Status Fail!!!
+Polling status fail in exit background mode error code:0x%x
+Polling status fail in finish cmd error code:0x%x
+Polling status fail in write data error code:0x%x, Send Exit Command
+Polling status fail in write data hw isp speed up error code:0x%x
+Polling Status in check project id fail, error code:0x%x, Send Exit Command
+POPUP
+POPUPBAR
+portuguese-brazilian
+pr china
+pr-china
+PREMLTCHECK
+Press
+Pressed
+PressedBorder
+PressedButtonBorder
+PressedFinish
+PressedStart
+PreviewPages
+ProductID: 0x%x 0x%x
+ProductName
+ProductVersion
+Prog
+ProgramEDID
+ProgramFW
+Program page count:%d
+Progress
+PROGRESS
+ProjectID
+ProjectIDAddrSetting
+ProjectIDCountSetting
+PROOF
+Property
+PropertyList
+Protected Sector Value Is Not All 0xFF
+pt-br
+pt-BR
+pt-pt
+pt-PT
+puerto-rico
+QA_GLASS
+QAT_ELEMENTS
+QAT_TOP
+QCDisplay not check switch to user default mode error code
+QUALITY
+Quick Access Toolbar
+quz-bo
+quz-BO
+quz-ec
+quz-EC
+quz-pe
+quz-PE
+rAfx:ToolBar
+Rarely
+Read 0xFD21 Fail! Error code:0x%X.
+Read 0xFD2C Fail! Error code:0x%X.
+Read buffer endIndex: 0x%x, read length 0x%x, check fail!
+Read buffer endIndex: 0x%x, setting from ini start index :0x%x, read length 0x%x, check fail!
+Read data fail, read data: 
+Read flash data fail! Error code: 0x%X
+Read index %d: DDCCI cmd read data: 
+Read Index %d: DDCCI Cmd Read Data: 
+Read Key after write:Buff[0]:0x%x, Buff[1]:0x%x, Buff[2]:0x%x, Buff[3]:0x%x
+Read OK, Read buffer:
+Read One Bank Boot User Defined Version
+Read retry Count: %d
+Read scaler type fail! Error code:0x%X.
+ Read Scaler Type Fail!, ErrorCode: 0x%x
+Read User Defined End With 0xFF
+Read user defined merge info of HP friends fail, error code:0x%x
+ Read Value: 0x%x; :0x%x
+ReadVersion
+Realsil lcd
+Realsil lcd IspPlugIn
+RealtekUsb Set Waiting Mode Before Enter ISP Fail! Error Code:0x%X.
+REBAR
+ReBarWindow32
+Recent File
+RECENT_FILE_LIST
+RecentFrameAlignment
+RecentRowIndex
+RecordModelMode
+RecordPanelMode
+RecordVersionMode
+RECT
+RectRecentDocked
+RectRecentFloat
+REGULAR
+Reserve Region have conflict with Flag
+Reset boot loader fail!
+RESIZEBAR
+RestartByRestartManager
+RestrictRun
+Retry capability info command fail, error code: 0x%x
+Retry Change to background fw update fw mode fail!
+Retry Change to background fw update fw mode success!
+Retry count:%d
+RetryCount: %d, Sector Erase Error Code 0x%x
+Retry get capability info fail, error code: 0x%x
+Retry get model name fail, error code: 0x%x
+Retry get panel name fail, error code: 0x%x
+Retry get si name fail, error code: 0x%x
+Retry get version name command fail, error code: 0x%x
+Retry get version name fail, error code: 0x%x
+---Retry isp count: %d, error code 0x%x, sleep time: %d ms---
+---Retry Isp retry count: %d---
+RetrySectorISP StartAddr: 0x%x ProLen: 0x%x ErrorCode: 0x%x, Sleep Time %d ms
+Return value not equal to expect, check fail!
+RGB(%d, %d, %d)
+RIBBON
+RibbonBar
+RIBBON_BAR
+RICHEDIT50W
+RichEdit Text and Objects
+Rich Text Format
+RIGHT
+RIGHTBOTTOM
+RIGHTTOP
+RL6703 bank 0 erase sector count is %d
+RomBank = 0, FW not include bank0, not need to write flag.
+RomBank = 1, FW has only bank1 and the content is all 0xFF.
+RomBank = 1, Fw not include bank0 and bank1 is empty, not need to write flag.
+RomBank = 1, FW not include bank0 and bank1, not need to write flag.
+RomBank = 1, FW not include bank0, not need to write flag.
+ro-ro
+ro-RO
+ROUNDED_CORNERS
+royale
+RunArea
+ru-ru
+ru-RU
+sa-in
+sa-IN
+Saturday
+ Scaler Run Fail!, ErrorCode: 0x%x
+ScalerType: 0x%x
+ScalerType: 0x%x, IDCode0: 0x%x, IDCode1: 0x%x
+ScalerType is not RL6156 or RL6246!
+SCROLLBAR
+ScrollBtn_B
+ScrollBtn_T
+SCROLL_BUTTON
+%s%d
+Second cmd read buffer:
+ Sector %d Erase In Bank %d Fail!, ErrorCode: 0x%x
+sector erase and write data to flash time : %d ms
+Sector erase time : %d ms
+se-fi
+se-FI
+Segoe UI
+Selection
+SEMIBOLD
+Send Backgroud FW Update Bank Change  
+Send Backgroudn FW Update Set Packet len
+Send Backgroudn FW Update Start Command Error Code %d
+Send finish cmd fail! error Code 0x%X
+SendSmbusBlockReadWriteEnableCommand  Enable :%d enumError:0x%X
+Send_User_Defined_Info
+Send User Defined Info Check Return Value Not check chk
+se-no
+se-NO
+Separator
+SEPARATOR
+Separator1
+Separator2
+September
+se-se
+se-SE
+Set Background Flash Write Time fail! Error code:0x%X.
+Set Cmd:
+Set cmd after read flash version
+Set cmd after read flash version count: %d
+Set cmd after update before read hp 4bytes version
+Set cmd after update before read hp 4bytes version count: %d
+set cmd fail after get verison cmd!
+set cmd fail before get verison cmd!
+set cmd success after get verison cmd!
+set cmd success before get verison cmd!
+Set Comm end
+Set Comm Start
+Set count:%d compare merge fw gen1 info fail, read merge fw info:%ls
+Set Count:%d, IspMergeFwInDebugMode Read data Error:0x%X, data0:0x%X, data1: 0x%x
+Set Count:%d, IspMergeFwInDebugMode Send Command Error:0x%X
+Set Count:%d, IspMergeFwInDebugMode write merge fw info fail!
+Set Count:%d, IspMergeFwInDebugMode write merge fw info success!
+SetI2COverAuxSpeed Fail, ErrorCode:0x%x
+ Set Mcu Reg Default Value!, ErrorCode: 0x%x
+Set smbus normal type successfully
+Set Switch Code!
+Settings
+SetupIspProgramAddressOneBankMode end : enumError 0x%X
+ Set WP Pin Fail!, ErrorCode: 0x%x
+SetWPPin Use Setting
+shell32.dll
+SHOW_FwInfo
+ShowVersionOnly
+SIDES
+Sign error.
+Sign Invalid.
+ Sign Verify  Fail!, enumSignStatus: 0x%x
+ Sign Verify  Fail!, enumSignStatus: 0x%x Value:0x%x
+SILVER_
+SIMPLE_LOOK
+SIName
+SI name:%ls
+SIZE
+SIZEBOX
+SIZE_ICON
+SIZES
+sk-sk
+sk-SK
+Slider
+SLIDER
+slovak
+sl-si
+sl-SI
+SMALL
+sma-no
+sma-NO
+sma-se
+sma-SE
+smj-no
+smj-NO
+smj-se
+smj-SE
+smn-fi
+smn-FI
+sms-fi
+sms-FI
+snan)
+SNAN)
+SOFTWARE\
+Software\Classes\
+Software\Microsoft\Windows\CurrentVersion\Policies\Comdlg32
+Software\Microsoft\Windows\CurrentVersion\Policies\Explorer
+Software\Microsoft\Windows\CurrentVersion\Policies\Network
+Software_Sign_Verify_Check_Key
+south africa
+south-africa
+south korea
+south-korea
+spanish-argentina
+spanish-bolivia
+spanish-chile
+spanish-colombia
+spanish-costa rica
+spanish-dominican republic
+spanish-ecuador
+spanish-el salvador
+spanish-guatemala
+spanish-honduras
+spanish-mexican
+spanish-modern
+spanish-nicaragua
+spanish-panama
+spanish-paraguay
+spanish-peru
+spanish-puerto rico
+spanish-uruguay
+spanish-venezuela
+SPECIAL
+SPIN
+SPIN_BUTTONS
+sq-al
+sq-AL
+sr-ba-cyrl
+sr-BA-Cyrl
+sr-ba-latn
+sr-BA-Latn
+sr-sp-cyrl
+sr-SP-Cyrl
+sr-sp-latn
+sr-SP-Latn
+Start Index: 0x%x, End Index: 0x%x
+STARTPANEL
+Static
+STATIC
+STATUS
+STATUSBAR
+StatusbarActive
+StatusbarInactive
+strCapabilityDdcciCmd
+strCapabilityInfoDefault
+strDumpFileName
+strFwPrefix
+StringFileInfo
+strModelNameDdcciCmd
+strPanelNameDdcciCmd
+strProjectIDInfo
+strSendDDCCICmdInfo
+strSINameDdcciCmd
+strSpecifiedFlashName
+strVersionDdcciCmd
+strVerStartAddr
+strVidPid
+strWriteMergeFwInfo
+STYLE
+STYLE_XML
+ Success
+Sunday
+:Sun:Sunday:Mon:Monday:Tue:Tuesday:Wed:Wednesday:Thu:Thursday:Fri:Friday:Sat:Saturday
+sv-fi
+sv-FI
+sv-se
+sv-SE
+swedish-finland
+swiss
+Switch
+SwitchCodeOneBootMode Fail!, ErrorCode: 0x%x
+Switch to boot code fail! Error code: 0x%X!!
+SwitchToDebugModeOneBankMode enumError:0x%X
+sw-ke
+sw-KE
+syr-sy
+syr-SY
+SysHeader32
+SysListView32
+System
+SysTreeView32
+TAB_ELEMENTS
+TABS
+TAB_SEPARATOR
+Tahoma
+ta-in
+ta-IN
+TargetBank
+Target buffer:
+TASK
+TASKBAND
+TASKBAR
+Tasks Pane
+%Tc%d%Tc%Ts
+%Tc%Tc
+TEAR
+te-in
+te-IN
+TEXT
+TextCenter
+TextColorActive
+TextColorInactive
+TextDisabled
+TextExtendedDisabled
+TextHighlighted
+TextNormal
+TextPressed
+The Comm Type Must be TypeCUSB, ErrorCode: 0x%x
+The setting of erase sector count is right
+The setting of erase sector count is wrong!
+THIN
+Third cmd read buffer:
+th-th
+th-TH
+THUMB
+Thursday
+tn-za
+tn-ZA
+TOOLBAR
+ToolbarButton%p
+TOOLBAR_CREATE
+TOOLBAR_CUSTOMIZE
+TOOLBAR_CUSTOMIZEHELP
+TOOLBAR_DELETE
+TOOLBAR__GETDOCUMENTCOLORS
+TOOLBAR_POPUPMENU
+TOOLBAR_RESETCONTEXTMENU
+TOOLBAR_RESETKEYBAORD
+TOOLBAR_RESETMENU
+TOOLBAR_RESETRPROMPT
+TOOLBAR_RESETTOOLBAR
+TOOLBAR_SHOWREGULARMENU
+ToolbarWindow32
+TOOLTIP
+tooltips_class32
+TRACKBAR
+Translation
+TRANSPARENT
+TREEVIEW
+trinidad & tobago
+tr-tr
+tr-TR
+True
+TRUE
+Trying into ISP mode...
+ %Ts
+ %Ts 
+ %Ts(
+] %Ts
+%TsBasePane-%d
+%TsBasePane-%d%x
+%TsDockablePaneAdapter-%d
+%TsDockablePaneAdapter-%d%x
+%TsDockingManager-%d
+%TsMDIClientArea-%d
+%TsMFCOutlookBar-%d
+%TsMFCOutlookBar-%d%x
+%TsMFCTasksPane-%d
+%TsMFCTasksPane-%d%x
+%TsMFCToolBar-%d
+%TsMFCToolBar-%d%x
+%TsMFCToolBarParameters
+%TsPane-%d
+%TsPane-%d%x
+%Ts (%Ts:%d)
+%Ts%Ts.dll
+%Ts:%x:%x:%x:%x
+tt-ru
+tt-RU
+TTS flash bank count less than 256, config 3 bytes mode
+TTS flash bank count more than 256, config 4 bytes mode
+Tuesday
+TYPE
+ TypeC Usb Isp Check Fail!, ErrorCode: 0x%x
+ucBankIndex
+ucCapabilityReadLength
+ucEraseSectorCount
+ucModelNameReadLength
+ucModelNameStartIndex
+ucPanelNameReadLength
+ucPanelNameStartIndex
+ucPinRegisterControlBit
+ucPinShareRegisterValue
+ucReserveItemCount
+ucRetryCount
+ucSendDDCCICmdNum
+ucSINameReadLength
+ucSINameStartIndex
+ucSpecifiedSlave
+ucszFlag[HEAD4]
+ucszFlag[TAIL4]
+ucVersionReadLength
+ucVersionStartIndex
+uk-ua
+uk-UA
+ulAddr
+ulCmdRetryCount
+ulCommandRetryCount
+ulDelayTime
+ulDelayTimeAfterDdcciWrite
+ulDelayTimeForReceiveCommand
+ulDumpFlashAddr
+ulDumpFlashLen
+ulEndWithIndexStartAddr
+ulIspSpeed
+ulLen
+ulMajorVerLen
+ulMergeFwInfoLength
+ulPinRegister
+ulPinRegister:0x%x,ulPinShare:0x%x,ucPinShareRegisterValue:0x%x,ucPinRegisterControlBit:0x%x
+ulPinShare
+ulPollingCount
+ulProgStartBank
+ulReISPDelayTime
+ulRetryISPCount
+ulRetryISPSleepTime
+ulRetrySectorISPCount
+ulRetrySectorISPSleepTime
+ulSendCmdRetryCount
+ulSendCmdSleepTime
+ulSubVerLen
+ulSwitchToRomCodeDelay
+ulTimeAfterCommand
+ulTimeAfterReset
+ulTimeBeforeAcOn
+ulTimeWaitCopyBank
+ulTotalVerLen
+ULTRABOLD
+ULTRALIGHT
+ulVidPidCount
+united-kingdom
+united-states
+ur-pk
+ur-PK
+usBackgroundFlashWriteTime
+User1Version
+User2Version
+user32
+user32.dll
+User%d
+UserDefinedInfo
+UserDefinedMergeFwInfo
+User_Defined_Version
+UserDefinedVersion
+usPacketLen
+usStartAddr
+UTF-16LEUNICODE
+UTF-8
+uxtheme.dll
+uz-uz-cyrl
+uz-UZ-Cyrl
+uz-uz-latn
+uz-UZ-Latn
+Value
+VALUE
+VarFileInfo
+Verify Project ID Addr
+Verify Tool and FW Bin File ProjectID Fail Error:0x%d
+Verify Tool and IC ProjectID Fail Error:0x%d
+Version
+VERSION
+Version Buff Size: 0x%x
+VersionInfoPrefix
+VISIBLE
+vi-vn
+vi-VN
+VS_VERSION_INFO
+W25Q05CLWI
+W25Q20CL
+wAFX_WM_ON_AFTER_SHELL_COMMAND
+Wait for Copy or Digital Siganture Result, it will take more than %d ms...
+Wait for Copy Result, it will take more than %d ms...
+Wait for IC Reset, it will take more than %d ms...
+Wait for Signature or Copy Result, it will take more than %d ms...
+Wait for Signature Result, it will take more than %d ms...
+Wait fSor IC Reset and Signature Result, it will take more than %d ms...
+Waiting for switch to rom code...
+Warning: Smbus set normal type fail! Warning code: 0x%X
+Warning !! TypeC port is keeping providing Vbus under ISP mode. Please AC OFF / ON, or there exists a risk of damaging the port partner !
+Wednesday
+WEIGHT
+White
+WIDTH
+WIDTH_FLOATY
+WINDOW
+WINDOW_HELP
+windows
+WinIspPlugIn.dll
+WinOperateCScaler.dll
+WISTRON
+Write Count:%d, IspMergeFwInfoGen1 Send Command Error:0x%X
+Write data fail! error Code %d
+Write data packet: %d
+ WriteDataToFlash Fail! , Error Code:0x%x
+write data to flash time : %d ms
+ Write Flag Fail!, ErrorCode: 0x%x
+Write flash SR fail. Error code:0x%X
+ Write Key And Signature After Program Fail!, ErrorCode: 0x%x
+ Write Key Fail!, ErrorCode: 0x%x
+Write key in SoftwareSignVerifyCheckKey fail, error code:0x%x
+Write_Protect
+ Write Rom Flag Fail!, ErrorCode: 0x%x
+WriteStartFlag Fail!, ErrorCode: 0x%x
+Write tts/scpu flash not support retry sector isp, ignore retry!
+ Write User Flag Fail!, ErrorCode: 0x%x
+ Write User Flag Start!
+ Write User Signature Fail!, ErrorCode: 0x%x
+ Write XRom Flag Fail!, ErrorCode: 0x%x
+Wsoftware
+WSoftware\
+xh-za
+xh-ZA
+zh-chs
+zh-CHS
+zh-cht
+zh-CHT
+zh-cn
+zh-CN
+zh-hk
+zh-HK
+zh-mo
+zh-MO
+zh-sg
+zh-SG
+zh-tw
+zh-TW
+ZOOM_BUTTONS
+zu-za
+zu-ZA

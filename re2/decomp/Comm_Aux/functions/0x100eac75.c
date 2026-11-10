@@ -1,0 +1,44 @@
+// rea decompile_all
+// name: OnCommand
+// address: 0x100eac75
+// body: available
+// range: 0x100eac75-0x100eace0 inclusive
+// non_contiguous: false
+// provider: Ghidra 12.1.2 (ghidra)
+// analysis_profile: b075844f08879296d957518397cd0ddda73db81dce53d00d3f0e702766fc2af6
+// limitations: The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.; The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.; Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again.; Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.; The Ghidra Program references PDB Comm_Aux.pdb (GUID ba7920cc-daa3-4461-a102-1f8f66c67a2a, age (hex) 1, signature unknown, version RSDS); Ghidra reports load state unknown. Original names and types may be missing; an empty name search does not prove a procedure is absent. Use list_procedures and address-based analysis to inspect recovered functions. REA does not admit a caller-selected PDB companion.; This session uses Ghidra 12.1.2. The bridge is verified against 12.1.4; other 12.1.x builds are accepted and the observed version is reported.; Pseudocode is Ghidra decompiler output, not original source and not text-equivalent to Hopper output.; External functions and functions without an analyzable body return null; other decompiler failures remain explicit.
+// pseudocode: provider-specific; not original source
+
+
+/* Library Function - Multiple Matches With Same Base Name
+    protected: virtual int __thiscall CFrameWndEx::OnCommand(unsigned int,long)
+    protected: virtual int __thiscall CMDIFrameWndEx::OnCommand(unsigned int,long)
+    protected: virtual int __thiscall COleDocIPFrameWndEx::OnCommand(unsigned int,long)
+    protected: virtual int __thiscall COleIPFrameWndEx::OnCommand(unsigned int,long)
+   
+   Library: Visual Studio 2015 Release */
+
+undefined4 OnCommand(uint param_1,undefined4 param_2)
+
+{
+  int iVar1;
+  undefined4 uVar2;
+  
+  if ((short)(param_1 >> 0x10) == 1) {
+    CMFCToolBar::AddCommandUsage(param_1 & 0xffff);
+    iVar1 = FUN_10117d02(0x1b,0);
+    if ((iVar1 != 0) ||
+       ((DAT_1020fed8 != (CUserToolsManager *)0x0 &&
+        (iVar1 = CUserToolsManager::InvokeTool(DAT_1020fed8,param_1 & 0xffff), iVar1 != 0)))) {
+      return 1;
+    }
+  }
+  if (DAT_1020e500 == 0) {
+    uVar2 = FUN_100bc519(param_1,param_2);
+  }
+  else {
+    uVar2 = 0;
+  }
+  return uVar2;
+}
+

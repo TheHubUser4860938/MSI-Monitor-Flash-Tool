@@ -1,0 +1,77 @@
+// rea decompile_all
+// name: ATL::CImage::CreateEx
+// address: 0x44b64c
+// body: available
+// range: 0x44b64c-0x44b730 inclusive
+// non_contiguous: false
+// provider: Ghidra 12.1.2 (ghidra)
+// analysis_profile: ac6d50be2cdf54f7005df47d1ed7e7ef55dee595681eb1b7c2e0b00d70cd697d
+// limitations: The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.; The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.; Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again.; Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.; The Ghidra Program references PDB ISPToolForMsi.pdb (GUID b8f2ac8f-1d6f-438d-800f-ed4a14426ac6, age (hex) 1, signature unknown, version RSDS); Ghidra reports load state unknown. Original names and types may be missing; an empty name search does not prove a procedure is absent. Use list_procedures and address-based analysis to inspect recovered functions. REA does not admit a caller-selected PDB companion.; This session uses Ghidra 12.1.2. The bridge is verified against 12.1.4; other 12.1.x builds are accepted and the observed version is reported.; Pseudocode is Ghidra decompiler output, not original source and not text-equivalent to Hopper output.; External functions and functions without an analyzable body return null; other decompiler failures remain explicit.
+// pseudocode: provider-specific; not original source
+
+
+/* Library Function - Single Match
+    public: int __thiscall ATL::CImage::CreateEx(int,int,int,unsigned long,unsigned long const
+   *,unsigned long)
+   
+   Library: Visual Studio 2015 Release */
+
+int __thiscall
+ATL::CImage::CreateEx
+          (CImage *this,int param_1,int param_2,int param_3,ulong param_4,ulong *param_5,
+          ulong param_6)
+
+{
+  undefined4 *puVar1;
+  CImage *pCVar2;
+  BITMAPINFO *lpbmi;
+  errno_t eVar3;
+  HBITMAP pHVar4;
+  int iVar5;
+  undefined4 *_Memory;
+  undefined4 *local_c;
+  CImage *local_8;
+  
+  local_c = (undefined4 *)0x0;
+  local_8 = this;
+  lpbmi = _ATL_SAFE_ALLOCA_IMPL::CAtlSafeAllocBufferManager<ATL::CCRTAllocator>::Allocate
+                    ((CAtlSafeAllocBufferManager<ATL::CCRTAllocator> *)&local_c,0x428);
+  if (lpbmi != (BITMAPINFO *)0x0) {
+    _memset(lpbmi,0,0x28);
+    iVar5 = 1;
+    (lpbmi->bmiHeader).biWidth = param_1;
+    (lpbmi->bmiHeader).biSize = 0x28;
+    (lpbmi->bmiHeader).biHeight = param_2;
+    (lpbmi->bmiHeader).biPlanes = 1;
+    (lpbmi->bmiHeader).biBitCount = (WORD)param_3;
+    (lpbmi->bmiHeader).biCompression = param_4;
+    if (param_3 < 9) {
+      _memset(lpbmi->bmiColors,0,0x400);
+    }
+    else if (param_4 == 3) {
+      eVar3 = _memcpy_s(lpbmi->bmiColors,0xc,param_5,0xc);
+      FUN_00416060(eVar3);
+    }
+    pHVar4 = CreateDIBSection((HDC)0x0,lpbmi,0,(void **)(local_8 + 8),(HANDLE)0x0,0);
+    pCVar2 = local_8;
+    if (pHVar4 != (HBITMAP)0x0) {
+      *(HBITMAP *)(local_8 + 4) = pHVar4;
+      UpdateBitmapInfo(local_8,(param_2 >> 0x1f) + 2);
+      _Memory = local_c;
+      if ((param_6 & 1) != 0) {
+        pCVar2[0x1d] = (CImage)0x1;
+      }
+      goto LAB_0044b722;
+    }
+  }
+  iVar5 = 0;
+  _Memory = local_c;
+LAB_0044b722:
+  while (_Memory != (undefined4 *)0x0) {
+    puVar1 = (undefined4 *)*_Memory;
+    FID_conflict__free(_Memory);
+    _Memory = puVar1;
+  }
+  return iVar5;
+}
+

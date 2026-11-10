@@ -1,0 +1,92 @@
+// rea decompile_all
+// name: FUN_10017d40
+// address: 0x10017d40
+// body: available
+// range: 0x10017d40-0x10017ec4 inclusive
+// non_contiguous: false
+// provider: Ghidra 12.1.2 (ghidra)
+// analysis_profile: b075844f08879296d957518397cd0ddda73db81dce53d00d3f0e702766fc2af6
+// limitations: The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.; The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.; Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again.; Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.; The Ghidra Program references PDB WinIspPlugIn.pdb (GUID d9f398c7-6c98-49a8-af25-a0659d5ad2f3, age (hex) 1, signature unknown, version RSDS); Ghidra reports load state unknown. Original names and types may be missing; an empty name search does not prove a procedure is absent. Use list_procedures and address-based analysis to inspect recovered functions. REA does not admit a caller-selected PDB companion.; This session uses Ghidra 12.1.2. The bridge is verified against 12.1.4; other 12.1.x builds are accepted and the observed version is reported.; Pseudocode is Ghidra decompiler output, not original source and not text-equivalent to Hopper output.; External functions and functions without an analyzable body return null; other decompiler failures remain explicit.
+// pseudocode: provider-specific; not original source
+
+
+void FUN_10017d40(void)
+
+{
+  int iVar1;
+  undefined2 *in_ECX;
+  int iVar2;
+  undefined2 local_2c;
+  char cStack_2a;
+  undefined1 uStack_29;
+  undefined4 uStack_28;
+  undefined4 uStack_24;
+  undefined4 uStack_20;
+  undefined8 local_1c;
+  undefined2 local_14;
+  undefined1 local_10;
+  undefined1 uStack_f;
+  undefined1 uStack_e;
+  undefined2 uStack_d;
+  uint local_8;
+  
+  local_8 = DAT_1023dfec ^ (uint)&stack0xfffffffc;
+  uStack_d = 0;
+  local_10 = 0x77;
+  uStack_f = 0xc9;
+  uStack_e = 1;
+  iVar2 = DAT_1024be74;
+  do {
+    if (iVar2 < 1) {
+LAB_10017e69:
+      __security_check_cookie(local_8 ^ (uint)&stack0xfffffffc);
+      return;
+    }
+    local_14 = 0;
+    local_2c = 0;
+    cStack_2a = '\0';
+    uStack_29 = 0;
+    uStack_28 = 0;
+    uStack_24 = 0;
+    uStack_20 = 0;
+    local_1c = 0;
+    iVar1 = (**(code **)(*DAT_10249d10 + 0x13c))(0x6e,0x71,3,&local_10);
+    if (iVar1 == 0) {
+      Sleep(DAT_1024be70);
+      iVar1 = (**(code **)(*DAT_10249d10 + 0x140))(0x6e,0x51,8,&local_2c);
+      FUN_10048350(&DAT_1024a13c,
+                   L"Get Count:%d, GetCurrentFwVersionInDDCCIMode Read data Error:0x%X, data2:0x%X",
+                   (DAT_1024be74 - iVar2) + 1,iVar1,cStack_2a);
+      FUN_10016860();
+      if (iVar1 == 0) {
+        if (cStack_2a == -0x37) {
+          FUN_10048350(&DAT_1024a13c,
+                       L"Get Count:%d, GetCurrentFwVersionInDDCCIMode Read fw version success!",
+                       (DAT_1024be74 - iVar2) + 1);
+          FUN_10016860();
+          if (0 < iVar2) {
+            *in_ECX = CONCAT11((undefined1)uStack_28,uStack_29);
+            __security_check_cookie(local_8 ^ (uint)&stack0xfffffffc);
+            return;
+          }
+          goto LAB_10017e69;
+        }
+      }
+      else {
+        FUN_10048350(&DAT_1024a13c,
+                     L"Get Count:%d, GetCurrentFwVersionInDDCCIMode Read fw version fail!",
+                     (DAT_1024be74 - iVar2) + 1);
+        FUN_10016860();
+      }
+    }
+    else {
+      FUN_10048350(&DAT_1024a13c,
+                   L"Get Count:%d, GetCurrentFwVersionInDDCCIMode Send Command Error:0x%X",
+                   (DAT_1024be74 - iVar2) + 1,iVar1);
+      FUN_10016860();
+      Sleep(DAT_1024be70);
+    }
+    iVar2 = iVar2 + -1;
+  } while( true );
+}
+
