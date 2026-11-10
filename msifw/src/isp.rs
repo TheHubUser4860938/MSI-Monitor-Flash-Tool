@@ -354,6 +354,40 @@ impl<'a> Isp<'a> {
         Ok(())
     }
 
+    /// `FUN_1003f7a0` — the MCM accessor: the flash hangs off the scaler, so the read goes through
+    /// the 16-bit register window, not the 8-bit MCU one.
+    ///
+    /// The sequence, byte for byte from the decompilation: command `0x841 ← 0x46`, opcode
+    /// `0x842 ← 0x03` (SPI read), address `0x846 ← bank`, `0x847 ← addr>>8`, `0x848 ← addr`,
+    /// trigger `0x84c ← 3`; then the FIFO is served by writing the stream command `0xf4 ← 0x78`
+    /// and clocking bytes out of `0xf5`, 0x100 at a time, with a one-byte priming read first and
+    /// a short final read for the tail.
+    pub fn dump_flash_mcm(&mut self, bank: u16, addr: u32, out: &mut [u8]) -> Result<()> {
+        let slave = self.slave();
+        self.comm.write_scaler_reg(0x841, 0x46)?;
+        self.comm.write_scaler_reg(0x842, 0x03)?;
+        self.comm.write_scaler_reg(0x846, bank as u8)?;
+        self.comm.write_scaler_reg(0x847, (addr >> 8) as u8)?;
+        self.comm.write_scaler_reg(0x848, addr as u8)?;
+        self.comm.write_scaler_reg(0x84c, 3)?;
+        // Prime the FIFO, then stream.
+        self.comm.write_segment(slave, 0xf4, &[0x78])?;
+        let mut one = [0u8; 1];
+        self.comm.read_segment(slave, 0xf5, &mut one)?;
+        let mut off = 0usize;
+        while off + 0x100 <= out.len() {
+            self.comm.write_segment(slave, 0xf4, &[0x78])?;
+            self.comm
+                .read_segment(slave, 0xf5, &mut out[off..off + 0x100])?;
+            off += 0x100;
+        }
+        if off < out.len() {
+            self.comm.write_segment(slave, 0xf4, &[0x78])?;
+            self.comm.read_segment(slave, 0xf5, &mut out[off..])?;
+        }
+        Ok(())
+    }
+
     /// `FUN_1001e4c0`: the bank's write plan.
     ///
     /// `ProLen` is **not** the whole bank: it is one past the last byte that is not 0xFF, so a bank
@@ -624,6 +658,8 @@ mod tests {
         per_slave: RefCell<BTreeMap<(u8, u16), u8>>,
         /// DDC/CI replies, keyed by (slave, VCP).
         ddcci: RefCell<BTreeMap<(u8, u8), Vec<u8>>>,
+        /// The 16-bit-indexed scaler register file (the MCM window).
+        scaler: RefCell<BTreeMap<u16, u8>>,
     }
 
     impl Fake {
@@ -742,6 +778,16 @@ mod tests {
         fn enter_isp_mode(&self, _retries: u32) -> Result<()> {
             self.log(String::from("ISP"));
             Ok(())
+        }
+        fn write_scaler_reg(&self, reg: u16, value: u8) -> Result<()> {
+            self.log(format!("XREG {reg:04x}={value:02x}"));
+            self.scaler.borrow_mut().insert(reg, value);
+            Ok(())
+        }
+        fn read_scaler_reg(&self, reg: u16) -> Result<u8> {
+            let v = self.scaler.borrow().get(&reg).copied().unwrap_or(0);
+            self.log(format!("XGET {reg:04x}={v:02x}"));
+            Ok(v)
         }
         fn set_speed(&self, khz: u16) -> Result<()> {
             *self.speed.borrow_mut() = khz;
@@ -1089,7 +1135,10 @@ mod tests {
         let mut isp = Isp::new(&mut fake, &cfg);
         isp.flash_image(&t, &image, false).unwrap();
         let log = fake.taken();
-        assert_eq!(&log[..6], &["VD", "UNINIT", "INIT", "SLAVE 4a", "ISP", "RUN"]);
+        assert_eq!(
+            &log[..6],
+            &["VD", "UNINIT", "INIT", "SLAVE 4a", "ISP", "RUN"]
+        );
         assert_eq!(
             fake.count("REG 61=20"),
             2 * SECTORS_PER_BANK as usize,
@@ -1123,6 +1172,12 @@ mod tests {
             }
             fn enter_isp_mode(&self, _: u32) -> Result<()> {
                 Ok(())
+            }
+            fn write_scaler_reg(&self, _reg: u16, _value: u8) -> Result<()> {
+                Ok(())
+            }
+            fn read_scaler_reg(&self, _reg: u16) -> Result<u8> {
+                Ok(0)
             }
             fn ddcci_read(&self, _: u8, _: u8, _: usize) -> Result<Vec<u8>> {
                 Err(CommError::Io(ErrorKind::TimedOut))

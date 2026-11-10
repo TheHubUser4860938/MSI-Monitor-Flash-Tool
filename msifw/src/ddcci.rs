@@ -17,10 +17,16 @@
 
 use crate::comm::{IComm, Result};
 
-/// The ISP bridge slave, 8-bit form. Every "Ask for" and debug-mode read goes here.
+/// The ISP bridge slave as the plugin writes it — the **8-bit** form. Linux's i2c-dev takes 7-bit,
+/// so the address on the wire is [`SLAVE_ISP`] >> 1. Measured on the X28: the bridge answers at
+/// 7-bit `0x4A`, which is the plugin's built-in `ucSpecifiedSlave` = `0x94` shifted right one.
 pub const SLAVE_ISP: u8 = 0x6A;
-/// The DDC/CI control slave, 8-bit form.
+/// The DDC/CI control slave, 8-bit form: 7-bit `0x37`.
 pub const SLAVE_DDCCI: u8 = 0x6E;
+/// [`SLAVE_ISP`] in the 7-bit form i2c-dev wants.
+pub const ISP: u8 = SLAVE_ISP >> 1;
+/// [`SLAVE_DDCCI`] in the 7-bit form i2c-dev wants.
+pub const DDCCI: u8 = SLAVE_DDCCI >> 1;
 /// The VCP the tool writes commands into.
 pub const VCP_WRITE: u8 = 0x71;
 /// The VCP the tool reads replies from.
@@ -85,7 +91,7 @@ impl<'a> Mailbox<'a> {
     pub fn new(comm: &'a dyn IComm) -> Self {
         Mailbox {
             comm,
-            slave: SLAVE_ISP,
+            slave: ISP,
             settle: 200,
             retries: 10,
         }
@@ -162,7 +168,7 @@ impl<'a> Ddcci<'a> {
     pub fn new(comm: &'a dyn IComm) -> Self {
         Ddcci {
             comm,
-            slave: SLAVE_DDCCI,
+            slave: DDCCI,
             settle: 200,
         }
     }
@@ -209,7 +215,8 @@ impl<'a> Ddcci<'a> {
     /// `FUN_10018550` — Get Program Start Bank: `{0x77, 0x01}` out, 16 bytes back on `0x71`;
     /// byte 3 is the bank the programming starts at.
     pub fn program_start_bank(&self) -> Result<u8> {
-        self.comm.ddcci_write(self.slave, VCP_WRITE, &[0x77, 0x01])?;
+        self.comm
+            .ddcci_write(self.slave, VCP_WRITE, &[0x77, 0x01])?;
         std::thread::sleep(std::time::Duration::from_millis(self.settle));
         let r = self.comm.ddcci_read(self.slave, VCP_WRITE, 0x10)?;
         Ok(r[3])
@@ -250,11 +257,11 @@ impl<'a> Ddcci<'a> {
         // The count byte leads a 13-byte block; the device answers with the count it holds.
         let mut req = vec![0u8; 13];
         req[0] = n;
-        comm.write_segment(SLAVE_ISP, 0xCB, &req)?;
+        comm.write_segment(ISP, 0xCB, &req)?;
         let mut ack = vec![0u8; 3];
-        comm.read_segment(SLAVE_ISP, 0x01, &mut ack)?;
+        comm.read_segment(ISP, 0x01, &mut ack)?;
         let mut body = vec![0u8; n as usize];
-        comm.read_segment(SLAVE_ISP, 0xCB, &mut body)?;
+        comm.read_segment(ISP, 0xCB, &mut body)?;
         Ok(body)
     }
 }
@@ -264,6 +271,7 @@ impl<'a> Ddcci<'a> {
 /// 11 bytes back on register `0x01`. Byte 0 must echo `0xCA`, byte 1 is a length under 11, and the payload starts
 /// at byte 1. This is the arm used when the panel is in debug/ISP mode rather than running.
 pub fn fw_info_debug(comm: &dyn IComm, slave: u8, settle_ms: u64) -> Result<Vec<u8>> {
+    // `slave` is the 7-bit address the probe settled on.
     comm.write_byte(slave, REG_MAILBOX, 0x09)?;
     std::thread::sleep(std::time::Duration::from_millis(settle_ms));
     let r = comm.ddcci_read(slave, 0x01, 0xB)?;
@@ -391,6 +399,12 @@ mod tests {
         fn enter_isp_mode(&self, _retries: u32) -> Result<()> {
             Ok(())
         }
+        fn write_scaler_reg(&self, _reg: u16, _value: u8) -> Result<()> {
+            Ok(())
+        }
+        fn read_scaler_reg(&self, _reg: u16) -> Result<u8> {
+            Ok(0)
+        }
         fn reset_firmware(&self) -> Result<()> {
             Ok(())
         }
@@ -454,22 +468,22 @@ mod tests {
     fn fw_info_writes_c9_then_reads_the_counted_payload() {
         let wire = Wire::default();
         // resp[2] must echo 0xC9; count at [3]; payload from [4].
-        let mut resp = vec![
+        let resp = vec![
             0x6E, 0x0C, 0xC9, 0x04, b'1', b'.', b'2', b'.', b'3', b'.', b'4', 0, 0, 0,
         ];
-        wire.arm(SLAVE_DDCCI, VCP_READ, &resp);
+        wire.arm(DDCCI, VCP_READ, &resp);
         let d = Ddcci::new(&wire).with_settle(0);
         let got = d.fw_info().expect("fw info");
         assert_eq!(got, b"1.2.3", "count 4 means 4+1 bytes of payload");
         let log = wire.taken();
-        assert_eq!(log[0], "DW 6e.71=77c909", "source byte, then 0xC9 0x09");
-        assert_eq!(log[1], "DR 6e.51[14]", "14 bytes come back on 0x51");
+        assert_eq!(log[0], "DW 37.71=77c909", "source byte, then 0xC9 0x09");
+        assert_eq!(log[1], "DR 37.51[14]", "14 bytes come back on 0x51");
     }
 
     #[test]
     fn fw_info_rejects_a_reply_that_does_not_echo() {
         let wire = Wire::default();
-        wire.arm(SLAVE_DDCCI, VCP_READ, &[0, 0, 0xC8, 0, 0, 0]);
+        wire.arm(DDCCI, VCP_READ, &[0, 0, 0xC8, 0, 0, 0]);
         let d = Ddcci::new(&wire).with_settle(0);
         assert!(d.fw_info().is_err());
     }
@@ -477,10 +491,14 @@ mod tests {
     #[test]
     fn the_program_start_bank_is_byte_three_of_the_reply() {
         let wire = Wire::default();
-        wire.arm(SLAVE_DDCCI, VCP_WRITE, &[0x6E, 0x0E, 0x00, 0x13, 0, 0]);
+        wire.arm(DDCCI, VCP_WRITE, &[0x6E, 0x0E, 0x00, 0x13, 0, 0]);
         let d = Ddcci::new(&wire).with_settle(0);
         assert_eq!(d.program_start_bank().unwrap(), 0x13);
-        assert_eq!(wire.taken()[0], "DW 6e.71=7701", "the source byte rides in the payload");
+        assert_eq!(
+            wire.taken()[0],
+            "DW 37.71=7701",
+            "the source byte rides in the payload"
+        );
     }
 
     #[test]
@@ -496,12 +514,12 @@ mod tests {
         assert_eq!(d.user_version().unwrap(), "FW.012");
         let log = wire.taken();
         assert_eq!(
-            log[0], "DW 6e.84=f59c00",
+            log[0], "DW 37.84=f59c00",
             "the page index rides in the address"
         );
-        assert_eq!(log[1], "DW 6e.82=f5", "then the trigger");
+        assert_eq!(log[1], "DW 37.82=f5", "then the trigger");
         assert!(
-            log.contains(&"DW 6e.84=f59c01".to_string()),
+            log.contains(&"DW 37.84=f59c01".to_string()),
             "page 1 is asked for"
         );
     }
@@ -509,12 +527,12 @@ mod tests {
     #[test]
     fn the_mailbox_asks_with_one_byte_and_reads_the_echo() {
         let wire = Wire::default();
-        wire.arm(SLAVE_ISP, REG_MAILBOX, &[0xCA, 0xFE, 0x8F, 0x04, 0x00]);
+        wire.arm(ISP, REG_MAILBOX, &[0xCA, 0xFE, 0x8F, 0x04, 0x00]);
         let m = Mailbox::new(&wire).with_timing(0, 1);
         assert_eq!(m.flag_addr().unwrap(), 0x0004_8FFE);
         assert_eq!(
             wire.taken()[0],
-            "WB 6a.ca=04",
+            "WB 35.ca=04",
             "sub-command 4 asks for the flag address"
         );
     }
@@ -522,7 +540,7 @@ mod tests {
     #[test]
     fn start_bank_splits_the_bank_and_the_size_code() {
         let wire = Wire::default();
-        wire.arm(SLAVE_ISP, REG_MAILBOX, &[0xCA, 0x13, 0x00, 0x1E, 0x00]);
+        wire.arm(ISP, REG_MAILBOX, &[0xCA, 0x13, 0x00, 0x1E, 0x00]);
         let m = Mailbox::new(&wire).with_timing(0, 1);
         let (bank, size) = m.start_bank().unwrap();
         assert_eq!(bank, 0x13, "bytes 1..2 are a little-endian u16");
@@ -535,7 +553,7 @@ mod tests {
     #[test]
     fn a_missing_echo_is_retried_then_fails() {
         let wire = Wire::default();
-        wire.arm(SLAVE_ISP, REG_MAILBOX, &[0xCB, 1, 2, 3, 4]);
+        wire.arm(ISP, REG_MAILBOX, &[0xCB, 1, 2, 3, 4]);
         let m = Mailbox::new(&wire).with_timing(0, 3);
         assert!(m.sig_addr().is_err());
         assert_eq!(

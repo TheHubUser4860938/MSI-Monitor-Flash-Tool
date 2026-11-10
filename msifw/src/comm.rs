@@ -122,6 +122,12 @@ pub trait IComm: std::fmt::Debug {
     fn ddcci_write(&self, slave: u8, vcp: u8, data: &[u8]) -> Result<()>;
     /// Slot 0x140 — a DDC/CI read: `len` bytes from `vcp`.
     fn ddcci_read(&self, slave: u8, vcp: u8, len: usize) -> Result<Vec<u8>>;
+    /// Slots 0xc0 / 0xc4 (`ReadRegEx` / `WriteRegEx`) — the scaler's 16-bit-indexed register
+    /// file. This is the **MCM** window: the ISP bridge sits behind it at `0x841` (command),
+    /// `0x842` (opcode), `0x846/0x847/0x848` (address), `0x84c` (trigger), and the data FIFO is
+    /// the 8-bit pair `0xf4` (command) / `0xf5` (stream).
+    fn write_scaler_reg(&self, reg: u16, value: u8) -> Result<()>;
+    fn read_scaler_reg(&self, reg: u16) -> Result<u8>;
     /// The scaler's 32-bit register file.
     fn write_32bit_reg(&self, addr: u32, value: u32) -> Result<()>;
     fn read_32bit_reg(&self, addr: u32) -> Result<u32>;
@@ -313,6 +319,21 @@ impl IComm for AuxComm<'_> {
 
     /// The scaler's 32-bit register file: a 16-bit index, then a little-endian value
     /// (observed: the command trigger's two halves are written low-then-high).
+    fn write_scaler_reg(&self, reg: u16, value: u8) -> Result<()> {
+        self.bus
+            .write(self.slave.get(), &[(reg >> 8) as u8, reg as u8, value])
+            .map_err(|e| CommError::Io(e.kind()))
+    }
+
+    fn read_scaler_reg(&self, reg: u16) -> Result<u8> {
+        let idx = [(reg >> 8) as u8, reg as u8];
+        let mut v = [0u8; 1];
+        self.bus
+            .write_read(self.slave.get(), &idx, &mut v)
+            .map_err(|e| CommError::Io(e.kind()))?;
+        Ok(v[0])
+    }
+
     fn write_32bit_reg(&self, addr: u32, value: u32) -> Result<()> {
         let mut buf = vec![(addr >> 8) as u8, addr as u8];
         buf.extend_from_slice(&value.to_le_bytes());

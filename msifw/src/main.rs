@@ -36,7 +36,7 @@ struct Cli {
     flash_dat: Option<PathBuf>,
 
     /// Override the ISP slave address, skipping the probe. Base 0 like the card: `0x6a` or `106`.
-    #[arg(long, global = true, value_parser = parse_base0)]
+    #[arg(long, global = true, value_parser = parse_u8)]
     slave: Option<u8>,
 
     #[command(subcommand)]
@@ -70,17 +70,20 @@ enum Cmd {
     Dump {
         #[arg(short, long, default_value = "dump.bin")]
         out: PathBuf,
-        /// Bytes to read; defaults to the card's `ulDumpFlashLen`.
-        #[arg(long)]
+        /// Bank to read. On an MCM panel the flash is addressed (bank, offset), not flat.
+        #[arg(short, long, value_parser = parse_u16)]
+        bank: Option<u16>,
+        /// Bytes to read; defaults to the card's `ulDumpFlashLen`. Base 0.
+        #[arg(long, value_parser = parse_u32)]
         len: Option<u32>,
-        /// Start address; defaults to the card's `ulDumpFlashAddr`.
-        #[arg(long)]
+        /// Start address; defaults to the card's `ulDumpFlashAddr`. Base 0.
+        #[arg(long, value_parser = parse_u32)]
         addr: Option<u32>,
     },
     /// Erase one bank, every bank, or the chip (`BankEraseFlash` / `ChipEraseFlash`).
     Erase {
-        /// Bank index; omit to erase the whole chip.
-        #[arg(short, long)]
+        /// Bank index; omit to erase the whole chip. Base 0.
+        #[arg(short, long, value_parser = parse_u16)]
         bank: Option<u16>,
     },
     /// Flash a .bin (`IspFlash`).
@@ -95,12 +98,38 @@ enum Cmd {
 }
 
 /// The card's own number grammar (`_wcstoi64(buf, 0, 0)`): `0x…` is hex, a bare run is decimal.
-fn parse_base0(s: &str) -> Result<u8, String> {
-    let t = s.trim();
-    match t.strip_prefix("0x").or_else(|| t.strip_prefix("0X")) {
-        Some(hex) => u8::from_str_radix(hex, 16).map_err(|e| e.to_string()),
-        None => t.parse::<u8>().map_err(|e| e.to_string()),
-    }
+macro_rules! base0 {
+    ($t:ty) => {
+        impl Base0 for $t {
+            fn base0(s: &str) -> Result<Self, String> {
+                let t = s.trim();
+                match t.strip_prefix("0x").or_else(|| t.strip_prefix("0X")) {
+                    Some(h) => <$t>::from_str_radix(h, 16).map_err(|e| e.to_string()),
+                    None => t.parse::<$t>().map_err(|e| e.to_string()),
+                }
+            }
+        }
+    };
+}
+
+/// The card's number grammar, shared by every numeric CLI flag.
+trait Base0 {
+    fn base0(s: &str) -> Result<Self, String>
+    where
+        Self: Sized;
+}
+base0!(u8);
+base0!(u16);
+base0!(u32);
+
+fn parse_u8(s: &str) -> Result<u8, String> {
+    u8::base0(s)
+}
+fn parse_u16(s: &str) -> Result<u16, String> {
+    u16::base0(s)
+}
+fn parse_u32(s: &str) -> Result<u32, String> {
+    u32::base0(s)
 }
 
 /// Lowercase hex, space separated — the form the Windows tool logs its buffers in.
@@ -253,7 +282,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                 Cmd::Fwinfo => {
                     isp.handshake()?;
                     isp.detect_slave()?;
-                    let d = msifw::ddcci::Ddcci::at(isp.comm(), isp.slave())
+                    let d = msifw::ddcci::Ddcci::new(isp.comm())
                         .with_settle(u64::from(settings.time_after_command));
                     match d.fw_info() {
                         Ok(v) => {
@@ -275,7 +304,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                 Cmd::Version { out } => {
                     isp.handshake()?;
                     isp.detect_slave()?;
-                    let d = msifw::ddcci::Ddcci::at(isp.comm(), isp.slave())
+                    let d = msifw::ddcci::Ddcci::new(isp.comm())
                         .with_settle(u64::from(settings.time_after_command));
                     let v = d.user_version()?;
                     println!("version     {v}");
@@ -285,6 +314,8 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                 Cmd::Key => {
                     isp.handshake()?;
                     isp.detect_slave()?;
+                    // The mailbox rides the ISP bridge address, which is per-panel: the X28 answers
+                    // at 7-bit 0x4A, not the plugin's built-in 0x6A >> 1.
                     let m = msifw::ddcci::Mailbox::at(isp.comm(), isp.slave()).with_timing(
                         u64::from(settings.time_after_command),
                         settings.command_retry_count,
@@ -313,14 +344,41 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                     println!("mcm flash   {}", isp.check_flash_mode()?);
                     println!("start bank  {}", isp.program_start_bank()?);
                 }
-                Cmd::Dump { out, len, addr } => {
+                Cmd::Dump {
+                    out,
+                    len,
+                    addr,
+                    bank,
+                } => {
                     isp.handshake()?;
                     isp.detect_slave()?;
                     isp.select_part(&table)?;
+                    let mcm = isp.check_flash_mode()?;
                     let addr = addr.unwrap_or(settings.dump_flash_addr);
                     let len = len.unwrap_or(settings.dump_flash_len);
                     let mut image = vec![0xFFu8; len as usize];
-                    isp.dump_flash(addr, image.as_mut_slice())?;
+                    if mcm {
+                        // The MCM flash is addressed (bank, in-bank offset) through the scaler's
+                        // register window, so a long dump walks banks.
+                        let start_bank = bank.unwrap_or((addr >> 16) as u16);
+                        let mut off = 0usize;
+                        let mut b = start_bank;
+                        while off < image.len() {
+                            let n = (msifw::binfile::BANK_SIZE
+                                - (addr as usize % msifw::binfile::BANK_SIZE))
+                                .min(image.len() - off);
+                            isp.dump_flash_mcm(
+                                b,
+                                addr as u32 % 0x1_0000,
+                                &mut image[off..off + n],
+                            )?;
+                            off += n;
+                            b += 1;
+                        }
+                    } else {
+                        isp.dump_flash(addr, image.as_mut_slice())?;
+                    }
+                    println!("mcm flash   {mcm}");
                     std::fs::write(out, &image)?;
                     println!("wrote {} bytes to {}", len, out.display());
                 }
