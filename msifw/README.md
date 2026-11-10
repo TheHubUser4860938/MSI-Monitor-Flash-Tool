@@ -67,6 +67,36 @@ erase     One bank, every bank, or the chip                   flash     A .bin, 
 reset     Reset the MCU
 ```
 
+## Run it
+
+Build once, then the binary is self-contained (it needs the vendor's `PlugIn/Flash.dat`, which it
+finds in `../vendor/` beside this directory):
+
+```sh
+cd msifw
+cargo build --release
+
+# the screen: panel on the left, image + compatibility, progress meter, log
+./target/release/msifw gui
+
+# the same facts one verb at a time
+./target/release/msifw buses                 # which display link has the monitor
+./target/release/msifw -b 4 status           # slave, isp mode, boot code, mcu, MCM, start bank
+./target/release/msifw -b 4 info             # the above plus the flash ID and the Flash.dat row
+./target/release/msifw -b 4 part             # the part row: capacity, banks, write-protect words
+./target/release/msifw -b 4 fwinfo           # the FW-info block over DDC/CI
+./target/release/msifw -b 4 dump --len 0x10000 --out bank0.bin
+./target/release/msifw inspect ../vendor/MSI_MAG_341CQP_QD-OLED_X28_FW.012_4023.bin
+```
+
+`-b 4` is the adapter this box's monitor hangs off; omit `-b` and the tool picks the link whose
+EDID address answers. `--slave`, `--len`, `--addr` and `--bank` are base 0 like the card, so `0x4a`
+and `74` mean the same address. `MSIFW_TRACE=1` prints every I2C transfer, which is how the protocol
+was debugged and how it will be debugged further.
+
+No `IspSetting.ini` is needed: every key has the literal default the plugin pushes, and the card
+only has to name what differs (`cards/MAG-341CQP-X28.ini` is the working one for this model).
+
 ## The text UI
 
 ```
@@ -166,6 +196,24 @@ cargo build --release && cargo test
 58 tests, no runtime dependencies beyond `libc` and `clap`. The tests that read the shipped images
 look for them in `../vendor`; the protocol tests run against an in-memory fake bridge, so they need
 no monitor.
+
+## The path to a flash
+
+What is proven on the panel, and what stands between here and writing FW.012:
+
+| # | step | state |
+|---|---|---|
+| 1 | link, slave, ISP mode ack | **done** — `i2c-4`, 7-bit `0x4a`, bit 7 of `0x6F` sets |
+| 2 | read the flash back | **done** — 32 KiB compared against FW.009, byte for byte, and the identity strings read `MAG 341CQ X28   RTD2711` |
+| 3 | the part and its geometry | **done** — GD25Q32C, 4 MiB, 64 banks, start bank 3 |
+| 4 | write-protect off | **not yet exercised** — the row's status words are `enable 0xFF / disable 0x00`, so a `01` write with `0x06` (WREN) first; the per-scaler WP-pin pair is the other half |
+| 5 | erase one bank | **not yet exercised** — the opcode is data from the row where one exists, else `0x20` per 4 KiB sector, `0xD8` per bank |
+| 6 | program one bank, verify | **not yet exercised** — 256-byte pages into FIFO `0x70`, length in `0x71` minus one, issue `0x6f ← 0x20`, verify is the range OR at `0x75` |
+| 7 | write FW.012, reset, read it back | the whole point; steps 4-6 have to be seen working on one bank first |
+
+Read speed is 0.79 ms/byte over AUX (a full 1.875 MiB image is ~26 minutes), because each 256-byte
+page is one `I2C_RDWR` of nine messages; batching was measured at 0.17 s/page against 0.86 s for
+the same page as separate transfers.
 
 ## What is not settled
 

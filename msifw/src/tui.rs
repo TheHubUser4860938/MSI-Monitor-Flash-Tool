@@ -361,7 +361,7 @@ impl App {
                     isp.dump_flash_mcm(b as u16, 0, &mut image[b * 0x1_0000..(b + 1) * 0x1_0000])
                         .map_err(|e| e.to_string())?;
                 } else {
-                    isp.dump_flash(
+                    isp.dump_flash_fast(
                         (b * 0x1_0000) as u32,
                         &mut image[b * 0x1_0000..(b + 1) * 0x1_0000],
                     )

@@ -389,7 +389,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                             b += 1;
                         }
                     } else {
-                        isp.dump_flash(addr, image.as_mut_slice())?;
+                        isp.dump_flash_fast(addr, image.as_mut_slice())?;
                     }
                     println!("mcm flash   {mcm}");
                     std::fs::write(out, &image)?;

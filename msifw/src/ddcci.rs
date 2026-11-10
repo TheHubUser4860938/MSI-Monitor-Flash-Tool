@@ -399,6 +399,14 @@ mod tests {
         fn enter_isp_mode(&self, _retries: u32) -> Result<()> {
             Ok(())
         }
+        fn transfer(&self, parts: &mut [(u8, bool, &mut [u8])]) -> Result<()> {
+            for (_, read, buf) in parts.iter_mut() {
+                if *read {
+                    buf.fill(0);
+                }
+            }
+            Ok(())
+        }
         fn write_scaler_reg(&self, _reg: u16, _value: u8) -> Result<()> {
             Ok(())
         }

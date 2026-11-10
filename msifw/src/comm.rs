@@ -105,6 +105,9 @@ pub trait IComm: std::fmt::Debug {
     fn read_byte(&self, slave: u8, reg: u8) -> Result<u8>;
     /// Slot 0x74 (the byte form) — one byte into a register.
     fn write_byte(&self, slave: u8, reg: u8, value: u8) -> Result<()>;
+    /// Many messages in one `I2C_RDWR`. The transport's page is 16 bytes, so a long read is still
+    /// a run of AUX transactions — but issued in one syscall, which is what costs on a DP link.
+    fn transfer(&self, parts: &mut [(u8, bool, &mut [u8])]) -> Result<()>;
     fn set_isp_slave(&self, slave: u8) -> Result<()>;
     /// Slot 0x14 — the continuous/background slave.
     fn set_continuous_isp_slave(&self, slave: u8) -> Result<()>;
@@ -189,6 +192,12 @@ impl<'a> AuxComm<'a> {
 }
 
 impl IComm for AuxComm<'_> {
+    fn transfer(&self, parts: &mut [(u8, bool, &mut [u8])]) -> Result<()> {
+        self.bus
+            .transfer(parts)
+            .map_err(|e| CommError::Io(e.kind()))
+    }
+
     fn write_reg(&self, reg: u8, value: u8) -> Result<()> {
         self.push(self.slave.get(), reg, &[value])
     }
