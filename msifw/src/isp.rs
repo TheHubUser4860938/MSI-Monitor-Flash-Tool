@@ -60,7 +60,10 @@ pub const STATUS_BANK_ERASED: u8 = 0xDE;
 /// (observed: `FUN_1003e610` writes 0x20, `FUN_1003e9c0` writes 0xD8).
 pub const OPCODE_SECTOR_ERASE: u8 = 0x20;
 pub const OPCODE_BANK_ERASE: u8 = 0xD8;
-pub const OPCODE_PAGE_PROGRAM: u8 = 0x20;
+pub const OPCODE_PAGE_PROGRAM: u8 = 0x02;
+/// The vendor's own program command, from the GD25Q32C and MX25L3206E rows of Flash.dat: one
+/// byte at a time with `0x6f <- 0xa0`, at mode `0x23` and length `0x00`.
+pub const OPCODE_BYTE_PROGRAM: u8 = 0xa0;
 pub const OPCODE_RDID: u8 = 0x9F;
 /// Read status register.
 pub const OPCODE_RDSR: u8 = 0x05;
@@ -587,6 +590,28 @@ impl<'a> Isp<'a> {
         out
     }
 
+    /// The vendor's own program command, byte at a time: mode `0x23`, length `0x00`, one byte
+    /// into the FIFO, issue `0xa0`. This is what the GD25Q32C row of Flash.dat does, and it is
+    /// the recipe proven against the part — 16 bytes of it per bank, in the file.
+    pub fn program_bytes(&mut self, addr: u32, data: &[u8]) -> Result<()> {
+        self.comm.write_reg(REG_MODE, 0x23)?;
+        self.comm.write_reg(REG_LEN, 0)?;
+        // Latch write enable once, as the row's opening `06,61,06` + `06,60,38` + `06,60,39` does.
+        self.comm.write_reg(REG_OPCODE, OPCODE_WREN)?;
+        self.comm.write_reg(REG_TRIGGER, 0x38)?;
+        self.comm.write_reg(REG_TRIGGER, 0x39)?;
+        for (i, &b) in data.iter().enumerate() {
+            // The vendor's row writes the address before every single byte, so the bridge latches
+            // it per program cycle rather than per burst.
+            self.write_addr(addr + i as u32)?;
+            self.comm.write_reg(REG_FIFO, b)?;
+            // A plain write, as the row does it: the masked form reads 0x6f first, and the read
+            // of the issue register is not free on this bridge.
+            self.comm.write_reg(REG_ISSUE, OPCODE_BYTE_PROGRAM)?;
+        }
+        Ok(())
+    }
+
     /// One page program, `FUN_1003d760`'s inner body: mode 2, length minus one, the FIFO burst,
     /// the address, then the masked write that issues it.
     pub fn program_page(&mut self, addr: u32, data: &[u8], verify: bool) -> Result<()> {
@@ -730,12 +755,7 @@ impl<'a> Isp<'a> {
         let start = usize::from(bank) * BANK_SIZE as usize;
         let n = bytes.min(BANK_SIZE as usize);
         let pattern: Vec<u8> = (0..n).map(|i| (i as u32).wrapping_mul(7).wrapping_add(0x5A) as u8).collect();
-        let mut off = 0usize;
-        while off < n {
-            let len = (PAGE_SIZE as usize).min(n - off);
-            self.program_page((start + off) as u32, &pattern[off..off + len], false)?;
-            off += len;
-        }
+        self.program_bytes(start as u32, &pattern)?;
         let mut back = vec![0u8; n];
         self.dump_flash_fast(start as u32, &mut back)?;
         let good = back.iter().zip(&pattern).filter(|(a, b)| a == b).count();
