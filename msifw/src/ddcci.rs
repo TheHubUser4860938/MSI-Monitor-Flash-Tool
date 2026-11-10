@@ -91,6 +91,16 @@ impl<'a> Mailbox<'a> {
         }
     }
 
+    /// At the address the probe settled on — a DP link exposes one endpoint, not two.
+    pub fn at(comm: &'a dyn IComm, slave: u8) -> Self {
+        Mailbox {
+            comm,
+            slave,
+            settle: 200,
+            retries: 10,
+        }
+    }
+
     pub fn with_timing(mut self, settle_ms: u64, retries: u32) -> Self {
         self.settle = settle_ms;
         self.retries = retries.max(1);
@@ -157,6 +167,17 @@ impl<'a> Ddcci<'a> {
         }
     }
 
+    /// At the address the ISP path is using. Measured on the MAG 341CQP X28: the scaler exposes
+    /// ONE endpoint on the DP link (7-bit `0x49` = 8-bit `0x92`) that answers both the ISP
+    /// register file and the VCP reads, so this arm should follow the probe, not a constant.
+    pub fn at(comm: &'a dyn IComm, slave: u8) -> Self {
+        Ddcci {
+            comm,
+            slave,
+            settle: 200,
+        }
+    }
+
     /// The card's `ulDelayTimeAfterDdcciWrite`, in ms.
     pub fn with_settle(mut self, ms: u64) -> Self {
         self.settle = ms;
@@ -171,10 +192,13 @@ impl<'a> Ddcci<'a> {
 
     /// `FUN_10022c30` — GetFwInfoInDDCCIMode: `{0x77, 0xC9, 0x09}` out, 14 bytes back on `0x51`.
     ///
+    /// `0x77` is the DDC/CI source byte and rides in the payload: the slot call is
+    /// `DDCCIWrite(slave, 0x71, 3, {0x77, 0xC9, 0x09})`, so four bytes hit the wire.
+    ///
     /// The reply's byte 2 must echo `0xC9`; byte 3 is a count and `count + 1` bytes of payload
     /// follow at byte 4. The payload is the packed version/identity block the UI prints.
     pub fn fw_info(&self) -> Result<Vec<u8>> {
-        let r = self.xfer(&[0xC9, 0x09], VCP_READ, 0xE)?;
+        let r = self.xfer(&[0x77, 0xC9, 0x09], VCP_READ, 0xE)?;
         if r[2] != 0xC9 {
             return Err(crate::comm::CommError::BadLength);
         }
@@ -185,7 +209,7 @@ impl<'a> Ddcci<'a> {
     /// `FUN_10018550` — Get Program Start Bank: `{0x77, 0x01}` out, 16 bytes back on `0x71`;
     /// byte 3 is the bank the programming starts at.
     pub fn program_start_bank(&self) -> Result<u8> {
-        self.comm.ddcci_write(self.slave, VCP_WRITE, &[0x01])?;
+        self.comm.ddcci_write(self.slave, VCP_WRITE, &[0x77, 0x01])?;
         std::thread::sleep(std::time::Duration::from_millis(self.settle));
         let r = self.comm.ddcci_read(self.slave, VCP_WRITE, 0x10)?;
         Ok(r[3])
@@ -235,13 +259,14 @@ impl<'a> Ddcci<'a> {
     }
 }
 
-/// `FUN_10022ea0` — GetFwInfoInDebugMode: one byte `0x09` into the mailbox, 11 bytes back on
-/// register `0x01`. Byte 0 must echo `0xCA`, byte 1 is a length under 11, and the payload starts
+/// `FUN_10022ea0` — GetFwInfoInDebugMode: one byte `0x09` into the mailbox on `slave`
+/// (`0x6A` in the plugin's own terms; on a DP link this is the address the probe settled on),
+/// 11 bytes back on register `0x01`. Byte 0 must echo `0xCA`, byte 1 is a length under 11, and the payload starts
 /// at byte 1. This is the arm used when the panel is in debug/ISP mode rather than running.
-pub fn fw_info_debug(comm: &dyn IComm, settle_ms: u64) -> Result<Vec<u8>> {
-    comm.write_byte(SLAVE_ISP, REG_MAILBOX, 0x09)?;
+pub fn fw_info_debug(comm: &dyn IComm, slave: u8, settle_ms: u64) -> Result<Vec<u8>> {
+    comm.write_byte(slave, REG_MAILBOX, 0x09)?;
     std::thread::sleep(std::time::Duration::from_millis(settle_ms));
-    let r = comm.ddcci_read(SLAVE_ISP, 0x01, 0xB)?;
+    let r = comm.ddcci_read(slave, 0x01, 0xB)?;
     if r[0] != REG_MAILBOX || r[1] == 0xEE || r[1] >= 0xB {
         return Err(crate::comm::CommError::ReadFailed);
     }
@@ -434,7 +459,7 @@ mod tests {
         let got = d.fw_info().expect("fw info");
         assert_eq!(got, b"1.2.3", "count 4 means 4+1 bytes of payload");
         let log = wire.taken();
-        assert_eq!(log[0], "DW 6e.71=c909", "the command is 0xC9 0x09");
+        assert_eq!(log[0], "DW 6e.71=77c909", "source byte, then 0xC9 0x09");
         assert_eq!(log[1], "DR 6e.51[14]", "14 bytes come back on 0x51");
     }
 
@@ -452,7 +477,7 @@ mod tests {
         wire.arm(SLAVE_DDCCI, VCP_WRITE, &[0x6E, 0x0E, 0x00, 0x13, 0, 0]);
         let d = Ddcci::new(&wire).with_settle(0);
         assert_eq!(d.program_start_bank().unwrap(), 0x13);
-        assert_eq!(wire.taken()[0], "DW 6e.71=01");
+        assert_eq!(wire.taken()[0], "DW 6e.71=7701", "the source byte rides in the payload");
     }
 
     #[test]

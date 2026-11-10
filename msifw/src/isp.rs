@@ -143,7 +143,7 @@ impl<'a> Isp<'a> {
         // the boot-code loop. Polling at the transport's default address wastes a round per try.
         let start = self
             .slave
-            .or((self.cfg.specified_slave != 0).then(|| (self.cfg.specified_slave >> 1) as u8));
+            .or((self.cfg.specified_slave != 0).then_some((self.cfg.specified_slave >> 1) as u8));
         if let Some(s) = start {
             self.slave = Some(s);
             self.comm.set_isp_slave(s)?;
@@ -194,7 +194,7 @@ impl<'a> Isp<'a> {
                     continue;
                 }
                 match self.boot_code() {
-                    Ok(v) if v == 0 => return Ok(s),
+                    Ok(0) => return Ok(s),
                     Ok(0x6E) if !self.cfg.ddcci_read_not_return_0x6e => return Ok(s),
                     Ok(_) | Err(_) => continue,
                 }

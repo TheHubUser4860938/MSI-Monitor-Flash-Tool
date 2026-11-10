@@ -196,13 +196,21 @@ impl IComm for AuxComm<'_> {
         self.push(slave, reg, data)
     }
 
+    /// A register-addressed read, burst in `AUX_PAGE`-sized transactions.
+    ///
+    /// One AUX transaction carries 16 bytes, so anything longer is a run of reads from the same
+    /// register — which is what `I2CReadEx` does, in 0x100-byte bursts that are themselves 16-byte
+    /// AUX chunks. The register is re-sent per chunk: the bridge's address pointer walks with it.
     fn read_segment(&self, slave: u8, reg: u8, data: &mut [u8]) -> Result<()> {
         if data.is_empty() {
             return Err(CommError::BadLength);
         }
-        self.bus
-            .write_read(slave, &[reg], data)
-            .map_err(|e| CommError::Io(e.kind()))
+        for chunk in data.chunks_mut(AUX_PAGE) {
+            self.bus
+                .write_read(slave, &[reg], chunk)
+                .map_err(|e| CommError::Io(e.kind()))?;
+        }
+        Ok(())
     }
 
     fn ddcci_write(&self, slave: u8, vcp: u8, data: &[u8]) -> Result<()> {

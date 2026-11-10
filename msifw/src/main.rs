@@ -249,7 +249,9 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 Cmd::Fwinfo => {
-                    let d = msifw::ddcci::Ddcci::new(isp.comm())
+                    isp.handshake()?;
+                    isp.detect_slave()?;
+                    let d = msifw::ddcci::Ddcci::at(isp.comm(), isp.slave())
                         .with_settle(u64::from(settings.time_after_command));
                     match d.fw_info() {
                         Ok(v) => {
@@ -260,6 +262,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                         Err(_) => {
                             let v = msifw::ddcci::fw_info_debug(
                                 isp.comm(),
+                                isp.slave(),
                                 u64::from(settings.time_after_command),
                             )?;
                             println!("fw info     {} (debug mode)", ascii(&v));
@@ -268,7 +271,9 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 Cmd::Version { out } => {
-                    let d = msifw::ddcci::Ddcci::new(isp.comm())
+                    isp.handshake()?;
+                    isp.detect_slave()?;
+                    let d = msifw::ddcci::Ddcci::at(isp.comm(), isp.slave())
                         .with_settle(u64::from(settings.time_after_command));
                     let v = d.user_version()?;
                     println!("version     {v}");
@@ -278,7 +283,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                 Cmd::Key => {
                     isp.handshake()?;
                     isp.detect_slave()?;
-                    let m = msifw::ddcci::Mailbox::new(isp.comm()).with_timing(
+                    let m = msifw::ddcci::Mailbox::at(isp.comm(), isp.slave()).with_timing(
                         u64::from(settings.time_after_command),
                         settings.command_retry_count,
                     );
