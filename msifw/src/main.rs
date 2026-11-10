@@ -4,6 +4,7 @@
 //! `re2/JOURNAL.md` step 3 and `re2/findings-ini.md`). Verbs are named for what the Windows UI
 //! calls them.
 
+use std::fs;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -54,6 +55,15 @@ enum Cmd {
     Part,
     /// Read the firmware version the monitor reports (`GetFWInfo`).
     Info,
+    /// Read the FW-info block over DDC/CI (`GetFwInfoInDDCCIMode`).
+    Fwinfo,
+    /// Read the user-defined version, paged, and write `ISPVersion.txt` (`RecordFWVersion`).
+    Version {
+        #[arg(short, long, default_value = "ISPVersion.txt")]
+        out: PathBuf,
+    },
+    /// Ask the panel where its key lives and read the block (`GetKeyFromFlash`).
+    Key,
     /// Read the boot code and scaler state (`EnterISPModeExport`).
     Status,
     /// Dump flash to a file (`DumpFlash`).
@@ -82,6 +92,29 @@ enum Cmd {
     },
     /// Reset the MCU (`ResetMCUExport`).
     Reset,
+}
+
+/// Lowercase hex, space separated — the form the Windows tool logs its buffers in.
+fn hex(b: &[u8]) -> String {
+    b.iter()
+        .map(|c| format!("{c:02x}"))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Printable form of a byte block: the ASCII where it is printable, dots where it is not.
+fn ascii(b: &[u8]) -> String {
+    b.iter()
+        .map(|&c| {
+            if c.is_ascii_graphic() || c == b' ' {
+                c as char
+            } else {
+                '.'
+            }
+        })
+        .collect::<String>()
+        .trim_end_matches('.')
+        .to_string()
 }
 
 fn main() -> ExitCode {
@@ -133,7 +166,12 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                 s.retry_isp, s.retry_isp_count, s.retry_isp_sleep_time
             );
             println!("ulIspSpeed               {}", s.isp_speed);
+            println!("ucSpecifiedSlave         {:#x}", s.specified_slave);
+            println!("strDumpFileName          {}", nv(&s.dump_file_name));
             println!("ulProgStartBank          {}", s.prog_start_bank);
+            println!("ISP_BootFlag ulAddr      {:#x}", s.addr);
+            println!("ucszFlag[HEAD4]          {:#010x}", s.boot_flag_head);
+            println!("ucszFlag[TAIL4]          {:#010x}", s.boot_flag_tail);
             println!("ulDumpFlashAddr          {:#x}", s.dump_flash_addr);
             println!(
                 "ulDumpFlashLen           {:#x} ({})",
@@ -151,6 +189,9 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
         }
         Cmd::Part
         | Cmd::Info
+        | Cmd::Fwinfo
+        | Cmd::Version { .. }
+        | Cmd::Key
         | Cmd::Status
         | Cmd::Dump { .. }
         | Cmd::Erase { .. }
@@ -198,6 +239,53 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                     println!("flash id  {:02x},{:02x},{:02x}", id[0], id[1], id[2]);
                     if let Ok(p) = isp.select_part(&table) {
                         println!("part      {}", p.name);
+                    }
+                }
+                Cmd::Fwinfo => {
+                    let d = msifw::ddcci::Ddcci::new(isp.comm())
+                        .with_settle(u64::from(settings.time_after_command));
+                    match d.fw_info() {
+                        Ok(v) => {
+                            println!("fw info     {}", ascii(&v));
+                            println!("bytes       {}", hex(&v));
+                        }
+                        // The debug arm is the fallback the tool takes in ISP mode.
+                        Err(_) => {
+                            let v = msifw::ddcci::fw_info_debug(
+                                isp.comm(),
+                                u64::from(settings.time_after_command),
+                            )?;
+                            println!("fw info     {} (debug mode)", ascii(&v));
+                            println!("bytes       {}", hex(&v));
+                        }
+                    }
+                }
+                Cmd::Version { out } => {
+                    let d = msifw::ddcci::Ddcci::new(isp.comm())
+                        .with_settle(u64::from(settings.time_after_command));
+                    let v = d.user_version()?;
+                    println!("version     {v}");
+                    fs::write(out, format!("{v}\n"))?;
+                    println!("wrote       {}", out.display());
+                }
+                Cmd::Key => {
+                    isp.handshake()?;
+                    isp.detect_slave()?;
+                    let m = msifw::ddcci::Mailbox::new(isp.comm()).with_timing(
+                        u64::from(settings.time_after_command),
+                        settings.command_retry_count,
+                    );
+                    let addr = m.key_addr()?;
+                    println!("key addr    {addr:#x}");
+                    // The block is a big-endian u32 length, then that many bytes, max 0x4C4.
+                    let mut head = [0u8; 4];
+                    isp.dump_flash(addr, &mut head)?;
+                    let n = u32::from_be_bytes(head).min(msifw::binfile::KEY_MAX as u32) as usize;
+                    println!("key len     {n}");
+                    if n > 0 {
+                        let mut body = vec![0u8; n];
+                        isp.dump_flash(addr + 4, &mut body)?;
+                        println!("key         {}", ascii(&body));
                     }
                 }
                 Cmd::Status => {

@@ -103,7 +103,11 @@ pub trait IComm: std::fmt::Debug {
     fn smbus_vd_cmd_enable(&self) -> Result<()>;
     fn initialize(&self) -> Result<()>;
     fn uninitialize(&self) -> Result<()>;
-    /// Slots 0x13c / 0x140 / 0x148 — the scaler's 32-bit register file.
+    /// Slot 0x13c — a DDC/CI write: `[vcp, data…]` to the control slave (0x6E, 8-bit).
+    fn ddcci_write(&self, slave: u8, vcp: u8, data: &[u8]) -> Result<()>;
+    /// Slot 0x140 — a DDC/CI read: `len` bytes from `vcp`.
+    fn ddcci_read(&self, slave: u8, vcp: u8, len: usize) -> Result<Vec<u8>>;
+    /// The scaler's 32-bit register file.
     fn write_32bit_reg(&self, addr: u32, value: u32) -> Result<()>;
     fn read_32bit_reg(&self, addr: u32) -> Result<u32>;
     fn write_32bit_reg_1byte(&self, addr: u32, value: u8) -> Result<()>;
@@ -185,6 +189,22 @@ impl IComm for AuxComm<'_> {
         self.bus
             .write_read(slave, &[reg], data)
             .map_err(|e| CommError::Io(e.kind()))
+    }
+
+    fn ddcci_write(&self, slave: u8, vcp: u8, data: &[u8]) -> Result<()> {
+        let mut packet = Vec::with_capacity(data.len() + 1);
+        packet.push(vcp);
+        packet.extend_from_slice(data);
+        self.push(slave, vcp, &packet)
+    }
+
+    fn ddcci_read(&self, slave: u8, vcp: u8, len: usize) -> Result<Vec<u8>> {
+        if len == 0 {
+            return Err(CommError::BadLength);
+        }
+        let mut buf = vec![0u8; len];
+        self.read_segment(slave, vcp, &mut buf)?;
+        Ok(buf)
     }
 
     fn read_byte(&self, slave: u8, reg: u8) -> Result<u8> {

@@ -107,6 +107,11 @@ impl<'a> Isp<'a> {
         }
     }
 
+    /// The transport, for the verbs that talk to the panel directly (DDC/CI, the `0xCA` mailbox).
+    pub fn comm(&self) -> &dyn IComm {
+        self.comm
+    }
+
     pub fn slave(&self) -> u8 {
         self.slave.unwrap_or(PROBE_SLAVES[0])
     }
@@ -581,9 +586,15 @@ mod tests {
         speed: RefCell<u16>,
         /// Registers that answer with a fixed value, per slave, for the probe tests.
         per_slave: RefCell<BTreeMap<(u8, u16), u8>>,
+        /// DDC/CI replies, keyed by (slave, VCP).
+        ddcci: RefCell<BTreeMap<(u8, u8), Vec<u8>>>,
     }
 
     impl Fake {
+        /// Arm the bytes a DDC/CI read of `(slave, vcp)` will return.
+        fn ddcci_reply(&self, slave: u8, vcp: u8, data: &[u8]) {
+            self.ddcci.borrow_mut().insert((slave, vcp), data.to_vec());
+        }
         fn reg(&self, r: u8, v: u8) {
             self.regs.borrow_mut().insert(r, v);
         }
@@ -636,6 +647,27 @@ mod tests {
                 *x = (i % 256) as u8;
             }
             Ok(())
+        }
+        fn ddcci_write(&self, slave: u8, vcp: u8, d: &[u8]) -> Result<()> {
+            self.log(format!("DW {slave:02x}.{vcp:02x}={}", hex(d)));
+            Ok(())
+        }
+        fn ddcci_read(&self, slave: u8, vcp: u8, len: usize) -> Result<Vec<u8>> {
+            let have = self
+                .ddcci
+                .borrow()
+                .get(&(slave, vcp))
+                .cloned()
+                .unwrap_or_default();
+            let mut out = vec![0u8; len];
+            for (i, b) in out.iter_mut().enumerate() {
+                *b = have.get(i).copied().unwrap_or(0);
+            }
+            self.log(format!(
+                "DR {slave:02x}.{vcp:02x}[{len}]=hex({})",
+                hex(&out)
+            ));
+            Ok(out)
         }
         fn read_byte(&self, slave: u8, reg: u8) -> Result<u8> {
             let key = u16::from(*self.page.borrow()) << 8 | u16::from(reg);
@@ -1036,6 +1068,12 @@ mod tests {
                 Ok(())
             }
             fn read_reg(&self, _: u8) -> Result<u8> {
+                Err(CommError::Io(ErrorKind::TimedOut))
+            }
+            fn ddcci_write(&self, _: u8, _: u8, _: &[u8]) -> Result<()> {
+                Err(CommError::Io(ErrorKind::TimedOut))
+            }
+            fn ddcci_read(&self, _: u8, _: u8, _: usize) -> Result<Vec<u8>> {
                 Err(CommError::Io(ErrorKind::TimedOut))
             }
             fn burst_write(&self, _: u8, _: &[u8]) -> Result<()> {
