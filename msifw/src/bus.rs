@@ -105,14 +105,37 @@ impl Bus {
             msgs: msgs.as_mut_ptr(),
             nmsgs: msgs.len() as u32,
         };
+        let trace = std::env::var_os("MSIFW_TRACE").is_some();
+        if trace {
+            eprintln!(
+                "i2c-{} {addr7:#04x} W[{}] R[{}]",
+                self.number,
+                out.len(),
+                inp.len()
+            );
+        }
         let rc =
             unsafe { libc::ioctl(self.file.as_raw_fd(), I2C_RDWR, &mut data as *mut RdwrData) };
         if rc < 0 {
-            return Err(io::Error::last_os_error());
+            let e = io::Error::last_os_error();
+            if trace {
+                eprintln!("  -> {e}");
+            }
+            return Err(e);
+        }
+        if trace {
+            eprintln!("  -> ok {}", hex(&inv));
         }
         inp.copy_from_slice(&inv);
         Ok(())
     }
+}
+
+fn hex(b: &[u8]) -> String {
+    b.iter()
+        .map(|c| format!("{c:02x}"))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 impl fmt::Display for Bus {

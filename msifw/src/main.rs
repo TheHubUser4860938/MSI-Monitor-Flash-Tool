@@ -35,8 +35,8 @@ struct Cli {
     #[arg(long, global = true)]
     flash_dat: Option<PathBuf>,
 
-    /// Override the ISP slave address (7-bit), skipping the probe.
-    #[arg(long, global = true)]
+    /// Override the ISP slave address, skipping the probe. Base 0 like the card: `0x6a` or `106`.
+    #[arg(long, global = true, value_parser = parse_base0)]
     slave: Option<u8>,
 
     #[command(subcommand)]
@@ -92,6 +92,15 @@ enum Cmd {
     },
     /// Reset the MCU (`ResetMCUExport`).
     Reset,
+}
+
+/// The card's own number grammar (`_wcstoi64(buf, 0, 0)`): `0x…` is hex, a bare run is decimal.
+fn parse_base0(s: &str) -> Result<u8, String> {
+    let t = s.trim();
+    match t.strip_prefix("0x").or_else(|| t.strip_prefix("0X")) {
+        Some(hex) => u8::from_str_radix(hex, 16).map_err(|e| e.to_string()),
+        None => t.parse::<u8>().map_err(|e| e.to_string()),
+    }
 }
 
 /// Lowercase hex, space separated — the form the Windows tool logs its buffers in.
@@ -201,13 +210,11 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
             let table = FlashDat::load(flash_dat_path(cli)?)?;
             let bus = open_bus(cli.bus)?;
             let mut comm = AuxComm::new(&bus);
-            if let Some(s) = cli.slave {
-                comm.slave = s;
-            }
             let mut isp = Isp::new(&mut comm, &settings);
+            // One override, both sides: the transport's address and the probe list's head.
+            isp.slave = cli.slave;
             match &cli.cmd {
                 Cmd::Part => {
-                    isp.slave = cli.slave;
                     let p = isp.select_part(&table)?;
                     println!("part      {}", p.name);
                     println!("id        {}", p.key());

@@ -139,9 +139,16 @@ impl<'a> Isp<'a> {
         self.comm.smbus_vd_cmd_enable()?;
         self.comm.uninitialize()?;
         self.comm.initialize()?;
-        if let Some(s) = self.slave {
+        // Step 4's order: SetIspSlave first (the CLI's, else the card's `ucSpecifiedSlave`), then
+        // the boot-code loop. Polling at the transport's default address wastes a round per try.
+        let start = self
+            .slave
+            .or((self.cfg.specified_slave != 0).then(|| (self.cfg.specified_slave >> 1) as u8));
+        if let Some(s) = start {
+            self.slave = Some(s);
             self.comm.set_isp_slave(s)?;
         }
+        self.comm.set_speed(self.cfg.isp_speed as u16)?;
         self.comm.scaler_run()?;
         let mut code = 0u8;
         for _ in 0..self.cfg.polling_count.max(1) {
@@ -160,6 +167,12 @@ impl<'a> Isp<'a> {
     /// A probe ACKs when the boot-code read returns 0, or 0x6E with `bDDCCIReadNotReturn0x6E`
     /// clear (the test in `FUN_10017300`).
     pub fn detect_slave(&mut self) -> Result<u8> {
+        // An explicit slave means "do not probe" — the address is the answer.
+        if self.slave.is_some() {
+            let s = self.slave();
+            self.set_slave(s)?;
+            return Ok(s);
+        }
         if !self.cfg.auto_detect_slave {
             let s = self.slave();
             self.set_slave(s)?;
@@ -173,12 +186,17 @@ impl<'a> Isp<'a> {
             order.push((self.cfg.specified_slave >> 1) as u8);
         }
         order.extend_from_slice(&PROBE_SLAVES);
+        // A NACK is a normal answer from an address the panel does not use: `DetectAckBySlave`
+        // probes 0x6A and falls through to 0x6E when it does not acknowledge.
         for _ in 0..self.cfg.polling_count.max(1) {
             for &s in &order {
-                self.set_slave(s)?;
-                let v = self.boot_code()?;
-                if v == 0 || (v == 0x6E && !self.cfg.ddcci_read_not_return_0x6e) {
-                    return Ok(s);
+                if self.set_slave(s).is_err() {
+                    continue;
+                }
+                match self.boot_code() {
+                    Ok(v) if v == 0 => return Ok(s),
+                    Ok(0x6E) if !self.cfg.ddcci_read_not_return_0x6e => return Ok(s),
+                    Ok(_) | Err(_) => continue,
                 }
             }
         }
@@ -494,15 +512,19 @@ impl<'a> Isp<'a> {
 
     /// `FUN_1001c4c0`: sleep 2 ms per miss, `iterations` of them, five consecutive I/O errors give up.
     ///
-    /// The plugin passes the mask and the iteration count; the register it tests rides in a
-    /// context Ghidra did not materialise, so the register is named per call site from the write
-    /// that precedes it (**inferred**). The trigger's bit 0 is the start/done bit — the arm writes
-    /// `0xA0` then `0xA1` — and the status register is polled with `0x10` around the transfers.
+    /// The plugin's call is `FUN_1001c4c0(reg, expect = 0, mask = 1, timeout)`: it reads the
+    /// **command register** and stops when **bit 0 goes clear** — the arm writes `0xA0`/`0xA1` (or
+    /// `0xB8`/`0xB9`) to start a transfer and bit 0 is the busy flag. Confirmed on the panel
+    /// 2026-11-10: polling for the bit *set* timed out on every RDID.
+    ///
+    /// The plugin passes mask and iteration count; the register it tests rides in a context Ghidra
+    /// did not materialise, so the register is named per call site from the write before it
+    /// (**inferred**).
     fn poll(&mut self, reg: u8, mask: u8, iterations: u32) -> Result<()> {
         let mut misses = 0u32;
         for _ in 0..iterations {
             match self.comm.read_reg(reg) {
-                Ok(v) if v & mask == mask => return Ok(()),
+                Ok(v) if v & mask == 0 => return Ok(()),
                 Ok(_) => {
                     std::thread::sleep(std::time::Duration::from_millis(POLL_DELAY_MS));
                 }
@@ -630,7 +652,13 @@ mod tests {
             Ok(())
         }
         fn read_reg(&self, reg: u8) -> Result<u8> {
-            let v = self.regs.borrow().get(&reg).copied().unwrap_or(0xFF); // reads as "all bits ready"
+            // The command register's bit 0 is the busy flag: a write starts a transfer and the
+            // bridge clears it when the part is done. The fake finishes instantly.
+            let v = if reg == REG_TRIGGER {
+                0
+            } else {
+                self.regs.borrow().get(&reg).copied().unwrap_or(0)
+            };
             self.log(format!("GET {reg:02x}={v:02x}"));
             Ok(v)
         }
@@ -762,7 +790,8 @@ mod tests {
 
     /// Arm the bridge so a read of REG_OPCODE reports the erase status the plugin expects.
     fn ready(fake: &Fake) {
-        fake.reg(REG_TRIGGER, 0xFF);
+        // The command register is handled by the fake's "transfer finished" rule; the status
+        // register is what a test arms to name the erase granularity it wants back.
         fake.reg(REG_STATUS, STATUS_SECTOR_ERASED);
         fake.reg(REG_CRC_RESULT, crc8(&[]));
     }
@@ -808,13 +837,14 @@ mod tests {
         let mut isp = Isp::new(&mut fake, &cfg);
         assert_eq!(isp.handshake().unwrap(), BOOT_CODE_ISP);
         let log = fake.taken();
+        // Step 4's order: SetIspSlave(ucSpecifiedSlave) before the boot-code loop.
         assert_eq!(
-            &log[..4],
-            &["VD", "UNINIT", "INIT", "RUN"],
+            &log[..5],
+            &["VD", "UNINIT", "INIT", "SLAVE 4a", "RUN"],
             "the plugin's open order"
         );
         assert!(
-            log.iter().any(|l| l.starts_with("RD 6a.01f4")),
+            log.iter().any(|l| l.starts_with("RD 4a.01f4")),
             "boot code read: {log:?}"
         );
     }
@@ -824,7 +854,7 @@ mod tests {
         let mut cfg = Settings::plugin_defaults();
         cfg.polling_count = 1;
         let mut fake = Fake::default();
-        fake.reg(REG_TRIGGER, 0xFF);
+        fake.reg(REG_TRIGGER, 0x00);
         fake.reg(REG_ID[0], 0x1f);
         fake.reg(REG_ID[1], 0x84);
         fake.reg(REG_ID[2], 0x01);
@@ -941,8 +971,8 @@ mod tests {
     fn a_wrong_erase_status_is_an_error() {
         let cfg = Settings::plugin_defaults();
         let mut fake = Fake::default();
-        fake.reg(REG_TRIGGER, 0xFF);
-        fake.reg(REG_TRIGGER, 0xFF);
+        fake.reg(REG_TRIGGER, 0x00);
+        fake.reg(REG_TRIGGER, 0x00);
         fake.reg(REG_STATUS, 0x00); // not STATUS_SECTOR_ERASED
         let mut isp = Isp::new(&mut fake, &cfg);
         assert!(matches!(isp.erase_sector(0, 0), Err(CommError::ReadFailed)));
@@ -1041,7 +1071,7 @@ mod tests {
         let mut isp = Isp::new(&mut fake, &cfg);
         isp.flash_image(&t, &image, false).unwrap();
         let log = fake.taken();
-        assert_eq!(&log[..4], &["VD", "UNINIT", "INIT", "RUN"]);
+        assert_eq!(&log[..5], &["VD", "UNINIT", "INIT", "SLAVE 4a", "RUN"]);
         assert_eq!(
             fake.count("REG 61=20"),
             2 * SECTORS_PER_BANK as usize,

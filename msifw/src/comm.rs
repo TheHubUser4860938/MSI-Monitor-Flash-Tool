@@ -38,6 +38,8 @@
 //! 0x803 write failed, 0x804 unknown comm mode, 0x805/0x806 native write/read failed,
 //! 0x807 over the page maximum, 0x808 native length over 16.
 
+use std::cell::Cell;
+
 use crate::bus::Bus;
 
 /// AUX burst size: `uStack_148 = 0x10` in every descriptor, and the chunk loops step by 0x10.
@@ -120,8 +122,9 @@ pub trait IComm: std::fmt::Debug {
 #[derive(Debug)]
 pub struct AuxComm<'a> {
     pub bus: &'a Bus,
-    /// The slave the plugin has selected (slot 0x10); defaults to the DP address.
-    pub slave: u8,
+    /// The slave the plugin has selected. Slot 0x30 `SetIspSlave` writes it and every later
+    /// register transfer uses it, so it is a cell, not a field set at construction.
+    slave: Cell<u8>,
     /// `ulIspSpeed`, stored the way `Comm_Aux!SetI2CSpeed` stores it.
     pub speed_khz: u16,
     /// Inter-chunk pause (`DAT_1021ae28`/`DAT_1021ae60` in the plugin); 0 disables it.
@@ -132,10 +135,21 @@ impl<'a> AuxComm<'a> {
     pub fn new(bus: &'a Bus) -> AuxComm<'a> {
         AuxComm {
             bus,
-            slave: crate::bus::ISP_DP,
+            slave: Cell::new(crate::bus::ISP_DP),
             speed_khz: 0,
             chunk_delay_ms: 0,
         }
+    }
+
+    /// The slave to start on, before the probe picks one. Base 0 on the CLI, 7-bit on the wire.
+    pub fn set_slave_start(&self, slave: u8) {
+        self.slave.set(slave);
+    }
+
+    pub fn with_slave(bus: &'a Bus, slave: u8) -> AuxComm<'a> {
+        let c = AuxComm::new(bus);
+        c.slave.set(slave);
+        c
     }
 
     /// `[reg, data…]` split into 16-byte AUX writes — the shape of `FUN_1003d850`.
@@ -157,13 +171,13 @@ impl<'a> AuxComm<'a> {
 
 impl IComm for AuxComm<'_> {
     fn write_reg(&self, reg: u8, value: u8) -> Result<()> {
-        self.push(self.slave, reg, &[value])
+        self.push(self.slave.get(), reg, &[value])
     }
 
     fn read_reg(&self, reg: u8) -> Result<u8> {
         let mut b = [0u8; 1];
         self.bus
-            .write_read(self.slave, &[reg], &mut b)
+            .write_read(self.slave.get(), &[reg], &mut b)
             .map_err(|e| CommError::Io(e.kind()))?;
         Ok(b[0])
     }
@@ -172,7 +186,7 @@ impl IComm for AuxComm<'_> {
         if data.is_empty() {
             return Err(CommError::BadLength);
         }
-        self.push(self.slave, reg, data)
+        self.push(self.slave.get(), reg, data)
     }
 
     fn write_segment(&self, slave: u8, reg: u8, data: &[u8]) -> Result<()> {
@@ -220,7 +234,7 @@ impl IComm for AuxComm<'_> {
     }
 
     fn set_isp_slave(&self, slave: u8) -> Result<()> {
-        let _ = slave; // slot 0x10 records the address; the next transfer uses it.
+        self.slave.set(slave);
         Ok(())
     }
 
@@ -236,19 +250,19 @@ impl IComm for AuxComm<'_> {
 
     fn reset_firmware(&self) -> Result<()> {
         self.bus
-            .write(self.slave, &[0xF7, 0x01])
+            .write(self.slave.get(), &[0xF7, 0x01])
             .map_err(|e| CommError::Io(e.kind()))
     }
 
     fn scaler_run(&self) -> Result<()> {
         self.bus
-            .write(self.slave, &[0xF7, 0x00])
+            .write(self.slave.get(), &[0xF7, 0x00])
             .map_err(|e| CommError::Io(e.kind()))
     }
 
     fn scaler_stop(&self) -> Result<()> {
         self.bus
-            .write(self.slave, &[0xF7, 0x00])
+            .write(self.slave.get(), &[0xF7, 0x00])
             .map_err(|e| CommError::Io(e.kind()))
     }
 
@@ -270,7 +284,7 @@ impl IComm for AuxComm<'_> {
         let mut buf = vec![(addr >> 8) as u8, addr as u8];
         buf.extend_from_slice(&value.to_le_bytes());
         self.bus
-            .write(self.slave, &buf)
+            .write(self.slave.get(), &buf)
             .map_err(|e| CommError::Io(e.kind()))
     }
 
@@ -278,7 +292,7 @@ impl IComm for AuxComm<'_> {
         let idx = [(addr >> 8) as u8, addr as u8];
         let mut v = [0u8; 4];
         self.bus
-            .write_read(self.slave, &idx, &mut v)
+            .write_read(self.slave.get(), &idx, &mut v)
             .map_err(|e| CommError::Io(e.kind()))?;
         Ok(u32::from_le_bytes(v))
     }
@@ -286,7 +300,7 @@ impl IComm for AuxComm<'_> {
     fn write_32bit_reg_1byte(&self, addr: u32, value: u8) -> Result<()> {
         let buf = [(addr >> 8) as u8, addr as u8, value];
         self.bus
-            .write(self.slave, &buf)
+            .write(self.slave.get(), &buf)
             .map_err(|e| CommError::Io(e.kind()))
     }
 
@@ -294,7 +308,7 @@ impl IComm for AuxComm<'_> {
         let idx = [(reg >> 8) as u8, reg as u8];
         let mut v = [0u8; 1];
         self.bus
-            .write_read(self.slave, &idx, &mut v)
+            .write_read(self.slave.get(), &idx, &mut v)
             .map_err(|e| CommError::Io(e.kind()))?;
         Ok(v[0])
     }
@@ -304,7 +318,7 @@ impl IComm for AuxComm<'_> {
         let mask = 1u8 << bit;
         let buf = [(reg >> 8) as u8, reg as u8, (cur & !mask) | (value & mask)];
         self.bus
-            .write(self.slave, &buf)
+            .write(self.slave.get(), &buf)
             .map_err(|e| CommError::Io(e.kind()))
     }
 }
