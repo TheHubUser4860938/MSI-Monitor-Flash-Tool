@@ -67,7 +67,52 @@ erase     One bank, every bank, or the chip                   flash     A .bin, 
 reset     Reset the MCU
 ```
 
-`buses` on the dev box, live:
+## The text UI
+
+```
+msifw gui [image.bin]
+```
+
+Four panes, one screen: the **panel** (link, the slave the probe settled on, isp mode, boot code,
+mcu type, address width, MCM, start bank, the Flash.dat row the live ID selected, the EDID's name
+and size, the FW-info block), the **image** (every `MSI_*.bin` in `./` and `vendor/`), the
+**compatibility gate**, and a **progress meter** on the plugin's own phases with a bank counter,
+the `ProLen` and the elapsed time. Keys: `i` probe, `f` flash, `d` dump, `r` reset, `↑↓` image,
+`←→` link, `q` quit.
+
+The gate is five checks, each with a verdict, so "is this the right firmware for this monitor" is
+answered by data rather than by a filename:
+
+| check | from | to |
+|---|---|---|
+| capacity | the image's byte size | the part the panel's flash ID selected |
+| model | the identity block baked into the image | the EDID's monitor name |
+| version | the version in the filename | the build stamp inside the image |
+| checksum | the `CHK` in the filename | `sum(bytes) & 0xFFFF` of the file |
+| geometry | the file length | whole 0x10000 banks |
+
+Live on the X28 with FW.012 selected, all five are green:
+
+```
+ok  capacity: image 1835008 B, panel 4194304 B (fits)
+ok  model:    image says "MAG 341CQ X28   RTD2711"; panel name not read
+ok  version:  file 012 vs image "FW.012 20260612"
+ok  checksum: matches filename
+ok  geometry: 1835008 bytes = 28 banks of 0x10000
+```
+
+The **model line is the one that catches a wrong image**: MSI writes the model, the panel and the
+build date into the user-data bank of every firmware file, and `Tags::scan` reads them back out —
+tested against both shipped images, which name `MAG 341CQ X28   RTD2711` / `TPO340QH1-CH01 D01`.
+
+`d` pulls the current firmware off the monitor, bank by bank, into `dumpflash.bin` — that is the
+modding path, and the dump is the same accessor the flasher writes through, so a bank that reads
+back correctly is a bank the write path can trust.
+
+## The CLI
+
+```
+buses    List display links that have an I2C adapter        inspect   Show a .bin
 
 ```
 i2c-1   NVIDIA i2c adapter 1 at 1:00.0 connected

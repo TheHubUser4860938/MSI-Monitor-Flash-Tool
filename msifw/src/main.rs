@@ -376,11 +376,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                             let n = (msifw::binfile::BANK_SIZE
                                 - (addr as usize % msifw::binfile::BANK_SIZE))
                                 .min(image.len() - off);
-                            isp.dump_flash_mcm(
-                                b,
-                                addr as u32 % 0x1_0000,
-                                &mut image[off..off + n],
-                            )?;
+                            isp.dump_flash_mcm(b, addr % 0x1_0000, &mut image[off..off + n])?;
                             off += n;
                             b += 1;
                         }
