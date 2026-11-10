@@ -96,6 +96,12 @@ enum Cmd {
         /// Compare a CRC per written page, as the tool's background path does.
         #[arg(long)]
         verify: bool,
+        /// Ask the panel where to write and print the plan, without touching the flash.
+        #[arg(long)]
+        dry_run: bool,
+        /// Write the plan as JSON.
+        #[arg(long)]
+        plan: Option<PathBuf>,
     },
     /// Reset the MCU (`ResetMCUExport`).
     Reset,
@@ -427,7 +433,12 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                 }
-                Cmd::Flash { bin, verify } => {
+                Cmd::Flash {
+                    bin,
+                    verify,
+                    dry_run,
+                    plan: plan_path,
+                } => {
                     let img = Image::open(bin)?;
                     match img.chk_ok() {
                         Some(false) => eprintln!(
@@ -459,16 +470,43 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                     isp.scaler_stop()?;
                     let start = isp.program_start_bank()? as u16;
                     let banks = img.size().div_ceil(0x1_0000);
+                    println!(
+                        "start bank {start} (the panel's boot bank), {banks} banks, {} bytes",
+                        img.size()
+                    );
+                    let mut rows: Vec<String> = Vec::new();
                     for b in 0..banks as u16 {
                         let plan = Isp::bank_plan(start + b, &img.bytes);
                         if plan.pro_len == 0 {
                             continue;
                         }
-                        isp.erase_bank_plan(&plan)?;
-                        isp.program_bank(&plan, &img.bytes, *verify)?;
-                        print!("\rbank {}/{}  {} bytes", b + 1, banks, plan.pro_len);
+                        rows.push(format!(
+                            "    {{\"bank\": {}, \"address\": \"{:#x}\", \"prolen\": {}, \"sectors\": {}}}",
+                            plan.bank,
+                            u32::from(plan.bank) * 0x1_0000,
+                            plan.pro_len,
+                            plan.sector_erase_count
+                        ));
+                        if !*dry_run {
+                            isp.erase_bank_plan(&plan)?;
+                            isp.program_bank(&plan, &img.bytes, *verify)?;
+                        }
+                        print!("\rbank {}/{}  {:#x} bytes", b + 1, banks, plan.pro_len);
                     }
                     println!();
+                    if let Some(path) = plan_path {
+                        let doc = format!(
+                            "{{\n  \"image\": \"{}\",\n  \"start_bank\": {},\n  \"banks\": [\n{}\n  ]\n}}\n",
+                            bin.display(),
+                            start,
+                            rows.join(",\n")
+                        );
+                        std::fs::write(path, doc.as_bytes())?;
+                    }
+                    if *dry_run {
+                        println!("dry run — the flash was not touched");
+                        return Ok(());
+                    }
                     if settings.reset_mcu {
                         isp.comm.reset_firmware()?;
                         isp.comm.scaler_run()?;

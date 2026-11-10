@@ -618,7 +618,7 @@ impl<'a> Isp<'a> {
         if data.is_empty() {
             return Err(CommError::BadLength);
         }
-        self.comm.write_reg(REG_MODE, 2)?;
+        self.comm.write_reg(REG_MODE, 0x23)?;
         // Write-enable first: the bridge latches it and the program only takes effect for the part
         // once it is set. Measured on the panel — a program without it leaves the bank at 0xFF.
         self.comm.write_reg(REG_OPCODE, OPCODE_WREN)?;
