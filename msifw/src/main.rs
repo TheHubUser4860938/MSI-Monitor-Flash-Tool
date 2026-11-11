@@ -127,6 +127,16 @@ enum Cmd {
         /// The bridge's transfer-mode byte (0x6d) for the program.
         #[arg(long, default_value = "0x23", value_parser = parse_u8)]
         mode: u8,
+        /// The bridge's command-issue byte (0x6f) for a page program.
+        #[arg(long, default_value = "0x02", value_parser = parse_u8)]
+        issue: u8,
+        /// Write a TX length to 0x78/0x79/0x7a before issuing. Hex, big-endian: `0xffff` = ff,ff,00.
+        #[arg(long)]
+        tx_len: Option<String>,
+        /// Lift block protect with WRSR (the part's `status_disable_wp`, 0xff on the GD25Q32C)
+        /// before the program, the way the plugin's prepare step does.
+        #[arg(long)]
+        wrsr: bool,
     },
     /// The text UI: panel, image, compatibility, progress meter.
     Gui {
@@ -526,7 +536,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                         println!("mcu reset");
                     }
                 }
-                Cmd::Test { bank, len, mode } => {
+                Cmd::Test { bank, len, mode, issue, tx_len, wrsr } => {
                     isp.handshake()?;
                     isp.detect_slave()?;
                     isp.select_part(&table)?;
@@ -534,13 +544,24 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                     isp.read_address_mode()?;
                     let st = isp.flash_status()?;
                     println!("status    {st:#04x} (BP bits {:#05b} = block protect)", (st >> 2) & 0x3f);
-                    if let Some(disable) = isp.part.as_ref().map(|p| p.status_disable_wp as u8) {
-                        isp.write_status(disable)?;
-                        println!("wrsr      {disable:#04x} -> now {:#04x}", isp.last_status);
+                    if *wrsr {
+                        if let Some(disable) =
+                            isp.part.as_ref().map(|p| p.status_disable_wp as u8)
+                        {
+                            isp.write_status(disable)?;
+                            println!("wrsr      {disable:#04x} -> now {:#04x}", isp.last_status);
+                        }
                     }
                     println!(
                         "bank      {bank} mode {mode:#04x} (erase, {len} bytes, read back)"
                     );
+                    isp.issue_byte = *issue;
+                    if let Some(v) = tx_len {
+                        let n = u32::from_str_radix(v.trim().trim_start_matches("0x"), 16)
+                            .map_err(|e| format!("bad --tx-len {v}: {e}"))?;
+                        isp.tx_len = Some([(n >> 16) as u8, (n >> 8) as u8, n as u8]);
+                        println!("tx_len    0x{v} -> 0x78/79/7a");
+                    }
                     let (good, n) = isp.write_test_bank_mode(*bank, *len as usize, *mode)?;
                     println!("status    {:#04x} after erase", isp.last_status);
                     if good == n {

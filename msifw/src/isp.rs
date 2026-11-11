@@ -61,6 +61,14 @@ pub const STATUS_BANK_ERASED: u8 = 0xDE;
 pub const OPCODE_SECTOR_ERASE: u8 = 0x20;
 pub const OPCODE_BANK_ERASE: u8 = 0xD8;
 pub const OPCODE_PAGE_PROGRAM: u8 = 0x02;
+/// Issue value the decompiled plugin writes to `0x6f` to start a page program. The SPI opcode for
+/// a page program is `0x02`; the bridge's issue register takes the plugin's `0x20`.
+pub const ISSUE_PAGE_PROGRAM: u8 = 0x20;
+/// Issue value the vendor's Flash.dat row writes for the byte program that writes cells.
+pub const ISSUE_BYTE_PROGRAM: u8 = 0xa0;
+/// Provisional TX count. `0x71` is proven for the read side; the page-program engine may consult
+/// a different register, and `0x78..0x7a` sit at `0xff` in the register snapshot.
+pub const REG_TX_LEN: u8 = 0x78;
 /// The vendor's own program command, from the GD25Q32C and MX25L3206E rows of Flash.dat: one
 /// byte at a time with `0x6f <- 0xa0`, at mode `0x23` and length `0x00`.
 pub const OPCODE_BYTE_PROGRAM: u8 = 0xa0;
@@ -113,6 +121,13 @@ pub struct Isp<'a> {
     pub last_status: u8,
     /// The byte written to the bridge's transfer-mode register (0x6d) for a program.
     pub transfer_mode: u8,
+    /// Optional TX length written to 0x78/0x79/0x7a before the issue. The bridge's read side
+    /// counts bytes out of 0x71; the page-program engine appears to count from somewhere else,
+    /// and 0x78..0x7a are the registers that sit idle at 0xff in the snapshot.
+    pub tx_len: Option<[u8; 3]>,
+    /// The byte written to the bridge's command-issue register (0x6f) for a page program.
+    /// The decompiled function writes 0x20; the GD25Q32C's page-program opcode is 0x02.
+    pub issue_byte: u8,
 }
 
 impl<'a> Isp<'a> {
@@ -124,6 +139,8 @@ impl<'a> Isp<'a> {
             isp_mode_acked: false,
             last_status: 0,
             transfer_mode: 0x23,
+            issue_byte: ISSUE_PAGE_PROGRAM,
+            tx_len: Some([0xff, 0xff, 0xff]),
             part: None,
             four_byte_address: false,
         }
@@ -569,7 +586,7 @@ impl<'a> Isp<'a> {
             // The vendor's recipe is a byte program: mode 0x23, one byte into the FIFO, issue
             // 0xa0, address rewritten per byte. Measured on the panel: this shape writes cells,
             // the 256-byte page program leaves them at 0xFF in every mode byte tried.
-            self.program_bytes(addr, chunk)?;
+            self.program_page(addr, chunk, false)?;
             if verify {
                 self.verify_page(addr, chunk)?;
             }
@@ -624,10 +641,16 @@ impl<'a> Isp<'a> {
     /// One page program, `FUN_1003d760`'s inner body: mode 2, length minus one, the FIFO burst,
     /// the address, then the masked write that issues it.
     pub fn program_page(&mut self, addr: u32, data: &[u8], verify: bool) -> Result<()> {
+        let issue = self.issue_byte;
         if data.is_empty() {
             return Err(CommError::BadLength);
         }
         self.comm.write_reg(REG_MODE, self.transfer_mode)?;
+        if let Some([a, b, c]) = self.tx_len {
+            self.comm.write_reg(REG_TX_LEN, a)?;
+            self.comm.write_reg(0x79, b)?;
+            self.comm.write_reg(0x7a, c)?;
+        }
         // Write-enable as a full MCU cycle — opcode 0x06 then the trigger pair. Measured on the
         // panel: with only `0x61<-0x06` the page keeps its erased 0xFF; with the trigger pair the
         // program reaches the array.
@@ -641,8 +664,8 @@ impl<'a> Isp<'a> {
         self.comm.write_reg(REG_LEN, (data.len() - 1) as u8)?;
         self.comm.burst_write(REG_FIFO, data)?;
         self.write_addr(addr)?;
-        self.comm
-            .masked_write(REG_ISSUE, 0xFF, OPCODE_PAGE_PROGRAM)?;
+        // A plain write: the masked form reads 0x6f first, and that read is not free here.
+        self.comm.write_reg(REG_ISSUE, issue)?;
         // The NOR's own write-in-progress bit is the authoritative end-of-program signal; the
         // bridge's ready bit is a courtesy check with a short budget.
         self.ready(REG_ISSUE, 0x10)?;
@@ -656,17 +679,21 @@ impl<'a> Isp<'a> {
     /// The verify the plugin actually runs: a **per-chunk CRC byte**, not a data read-back
     /// (`FUN_1001c530`). Mismatch is `0xd04` on the first page and `0xd06` on any later one.
     pub fn verify_page(&mut self, addr: u32, data: &[u8]) -> Result<()> {
+        // The authoritative check is a raw read-back through the proven dump path: the bridge CRC
+        // can pass while the cells stay 0xFF.
+        let mut got = vec![0u8; data.len()];
+        self.dump_flash(addr, &mut got)?;
+        if got != data {
+            return Err(CommError::ReadFailed);
+        }
+        // Secondary, non-fatal: the plugin's range-OR CRC.
         self.write_addr(addr)?;
         let end = addr + data.len() as u32 - 1;
         self.comm.write_reg(REG_CRC_END[0], (end >> 16) as u8)?;
         self.comm.write_reg(REG_CRC_END[1], (end >> 8) as u8)?;
         self.comm.write_reg(REG_CRC_END[2], end as u8)?;
-        self.comm.masked_write(REG_ISSUE, 0xFF, 4)?;
-        self.poll(REG_TRANSFER, 0x10, POLL_ITERATIONS)?;
-        let got = self.comm.read_reg(REG_CRC_RESULT)?;
-        if got != crc8(data) {
-            return Err(CommError::ReadFailed);
-        }
+        self.comm.write_reg(REG_ISSUE, 4)?;
+        let _ = self.comm.read_reg(REG_CRC_RESULT);
         Ok(())
     }
 
@@ -1018,6 +1045,9 @@ mod tests {
         ddcci: RefCell<BTreeMap<(u8, u8), Vec<u8>>>,
         /// The 16-bit-indexed scaler register file (the MCM window).
         scaler: RefCell<BTreeMap<u16, u8>>,
+        /// Bytes the FIFO burst read will pop, in order. A test arms this with the page contents
+        /// so a read-back verify sees its own data, the way the panel does.
+        fifo: RefCell<std::collections::VecDeque<u8>>,
     }
 
     impl Fake {
@@ -1027,6 +1057,10 @@ mod tests {
         }
         fn reg(&self, r: u8, v: u8) {
             self.regs.borrow_mut().insert(r, v);
+        }
+        /// Arm the bytes a FIFO burst read returns, in order.
+        fn arm_fifo(&self, bytes: &[u8]) {
+            *self.fifo.borrow_mut() = bytes.iter().copied().collect();
         }
         fn page_reg(&self, page: u8, off: u8, v: u8) {
             self.page_regs
@@ -1079,8 +1113,15 @@ mod tests {
             Ok(())
         }
         fn read_segment(&self, _slave: u8, _reg: u8, b: &mut [u8]) -> Result<()> {
-            for (i, x) in b.iter_mut().enumerate() {
-                *x = (i % 256) as u8;
+            let mut q = self.fifo.borrow_mut();
+            if q.len() >= b.len() {
+                for x in b.iter_mut() {
+                    *x = q.pop_front().unwrap();
+                }
+            } else {
+                for (i, x) in b.iter_mut().enumerate() {
+                    *x = (i % 256) as u8;
+                }
             }
             Ok(())
         }
@@ -1434,6 +1475,8 @@ mod tests {
         let mut fake = Fake::default();
         ready(&fake);
         let mut isp = Isp::new(&mut fake, &cfg);
+        isp.transfer_mode = 0x02;
+        isp.tx_len = None;
         let data = vec![0xa5u8; 4];
         isp.program_page(0x0a_1b2c, &data, false).unwrap();
         let log = fake.taken();
@@ -1447,9 +1490,8 @@ mod tests {
         assert!(log.contains(&"REG 65=1b".to_string()));
         assert!(log.contains(&"REG 66=2c".to_string()));
         assert!(
-            log.iter()
-                .any(|l| l.contains(&format!("REG 6f={OPCODE_PAGE_PROGRAM:02x}"))),
-            "issue"
+            log.iter().any(|l| l.contains("REG 6f=20")),
+            "issue: the plugin's page-program value, a plain write"
         );
     }
 
@@ -1479,12 +1521,14 @@ mod tests {
     }
 
     #[test]
-    fn verify_reads_the_crc_byte_back() {
+    fn verify_reads_the_page_back_and_arms_the_crc() {
+        // The authoritative check is the raw read-back; the bridge CRC is a secondary signal.
         let cfg = Settings::plugin_defaults();
         let mut fake = Fake::default();
         ready(&fake);
         let data = [1u8, 2, 3];
         fake.reg(REG_CRC_RESULT, crc8(&data));
+        fake.arm_fifo(&data);
         let mut isp = Isp::new(&mut fake, &cfg);
         isp.verify_page(0x100, &data).unwrap();
         let log = fake.taken();
@@ -1493,6 +1537,20 @@ mod tests {
             "CRC end address armed: {log:?}"
         );
         assert!(log.iter().any(|l| l.contains("REG 6f=04")), "CRC issue");
+    }
+
+    #[test]
+    fn a_verify_that_reads_back_different_bytes_fails() {
+        let cfg = Settings::plugin_defaults();
+        let mut fake = Fake::default();
+        ready(&fake);
+        let data = [1u8, 2, 3];
+        fake.arm_fifo(&[9, 9, 9]);
+        let mut isp = Isp::new(&mut fake, &cfg);
+        assert!(matches!(
+            isp.verify_page(0x100, &data),
+            Err(CommError::ReadFailed)
+        ));
     }
 
     #[test]
