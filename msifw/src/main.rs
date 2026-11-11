@@ -107,6 +107,15 @@ enum Cmd {
     Reset,
     /// Release the scaler so the panel's video and DisplayPort link come back (`FUN_10001d40`).
     Wake,
+    /// Snapshot the bridge registers, with the FIFO optionally staged first.
+    Regs {
+        /// Stage this many pattern bytes into the FIFO before the second snapshot.
+        #[arg(long, default_value = "0", value_parser = parse_u32)]
+        stage: u32,
+        /// Mode byte to write before staging.
+        #[arg(long, default_value = "2", value_parser = parse_u8)]
+        mode: u8,
+    },
     /// Erase one bank, write a known pattern, read it back — the first real write.
     Test {
         /// Bank to exercise. The top banks are unused by the shipped images.
@@ -115,6 +124,9 @@ enum Cmd {
         /// Bytes to write and compare.
         #[arg(long, default_value = "4096", value_parser = parse_u32)]
         len: u32,
+        /// The bridge's transfer-mode byte (0x6d) for the program.
+        #[arg(long, default_value = "0x23", value_parser = parse_u8)]
+        mode: u8,
     },
     /// The text UI: panel, image, compatibility, progress meter.
     Gui {
@@ -265,6 +277,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
         | Cmd::Erase { .. }
         | Cmd::Flash { .. }
         | Cmd::Wake
+        | Cmd::Regs { .. }
         | Cmd::Test { .. }
         | Cmd::Reset => {
             let settings = Settings::load(&cli.setting)?;
@@ -513,7 +526,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                         println!("mcu reset");
                     }
                 }
-                Cmd::Test { bank, len } => {
+                Cmd::Test { bank, len, mode } => {
                     isp.handshake()?;
                     isp.detect_slave()?;
                     isp.select_part(&table)?;
@@ -525,13 +538,33 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                         isp.write_status(disable)?;
                         println!("wrsr      {disable:#04x} -> now {:#04x}", isp.last_status);
                     }
-                    println!("bank      {bank} (bank erase, then {len} bytes, then read back)");
-                    let (good, n) = isp.write_test_bank(*bank, *len as usize)?;
+                    println!(
+                        "bank      {bank} mode {mode:#04x} (erase, {len} bytes, read back)"
+                    );
+                    let (good, n) = isp.write_test_bank_mode(*bank, *len as usize, *mode)?;
                     println!("status    {:#04x} after erase", isp.last_status);
                     if good == n {
                         println!("read back {good}/{n} bytes — the write path works");
                     } else {
                         println!("read back {good}/{n} bytes — MISMATCH");
+                    }
+                }
+                Cmd::Regs { stage, mode } => {
+                    isp.handshake()?;
+                    isp.detect_slave()?;
+                    isp.select_part(&table)?;
+                    isp.read_address_mode()?;
+                    let before = isp.peek_regs()?;
+                    if *stage > 0 {
+                        let pat: Vec<u8> = (0..*stage as usize)
+                            .map(|i| (i as u32).wrapping_mul(7).wrapping_add(0x5A) as u8)
+                            .collect();
+                        isp.stage_fifo(&pat, *mode, (pat.len() - 1) as u8)?;
+                    }
+                    let after = isp.peek_regs()?;
+                    for ((r, a), (_, b)) in before.iter().zip(after.iter()) {
+                        let mark = if a != b { "  <-- moved" } else { "" };
+                        println!("{r:#04x}  {a:#04x} -> {b:#04x}{mark}");
                     }
                 }
                 Cmd::Wake => {

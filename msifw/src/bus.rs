@@ -45,6 +45,44 @@ pub struct Bus {
 }
 
 impl Bus {
+    /// The connector's sysfs `status` file, e.g. `/sys/class/drm/card0-DP-1/status`.
+    fn status_path(&self) -> Option<std::path::PathBuf> {
+        if self.connector.is_empty() {
+            return None;
+        }
+        let mut out = std::path::PathBuf::from("/sys/class/drm");
+        for entry in fs::read_dir("/sys/class/drm").ok()?.flatten() {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if name.ends_with(&self.connector) && name.starts_with("card") {
+                out.push(name.as_ref());
+                out.push("status");
+                return Some(out);
+            }
+        }
+        None
+    }
+
+    /// A sustained write run drops the DisplayPort link: measured on this panel, it goes
+    /// `connected` -> `disconnected` about 5 s into a page-program burst and comes back on its own
+    /// in 2-3 s. Wait for it and resume, up to a 30 s budget.
+    fn wait_link(&self) -> bool {
+        let Some(path) = self.status_path() else {
+            std::thread::sleep(std::time::Duration::from_millis(250));
+            return true;
+        };
+        for _ in 0..150 {
+            if let Ok(v) = fs::read_to_string(&path) {
+                if v.trim() == "connected" {
+                    std::thread::sleep(std::time::Duration::from_millis(30));
+                    return true;
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        }
+        false
+    }
+
     /// Open `/dev/i2c-<number>`.
     pub fn open(number: u32) -> io::Result<Bus> {
         let path = format!("/dev/i2c-{number}");
@@ -170,15 +208,26 @@ impl Bus {
         // A DP-AUX link NACKs the first attempt at a register often enough that one retry is
         // worth it — measured on this panel, where a read of 0x76 took the next transfer with it.
         let mut attempt = 0;
+        let mut link_waits = 0;
         let rc = loop {
             attempt += 1;
             let rc =
                 unsafe { libc::ioctl(self.file.as_raw_fd(), I2C_RDWR, &mut data as *mut RdwrData) };
-            if rc >= 0 || attempt >= 6 {
+            if rc >= 0 {
                 break rc;
             }
+            if attempt == 6 {
+                // The link is down, not merely busy. Bring it back and take one more run at it.
+                if link_waits >= 3 || !self.wait_link() {
+                    break rc;
+                }
+                link_waits += 1;
+                attempt = 0;
+            }
             // AUX NACKs come in short runs; back off a little each time rather than hammering.
-            std::thread::sleep(std::time::Duration::from_micros(200 * attempt as u64));
+            // A sustained write run drops the DisplayPort link for several seconds, so the later
+            // attempts wait longer — 6 attempts now covers a ~0.4 s outage instead of ~2 ms.
+            std::thread::sleep(std::time::Duration::from_millis(5 * attempt as u64));
         };
         if rc < 0 {
             let e = io::Error::last_os_error();

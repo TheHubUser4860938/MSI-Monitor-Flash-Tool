@@ -111,6 +111,8 @@ pub struct Isp<'a> {
     pub isp_mode_acked: bool,
     /// The NOR's status byte after the last erase, for the UI to show.
     pub last_status: u8,
+    /// The byte written to the bridge's transfer-mode register (0x6d) for a program.
+    pub transfer_mode: u8,
 }
 
 impl<'a> Isp<'a> {
@@ -121,6 +123,7 @@ impl<'a> Isp<'a> {
             slave: None,
             isp_mode_acked: false,
             last_status: 0,
+            transfer_mode: 0x23,
             part: None,
             four_byte_address: false,
         }
@@ -563,7 +566,13 @@ impl<'a> Isp<'a> {
                 addr += take as u32;
                 continue; // the plugin skips all-0xFF chunks
             }
-            self.program_page(addr, chunk, verify)?;
+            // The vendor's recipe is a byte program: mode 0x23, one byte into the FIFO, issue
+            // 0xa0, address rewritten per byte. Measured on the panel: this shape writes cells,
+            // the 256-byte page program leaves them at 0xFF in every mode byte tried.
+            self.program_bytes(addr, chunk)?;
+            if verify {
+                self.verify_page(addr, chunk)?;
+            }
             off += take;
             addr += take as u32;
         }
@@ -618,10 +627,13 @@ impl<'a> Isp<'a> {
         if data.is_empty() {
             return Err(CommError::BadLength);
         }
-        self.comm.write_reg(REG_MODE, 0x23)?;
-        // Write-enable first: the bridge latches it and the program only takes effect for the part
-        // once it is set. Measured on the panel — a program without it leaves the bank at 0xFF.
+        self.comm.write_reg(REG_MODE, self.transfer_mode)?;
+        // Write-enable as a full MCU cycle — opcode 0x06 then the trigger pair. Measured on the
+        // panel: with only `0x61<-0x06` the page keeps its erased 0xFF; with the trigger pair the
+        // program reaches the array.
         self.comm.write_reg(REG_OPCODE, OPCODE_WREN)?;
+        self.comm.write_reg(REG_TRIGGER, 0x38)?;
+        self.comm.write_reg(REG_TRIGGER, 0x39)?;
         // `FUN_1001c4c0(0x10, 20000)` between the mode write and the length write. On this panel
         // the register that answers that test is the issue register 0x6f (it reads 0x92 idle);
         // 0x76 NACKs, so the inferred `REG_TRANSFER` is not it.
@@ -751,6 +763,13 @@ impl<'a> Isp<'a> {
     /// reboot, not a repair. The pattern is `i.wrapping_mul(7).wrapping_add(0x5A)` so a shift by
     /// one byte in the address path shows up as a mismatch, not a partial pass.
     pub fn write_test_bank(&mut self, bank: u16, bytes: usize) -> Result<(usize, usize)> {
+        let m = self.transfer_mode;
+        self.write_test_bank_mode(bank, bytes, m)
+    }
+
+    /// The same probe with an explicit transfer-mode byte, so the mode can be swept on hardware.
+    pub fn write_test_bank_mode(&mut self, bank: u16, bytes: usize, mode: u8) -> Result<(usize, usize)> {
+        self.transfer_mode = mode;
         self.erase_bank(bank)?;
         let start = usize::from(bank) * BANK_SIZE as usize;
         let n = bytes.min(BANK_SIZE as usize);
@@ -809,6 +828,24 @@ impl<'a> Isp<'a> {
         // the far side. Register 0x61 answers as the flash opcode register today, and the MCU
         // write below uses the same opcode register, so no selector is issued here.
         self.write_mcu_reg(0x04, 1)
+    }
+
+    /// Snapshot the bridge's register file, `0x60..0x80`. Used to find the bit that moves when
+    /// the FIFO holds data — the read path arms the ISP window, the write path is assumed not to.
+    pub fn peek_regs(&mut self) -> Result<Vec<(u8, u8)>> {
+        let mut out = Vec::with_capacity(0x20);
+        for r in 0x60u8..0x80 {
+            out.push((r, self.comm.read_reg(r)?));
+        }
+        Ok(out)
+    }
+
+    /// Stage bytes into the FIFO without issuing anything, so a register snapshot taken after the
+    /// write shows what the bridge made of them.
+    pub fn stage_fifo(&mut self, data: &[u8], mode: u8, len: u8) -> Result<()> {
+        self.comm.write_reg(REG_MODE, mode)?;
+        self.comm.write_reg(REG_LEN, len)?;
+        self.comm.burst_write(REG_FIFO, data)
     }
 
     /// The whole flow: prepare, then every bank the image fills, then the reset.
