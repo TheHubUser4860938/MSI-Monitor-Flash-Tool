@@ -510,6 +510,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                         img.size()
                     );
                     let mut rows: Vec<String> = Vec::new();
+                    let t0 = std::time::Instant::now();
                     for b in 0..banks as u16 {
                         let plan = Isp::bank_plan(start + b, &img.bytes);
                         if plan.pro_len == 0 {
@@ -530,7 +531,18 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                                 isp.program_bank(&plan, &img.bytes, *verify)?;
                             }
                         }
-                        print!("\rbank {}/{}  {:#x} bytes", b + 1, banks, plan.pro_len);
+                        // Flush: the carriage-return form never reaches a redirected log otherwise,
+                        // so a 2-hour flash looked like it had made no progress at all.
+                        println!(
+                            "bank {}/{}  bank {:#x}  {:#x} bytes  +{:.1}m",
+                            b + 1,
+                            banks,
+                            plan.bank,
+                            plan.pro_len,
+                            t0.elapsed().as_secs_f32() / 60.0
+                        );
+                        use std::io::Write;
+                        let _ = std::io::stdout().flush();
                     }
                     println!();
                     if let Some(path) = plan_path {
