@@ -133,6 +133,9 @@ enum Cmd {
         /// Write a TX length to 0x78/0x79/0x7a before issuing. Hex, big-endian: `0xffff` = ff,ff,00.
         #[arg(long)]
         tx_len: Option<String>,
+        /// Write order for the page program: 0 = addr,len,data  1 = len,data,addr (plugin)  2 = data,len,addr.
+        #[arg(long, default_value = "1", value_parser = parse_u8)]
+        order: u8,
         /// Lift block protect with WRSR (the part's `status_disable_wp`, 0xff on the GD25Q32C)
         /// before the program, the way the plugin's prepare step does.
         #[arg(long)]
@@ -536,7 +539,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                         println!("mcu reset");
                     }
                 }
-                Cmd::Test { bank, len, mode, issue, tx_len, wrsr } => {
+                Cmd::Test { bank, len, mode, issue, tx_len, order, wrsr } => {
                     isp.handshake()?;
                     isp.detect_slave()?;
                     isp.select_part(&table)?;
@@ -556,6 +559,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                         "bank      {bank} mode {mode:#04x} (erase, {len} bytes, read back)"
                     );
                     isp.issue_byte = *issue;
+                    isp.program_order = *order;
                     if let Some(v) = tx_len {
                         let n = u32::from_str_radix(v.trim().trim_start_matches("0x"), 16)
                             .map_err(|e| format!("bad --tx-len {v}: {e}"))?;

@@ -128,6 +128,10 @@ pub struct Isp<'a> {
     /// The byte written to the bridge's command-issue register (0x6f) for a page program.
     /// The decompiled function writes 0x20; the GD25Q32C's page-program opcode is 0x02.
     pub issue_byte: u8,
+    /// Which order the page program writes length / data / address in. The plugin uses
+    /// length, burst, address; the bridge may latch the address when the command is armed, so all
+    /// three orders are worth sweeping against hardware.
+    pub program_order: u8,
 }
 
 impl<'a> Isp<'a> {
@@ -141,6 +145,7 @@ impl<'a> Isp<'a> {
             transfer_mode: 0x23,
             issue_byte: ISSUE_PAGE_PROGRAM,
             tx_len: Some([0xff, 0xff, 0xff]),
+            program_order: 1,
             part: None,
             four_byte_address: false,
         }
@@ -661,9 +666,27 @@ impl<'a> Isp<'a> {
         // the register that answers that test is the issue register 0x6f (it reads 0x92 idle);
         // 0x76 NACKs, so the inferred `REG_TRANSFER` is not it.
         self.ready(REG_ISSUE, 0x10)?;
-        self.comm.write_reg(REG_LEN, (data.len() - 1) as u8)?;
-        self.comm.burst_write(REG_FIFO, data)?;
-        self.write_addr(addr)?;
+        let len = (data.len() - 1) as u8;
+        match self.program_order {
+            // address, then length, then the payload, then issue
+            0 => {
+                self.write_addr(addr)?;
+                self.comm.write_reg(REG_LEN, len)?;
+                self.comm.burst_write(REG_FIFO, data)?;
+            }
+            // length, payload, address — the order the decompiled plugin uses
+            _ if self.program_order == 1 => {
+                self.comm.write_reg(REG_LEN, len)?;
+                self.comm.burst_write(REG_FIFO, data)?;
+                self.write_addr(addr)?;
+            }
+            // payload first: the bridge may take the FIFO as the trigger to arm a transfer
+            _ => {
+                self.comm.burst_write(REG_FIFO, data)?;
+                self.comm.write_reg(REG_LEN, len)?;
+                self.write_addr(addr)?;
+            }
+        }
         // A plain write: the masked form reads 0x6f first, and that read is not free here.
         self.comm.write_reg(REG_ISSUE, issue)?;
         // The NOR's own write-in-progress bit is the authoritative end-of-program signal; the
