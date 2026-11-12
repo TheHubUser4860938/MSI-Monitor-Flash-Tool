@@ -96,6 +96,11 @@ enum Cmd {
         /// Compare a CRC per written page, as the tool's background path does.
         #[arg(long)]
         verify: bool,
+        /// Program with the vendor's byte program (mode 0x23, one byte per cycle, issue 0xa0) —
+        /// the shape proven to write cells on this panel. Slower per byte, and the only one that
+        /// lands today.
+        #[arg(long)]
+        byte: bool,
         /// Ask the panel where to write and print the plan, without touching the flash.
         #[arg(long)]
         dry_run: bool,
@@ -133,6 +138,9 @@ enum Cmd {
         /// Write a TX length to 0x78/0x79/0x7a before issuing. Hex, big-endian: `0xffff` = ff,ff,00.
         #[arg(long)]
         tx_len: Option<String>,
+        /// Program shape: 0 = page program, 1 = vendor byte program, N = byte engine at N bytes/cycle.
+        #[arg(long, default_value = "0", value_parser = parse_u32)]
+        count: u32,
         /// Write order for the page program: 0 = addr,len,data  1 = len,data,addr (plugin)  2 = data,len,addr.
         #[arg(long, default_value = "1", value_parser = parse_u8)]
         order: u8,
@@ -462,6 +470,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                 Cmd::Flash {
                     bin,
                     verify,
+                    byte,
                     dry_run,
                     plan: plan_path,
                 } => {
@@ -515,7 +524,11 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                         ));
                         if !*dry_run {
                             isp.erase_bank_plan(&plan)?;
-                            isp.program_bank(&plan, &img.bytes, *verify)?;
+                            if *byte {
+                                isp.program_bank_bytes(&plan, &img.bytes)?;
+                            } else {
+                                isp.program_bank(&plan, &img.bytes, *verify)?;
+                            }
                         }
                         print!("\rbank {}/{}  {:#x} bytes", b + 1, banks, plan.pro_len);
                     }
@@ -539,7 +552,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                         println!("mcu reset");
                     }
                 }
-                Cmd::Test { bank, len, mode, issue, tx_len, order, wrsr } => {
+                Cmd::Test { bank, len, mode, issue, tx_len, order, count, wrsr } => {
                     isp.handshake()?;
                     isp.detect_slave()?;
                     isp.select_part(&table)?;
@@ -566,7 +579,8 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
                         isp.tx_len = Some([(n >> 16) as u8, (n >> 8) as u8, n as u8]);
                         println!("tx_len    0x{v} -> 0x78/79/7a");
                     }
-                    let (good, n) = isp.write_test_bank_mode(*bank, *len as usize, *mode)?;
+                    let (good, n) =
+                        isp.write_test_bank_shape(*bank, *len as usize, *mode, *count as usize)?;
                     println!("status    {:#04x} after erase", isp.last_status);
                     if good == n {
                         println!("read back {good}/{n} bytes — the write path works");

@@ -643,6 +643,30 @@ impl<'a> Isp<'a> {
         Ok(())
     }
 
+    /// The middle ground the sweeps haven't covered: the vendor's byte-program engine
+    /// (issue `0xa0`, mode `0x23`) driven at a multi-byte count. The byte program at count 1
+    /// writes cells; the page program at count 256 does not. This fills in the gap — `count`
+    /// bytes staged into the FIFO per issue, address rewritten per cycle.
+    pub fn program_bytes_n(&mut self, addr: u32, data: &[u8], count: usize) -> Result<()> {
+        let count = count.clamp(1, PAGE_SIZE as usize);
+        self.comm.write_reg(REG_MODE, self.transfer_mode)?;
+        self.comm.write_reg(REG_LEN, (count - 1) as u8)?;
+        self.comm.write_reg(REG_OPCODE, OPCODE_WREN)?;
+        self.comm.write_reg(REG_TRIGGER, 0x38)?;
+        self.comm.write_reg(REG_TRIGGER, 0x39)?;
+        let mut off = 0usize;
+        while off < data.len() {
+            let n = count.min(data.len() - off);
+            self.write_addr(addr + off as u32)?;
+            self.comm.burst_write(REG_FIFO, &data[off..off + n])?;
+            self.comm.write_reg(REG_ISSUE, ISSUE_BYTE_PROGRAM)?;
+            self.ready(REG_ISSUE, 0x10)?;
+            self.wait_nor()?;
+            off += n;
+        }
+        Ok(())
+    }
+
     /// One page program, `FUN_1003d760`'s inner body: mode 2, length minus one, the FIFO burst,
     /// the address, then the masked write that issues it.
     pub fn program_page(&mut self, addr: u32, data: &[u8], verify: bool) -> Result<()> {
@@ -819,12 +843,29 @@ impl<'a> Isp<'a> {
 
     /// The same probe with an explicit transfer-mode byte, so the mode can be swept on hardware.
     pub fn write_test_bank_mode(&mut self, bank: u16, bytes: usize, mode: u8) -> Result<(usize, usize)> {
+        self.write_test_bank_shape(bank, bytes, mode, 0)
+    }
+
+    /// The probe with the program shape chosen: `count` 0 = page program, 1 = byte program,
+    /// anything else = the byte-program engine at that count.
+    pub fn write_test_bank_shape(&mut self, bank: u16, bytes: usize, mode: u8, count: usize) -> Result<(usize, usize)> {
         self.transfer_mode = mode;
         self.erase_bank(bank)?;
         let start = usize::from(bank) * BANK_SIZE as usize;
         let n = bytes.min(BANK_SIZE as usize);
         let pattern: Vec<u8> = (0..n).map(|i| (i as u32).wrapping_mul(7).wrapping_add(0x5A) as u8).collect();
-        self.program_bytes(start as u32, &pattern)?;
+        match count {
+            0 => {
+                let mut off = 0usize;
+                while off < n {
+                    let len = (PAGE_SIZE as usize).min(n - off);
+                    self.program_page((start + off) as u32, &pattern[off..off + len], false)?;
+                    off += len;
+                }
+            }
+            1 => self.program_bytes(start as u32, &pattern)?,
+            _ => self.program_bytes_n(start as u32, &pattern, count)?,
+        }
         let mut back = vec![0u8; n];
         self.dump_flash_fast(start as u32, &mut back)?;
         let good = back.iter().zip(&pattern).filter(|(a, b)| a == b).count();
@@ -896,6 +937,27 @@ impl<'a> Isp<'a> {
         self.comm.write_reg(REG_MODE, mode)?;
         self.comm.write_reg(REG_LEN, len)?;
         self.comm.burst_write(REG_FIFO, data)
+    }
+
+    /// Program a bank with the vendor's byte program — the shape proven on this panel.
+    pub fn program_bank_bytes(&mut self, plan: &BankPlan, image: &[u8]) -> Result<()> {
+        let start = usize::from(plan.bank) * BANK_SIZE as usize;
+        if plan.pro_len == 0 || start >= image.len() {
+            return Ok(());
+        }
+        let end = start + plan.pro_len as usize;
+        let mut addr = u32::try_from(start).map_err(|_| CommError::BadLength)?;
+        let mut off = start;
+        while off < end {
+            let take = (PAGE_SIZE as usize).min(end - off);
+            let chunk = &image[off..off + take];
+            if !chunk.iter().all(|&b| b == 0xFF) {
+                self.program_bytes(addr, chunk)?;
+            }
+            off += take;
+            addr += take as u32;
+        }
+        Ok(())
     }
 
     /// The whole flow: prepare, then every bank the image fills, then the reset.
